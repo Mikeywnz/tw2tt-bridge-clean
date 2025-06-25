@@ -8,11 +8,19 @@ const app = new Hono()
 app.use('*', cors())
 
 app.post('/webhook', async (c) => {
-  const body = await c.req.json()
+  let rawBody = await c.req.text()
+  let body
+
+  try {
+    body = JSON.parse(rawBody)
+  } catch (err) {
+    body = { message: rawBody } // fallback to plain text
+  }
+
   const authHeader = c.req.header('Authorization')
 
   // Validate secret
-  const expectedSecret = process.env.WEBHOOK_SECRET;
+  const expectedSecret = process.env.WEBHOOK_SECRET
   if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
     console.log('❌ Unauthorized webhook attempt')
     return c.json({ success: false, error: 'Unauthorized' }, 401)
