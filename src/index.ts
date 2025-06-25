@@ -12,7 +12,7 @@ app.post('/webhook', async (c) => {
   const authHeader = c.req.header('Authorization')
 
   // Validate secret
-  const expectedSecret = process.env.TRADINGVIEW_SECRET
+  const expectedSecret = process.env.WEBHOOK_SECRET;
   if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
     console.log('❌ Unauthorized webhook attempt')
     return c.json({ success: false, error: 'Unauthorized' }, 401)
