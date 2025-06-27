@@ -1,7 +1,7 @@
 import sys
 print("🚀 execute_trade.py started")
 
-from tigeropen.tiger_open_config import TigerOpenClientConfig
+from tigeropenapi.tiger_open_config import TigerOpenClientConfig
 from tigeropen.open_context import OpenContext
 from tigeropen.common.consts import Language
 from tigeropen.trade.domain.order import Order

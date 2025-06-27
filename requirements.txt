@@ -1,1 +1,1 @@
-tigeropen-openapi==3.3.2
+tigeropen==3.3.2
