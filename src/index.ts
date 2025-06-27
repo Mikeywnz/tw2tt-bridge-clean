@@ -25,7 +25,7 @@ if (alert) {
   side = parts[1]?.toLowerCase()
   quantity = parseInt(parts[2]) || 1
 
-  const command = `python3 execute_trade.py ${ticker} ${side} ${quantity}`
+  const command = `python3 execute_trade_live.py ${ticker} ${side} ${quantity}`
     exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error('❌ Error executing trade:', error)
