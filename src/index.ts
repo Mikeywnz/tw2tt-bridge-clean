@@ -16,11 +16,16 @@ app.post('/webhook', async (c) => {
 
   console.log('✅ Webhook received:', body)
 
-  const { ticker, side, qty } = body
+  const alert = body.alert
+let ticker, side, quantity
 
-  if (ticker && side) {
-    const quantity = qty || 1
-    const command = `python3 execute_trade.py ${ticker} ${side} ${quantity}`
+if (alert) {
+  const parts = alert.split(" ")
+  ticker = parts[0]
+  side = parts[1]?.toLowerCase()
+  quantity = parseInt(parts[2]) || 1
+
+  const command = `python3 execute_trade.py ${ticker} ${side} ${quantity}`
     exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error('❌ Error executing trade:', error)
