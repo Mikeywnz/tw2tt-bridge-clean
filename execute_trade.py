@@ -1,6 +1,6 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.consts import Market, SecType, Currency, OrderType
+from tigeropen.common.consts import Market, Currency, OrderType
 
 import sys
 
