@@ -1,33 +1,31 @@
-# execute_trade.py – Clean working version, minimal and enum-free
-
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.trade.request import Order
 
 import sys
 
 try:
-    # Parse alert payload like: 'MGC2508aCME buy 1'
-    symbol, action, quantity = sys.argv[1], sys.argv[2].lower(), int(sys.argv[3])
+    # Parse arguments from TradingView alert
+    # Example: MGC2508aCME buy 1
+    symbol = sys.argv[1]     # e.g. 'MGC2508aCME'
+    action = sys.argv[2]     # 'buy' or 'sell'
+    quantity = int(sys.argv[3])
 
-    # Load config from .properties file automatically
-    config = TigerOpenClientConfig()
+    # ✅ Initialize config and client
+    config = TigerOpenClientConfig()  # Uses .properties file automatically
     client = TradeClient(config)
 
-    # Build order using plain strings
-    order = Order(
+    # ✅ Place market order using plain strings (no Enums)
+    result = client.place_order(
         symbol=symbol,
-        sec_type='FUT',              # plain string, not SecType.FUT
-        currency='USD',              # plain string
-        exchange='CME',              # plain string
-        action=action.upper(),       # 'BUY' or 'SELL'
-        order_type='MKT',            # market order
+        sec_type='FUT',
+        exchange='CME',
+        currency='USD',
+        action=action.upper(),  # 'BUY' or 'SELL'
+        order_type='MKT',
         quantity=quantity
     )
 
-    # Place the order
-    response = client.place_order(order)
-    print("✅ Trade sent:", response)
+    print("✅ Trade executed:", result)
 
 except Exception as e:
-    print(f"❌ Trade execution failed: {e}")
+    print(f"❌ Error occurred: {e}")
