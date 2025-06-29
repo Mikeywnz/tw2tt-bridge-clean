@@ -10,7 +10,8 @@ def run_live_trade(symbol, action, quantity):
             capture_output=True,
             text=True
         )
-        print("📤 TigerTrade Execution Output:")
+        print(f"📦 TigerTrade Execution Return Code: {result.returncode}")
+        print("📬 TigerTrade Execution Output:")
         print(result.stdout)
         print("⚠️ TigerTrade Execution Errors:")
         print(result.stderr)
