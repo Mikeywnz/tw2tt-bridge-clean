@@ -1,6 +1,21 @@
 from flask import Flask, request, jsonify
+import subprocess
 
 app = Flask(__name__)
+
+def run_live_trade(symbol, action, quantity):
+    try:
+        result = subprocess.run(
+            ["python3", "execute_trade_live.py", symbol, action, str(quantity)],
+            capture_output=True,
+            text=True
+        )
+        print("📤 TigerTrade Execution Output:")
+        print(result.stdout)
+        print("⚠️ TigerTrade Execution Errors:")
+        print(result.stderr)
+    except Exception as e:
+        print("❌ Error launching TigerTrade process:", e)
 
 @app.route('/webhook', methods=["POST"])
 def webhook():
@@ -14,6 +29,7 @@ def webhook():
 
         if symbol and action and quantity:
             print(f"✅ Parsed: {symbol} | {action} | {quantity}")
+            run_live_trade(symbol, action, quantity)
             return jsonify({"success": True})
         else:
             print("⚠️ Incomplete data received.")
