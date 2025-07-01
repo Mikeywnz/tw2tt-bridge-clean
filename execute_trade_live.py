@@ -20,7 +20,8 @@ config = TigerOpenClientConfig()
 client = TradeClient(config)
 # Print the connected account to confirm
 assets = client.get_assets()
-print("🧾 Connected account:", assets.account_id)
+account_id = assets[0].account_id
+print("🧾 Connected account:", account_id)
 
 # ✅ Step 3: Build futures contract
 contract = future_contract(symbol=symbol, currency='USD')
