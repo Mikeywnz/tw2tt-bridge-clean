@@ -21,13 +21,16 @@ client = TradeClient(config)
 # Print the connected account to confirm
 assets = client.get_assets()
 account_id = assets[0].account_id
-print("🧾 Connected account:", account_id)
+if isinstance(assets, list) and len(assets) > 0:
+    print("📋 Connected account:", assets[0].account_id)
+else:
+    print("⚠️ No account found in assets response:", assets)
 
 # ✅ Step 3: Build futures contract
 contract = future_contract(symbol=symbol, currency='USD')
 
 # ✅ Step 4: Create Market Order
-order = Order(config.account, contract, action)
+order = Order(account_id, contract, action)
 order.order_type = "MKT"
 order.quantity = quantity
 order.outside_rth = False
