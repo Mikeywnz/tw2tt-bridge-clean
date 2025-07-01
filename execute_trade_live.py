@@ -18,6 +18,9 @@ print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {
 # ✅ Step 2: Load config and client
 config = TigerOpenClientConfig()
 client = TradeClient(config)
+# Print the connected account to confirm
+assets = client.get_assets()
+print("🧾 Connected account:", assets.account_id)
 
 # ✅ Step 3: Build futures contract
 contract = future_contract(symbol=symbol, currency='USD')
@@ -27,6 +30,10 @@ order = Order(config.account, contract, action)
 order.order_type = "MKT"
 order.quantity = quantity
 order.outside_rth = False
+
+# 🔍 Log contract and order for debugging
+print("📦 Contract details:", contract)
+print("📝 Order details:", order)
 
 # ✅ Step 5: Submit Order
 try:
