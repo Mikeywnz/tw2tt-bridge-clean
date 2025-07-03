@@ -3,42 +3,63 @@ import csv
 import json
 import time
 
-# Get absolute path to current folder
+# === PATH SETUP: Use absolute paths ===
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Absolute paths for data files
 open_trades_path = os.path.join(BASE_DIR, "open_trades.csv")
 live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
 
-print("✅ Trade monitor started...")
-
-while True:
-    # === STEP 1: LOAD OPEN TRADES ===
-    open_trades = []
-    try:
+# === FUNCTION: Load current open trades from CSV ===
+def load_open_trades():
+    trades = []
+    if os.path.exists(open_trades_path):
         with open(open_trades_path, "r") as file:
             reader = csv.DictReader(file)
             for row in reader:
-                open_trades.append({
-                    "symbol": row["symbol"],
-                    "entry_price": float(row["entry_price"]),
-                    "tp_price": float(row["tp_price"]),
-                    "sl_price": float(row["sl_price"]),
-                    "direction": row["action"].upper()
+                trades.append({
+                    "symbol": row['symbol'],
+                    "entry_price": float(row['entry_price']),
+                    "tp_price": float(row['tp_price']),
+                    "sl_price": float(row['sl_price']),
+                    "direction": row['action'].upper()
                 })
-        print("📘 Loaded open trades")
-    except Exception as e:
-        print(f"❌ Error reading open_trades.csv: {e}")
+    return trades
 
-    # === STEP 2: READ LIVE PRICES ===
-    try:
+# === FUNCTION: Load latest live prices ===
+def load_live_prices():
+    if os.path.exists(live_prices_path):
         with open(live_prices_path, "r") as f:
-            prices = json.load(f)
-            print(f"📊 Live prices received: {prices}")
-    except Exception as e:
-        print(f"❌ Error reading live_prices.json: {e}")
+            return json.load(f)
+    return {}
 
-    # === STEP 3: CHECK TP/SL (You can expand this logic next) ===
-    print("🔁 Checking trades against price...")
+# === FUNCTION: Monitor trades and evaluate TP/SL ===
+def monitor_trades():
+    print("🔍 Starting trade monitoring loop...")
+    while True:
+        open_trades = load_open_trades()
+        live_prices = load_live_prices()
 
-    time.sleep(10)
+        for trade in open_trades:
+            symbol = trade['symbol']
+            price = live_prices.get(symbol)
+
+            if price is None:
+                print(f"⚠️  No live price for {symbol}")
+                continue
+
+            if trade['direction'] == "BUY":
+                if price >= trade['tp_price']:
+                    print(f"✅ TP hit for {symbol} at {price}")
+                elif price <= trade['sl_price']:
+                    print(f"🛑 SL hit for {symbol} at {price}")
+            elif trade['direction'] == "SELL":
+                if price <= trade['tp_price']:
+                    print(f"✅ TP hit for {symbol} at {price}")
+                elif price >= trade['sl_price']:
+                    print(f"🛑 SL hit for {symbol} at {price}")
+
+        time.sleep(10)  # Wait 10 seconds before next check
+
+# === MAIN ENTRYPOINT ===
+if __name__ == "__main__":
+    print("📂 Loaded open trades")
+    monitor_trades()
