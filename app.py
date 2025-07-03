@@ -1,45 +1,49 @@
-from flask import Flask, request, jsonify
-import subprocess
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import json
+import os
 
-app = Flask(__name__)
+app = FastAPI()
 
-def run_live_trade(symbol, action, quantity):
+@app.post("/webhook")
+async def webhook_handler(request: Request):
     try:
-        result = subprocess.run(
-            ["python3", "execute_trade_live.py", symbol, action, str(quantity)],
-            capture_output=True,
-            text=True
-        )
-        print(f"📦 TigerTrade Execution Return Code: {result.returncode}")
-        print("📬 TigerTrade Execution Output:")
-        print(result.stdout)
-        print("⚠️ TigerTrade Execution Errors:")
-        print(result.stderr)
-    except Exception as e:
-        print("❌ Error launching TigerTrade process:", e)
+        # Check content type
+        if request.headers.get("Content-Type") != "application/json":
+            return JSONResponse(status_code=415, content={"error": "Unsupported Media Type"})
 
-@app.route('/webhook', methods=["POST"])
-def webhook():
-    try:
-        data = request.get_json()
-        print("📩 Webhook received:", data)
+        data = await request.json()
 
-        symbol = data.get("symbol")
-        action = data.get("action")
-        quantity = data.get("quantity")
+        # Extract and normalize
+        alert_type = data.get("type", "").lower()
+        symbol = data.get("symbol", "").strip()
+        price = float(data.get("price", 0))
+        qty = int(data.get("qty", 1))
+        action = data.get("action", "").upper()
 
-        if symbol and action and quantity:
-            print(f"✅ Parsed: {symbol} | {action} | {quantity}")
-            run_live_trade(symbol, action, quantity)
-            return jsonify({"success": True})
+        # === 1. Price update logic ===
+        if alert_type == "price_update":
+            price_data = {
+                "symbol": symbol,
+                "price": price
+            }
+
+            with open("live_prices.json", "w") as f:
+                json.dump(price_data, f)
+            print(f"✅ Price updated: {symbol} = {price}")
+            return {"status": "price updated"}
+
+        # === 2. Trade execution logic ===
+        elif alert_type in ["buy", "sell"]:
+            # Lazy import to avoid dependency if unused
+            from execute_trade_live import place_order  
+            place_order(symbol=symbol, action=alert_type, quantity=qty)
+            return {"status": f"trade executed: {alert_type} {qty} of {symbol}"}
+
         else:
-            print("⚠️ Incomplete data received.")
-            return jsonify({"success": False, "error": "Missing fields"}), 400
+            print("⚠️ Unknown alert type:", alert_type)
+            return JSONResponse(status_code=400, content={"error": "Unknown alert type"})
 
     except Exception as e:
-        print("❌ Error in webhook handler:", e)
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/')
-def hello():
-    return "✅ All good."
+        print("❌ Webhook error:", e)
+        return JSONResponse(status_code=500, content={"error": str(e)})
