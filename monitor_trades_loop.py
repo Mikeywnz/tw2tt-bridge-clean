@@ -1,41 +1,81 @@
+import os
 import csv
-import random
+import json
 import time
 
-def get_live_price(symbol):
-    base = 100 if "MGC" in symbol else 5000 if "MES" in symbol else 80
-    return round(base + random.uniform(-10, 10), 2)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+open_trades_path = os.path.join(BASE_DIR, "open_trades.csv")
+live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
 
-while True:
-    open_trades = []
-    with open('open_trades.csv', 'r') as file:
+# === Load trades from CSV ===
+def load_open_trades():
+    trades = []
+    with open(open_trades_path, "r") as file:
         reader = csv.DictReader(file)
         for row in reader:
-            open_trades.append({
-                "symbol": row['symbol'],
-                "entry_price": float(row['entry_price']),
-                "tp_price": float(row['tp_price']),
-                "sl_price": float(row['sl_price']),
-                "direction": row['action'].upper()
-            })
+            trades.append(row)
+    return trades
 
-    print("\n📊 Checking live prices...")
-    for trade in open_trades:
-        symbol = trade['symbol']
-        price = get_live_price(symbol)
-        direction = trade['direction']
+# === Save updated trades back to CSV ===
+def save_open_trades(trades):
+    if not trades:
+        open(open_trades_path, "w").close()
+        return
+    with open(open_trades_path, "w", newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=trades[0].keys())
+        writer.writeheader()
+        writer.writerows(trades)
 
-        hit_tp = direction == "BUY" and price >= trade['tp_price']
-        hit_sl = direction == "BUY" and price <= trade['sl_price']
-        hit_tp = hit_tp or (direction == "SELL" and price <= trade['tp_price'])
-        hit_sl = hit_sl or (direction == "SELL" and price >= trade['sl_price'])
+# === Load latest prices ===
+def load_live_prices():
+    if os.path.exists(live_prices_path):
+        with open(live_prices_path, "r") as f:
+            return json.load(f)
+    return {}
 
-        if hit_tp:
-            print(f"\U0001F7E2 {symbol}: TP HIT! (Price: {price}) ✅")
-        elif hit_sl:
-            print(f"\U0001F534 {symbol}: SL HIT! (Price: {price}) ❌")
-        else:
-            print(f"\U0001F7E1 {symbol}: TP/SL not hit yet (Price: {price})")
+# === Main monitor loop ===
+def monitor_trades():
+    print("🔁 Monitoring trades for partial TPs...")
+    while True:
+        trades = load_open_trades()
+        prices = load_live_prices()
+        updated_trades = []
 
-    time.sleep(10)
-    
+        for trade in trades:
+            symbol = trade["symbol"]
+            price = prices.get(symbol)
+
+            if not price:
+                print(f"⚠️  No price for {symbol}")
+                updated_trades.append(trade)
+                continue
+
+            direction = trade["action"].upper()
+            contracts = int(trade["contracts_remaining"])
+            hit = False
+
+            for level in ["partial_tp1", "partial_tp2", "partial_tp3"]:
+                if trade[level].lower() == "false":
+                    continue
+                tp = float(trade[level])
+                if direction == "BUY" and float(price) >= tp:
+                    print(f"✅ {symbol}: Hit {level} at {price}, selling 1 contract")
+                    contracts -= 1
+                    trade[level] = "false"
+                    hit = True
+                    break  # Only 1 hit per loop
+
+            trade["contracts_remaining"] = str(contracts)
+
+            if contracts > 0:
+                updated_trades.append(trade)
+            else:
+                print(f"🎯 {symbol}: All contracts closed")
+
+        save_open_trades(updated_trades)
+        time.sleep(10)
+
+# === Start ===
+if __name__ == "__main__":
+    print("📂 Loaded open trades")
+    monitor_trades()
