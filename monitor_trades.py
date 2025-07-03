@@ -1,71 +1,44 @@
+import os
 import csv
-import time
 import json
+import time
 
-TRADES_CSV = 'open_trades.csv'
-LIVE_PRICES_FILE = 'live_prices.json'
-CHECK_INTERVAL = 10  # seconds
+# Get absolute path to current folder
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def load_open_trades():
-    trades = []
+# Absolute paths for data files
+open_trades_path = os.path.join(BASE_DIR, "open_trades.csv")
+live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
+
+print("✅ Trade monitor started...")
+
+while True:
+    # === STEP 1: LOAD OPEN TRADES ===
+    open_trades = []
     try:
-        with open(TRADES_CSV, 'r') as file:
+        with open(open_trades_path, "r") as file:
             reader = csv.DictReader(file)
             for row in reader:
-                trades.append({
-                    "symbol": row['symbol'],
-                    "entry_price": float(row['entry_price']),
-                    "tp_price": float(row['tp_price']),
-                    "sl_price": float(row['sl_price']),
-                    "direction": row['action'].upper()
+                open_trades.append({
+                    "symbol": row["symbol"],
+                    "entry_price": float(row["entry_price"]),
+                    "tp_price": float(row["tp_price"]),
+                    "sl_price": float(row["sl_price"]),
+                    "direction": row["action"].upper()
                 })
+        print("📘 Loaded open trades")
     except Exception as e:
         print(f"❌ Error reading open_trades.csv: {e}")
-    return trades
 
-def get_live_price(symbol):
+    # === STEP 2: READ LIVE PRICES ===
     try:
-        with open(LIVE_PRICES_FILE, 'r') as file:
-            prices = json.load(file)
-            if symbol in prices:
-                return float(prices[symbol])
-            else:
-                print(f"⚠️ No live price found for {symbol}")
-                return None
+        with open(live_prices_path, "r") as f:
+            prices = json.load(f)
+            print(f"📊 Live prices received: {prices}")
     except Exception as e:
         print(f"❌ Error reading live_prices.json: {e}")
-        return None
 
-def monitor_trades():
-    print("🟢 Trade monitor started.")
-    while True:
-        trades = load_open_trades()
-        for trade in trades:
-            symbol = trade['symbol']
-            direction = trade['direction']
-            tp = trade['tp_price']
-            sl = trade['sl_price']
+    # === STEP 3: CHECK TP/SL (You can expand this logic next) ===
+    print("🔁 Checking trades against price...")
 
-            price = get_live_price(symbol)
-            if price is None:
-                continue
-
-            print(f"📈 {symbol} | Price: {price} | TP: {tp} | SL: {sl}")
-
-            if direction == "BUY":
-                if price >= tp:
-                    print(f"✅ TAKE PROFIT hit for {symbol} (BUY). Price: {price}")
-                elif price <= sl:
-                    print(f"🛑 STOP LOSS hit for {symbol} (BUY). Price: {price}")
-            elif direction == "SELL":
-                if price <= tp:
-                    print(f"✅ TAKE PROFIT hit for {symbol} (SELL). Price: {price}")
-                elif price >= sl:
-                    print(f"🛑 STOP LOSS hit for {symbol} (SELL). Price: {price}")
-            else:
-                print(f"⚠️ Unknown direction {direction} for {symbol}")
-
-        time.sleep(CHECK_INTERVAL)
-
-if __name__ == "__main__":
-    monitor_trades()
+    time.sleep(10)
