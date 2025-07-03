@@ -2,12 +2,10 @@ import csv
 import time
 import json
 
-# === CONFIG ===
 TRADES_CSV = 'open_trades.csv'
 LIVE_PRICES_FILE = 'live_prices.json'
 CHECK_INTERVAL = 10  # seconds
 
-# === LOAD OPEN TRADES ===
 def load_open_trades():
     trades = []
     try:
@@ -25,7 +23,6 @@ def load_open_trades():
         print(f"❌ Error reading open_trades.csv: {e}")
     return trades
 
-# === GET PRICE FROM live_prices.json ===
 def get_live_price(symbol):
     try:
         with open(LIVE_PRICES_FILE, 'r') as file:
@@ -39,7 +36,6 @@ def get_live_price(symbol):
         print(f"❌ Error reading live_prices.json: {e}")
         return None
 
-# === MONITOR TRADES ===
 def monitor_trades():
     print("🟢 Trade monitor started.")
     while True:
@@ -47,7 +43,6 @@ def monitor_trades():
         for trade in trades:
             symbol = trade['symbol']
             direction = trade['direction']
-            entry = trade['entry_price']
             tp = trade['tp_price']
             sl = trade['sl_price']
 
@@ -57,7 +52,6 @@ def monitor_trades():
 
             print(f"📈 {symbol} | Price: {price} | TP: {tp} | SL: {sl}")
 
-            # Exit logic
             if direction == "BUY":
                 if price >= tp:
                     print(f"✅ TAKE PROFIT hit for {symbol} (BUY). Price: {price}")

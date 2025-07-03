@@ -1,17 +1,17 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import json
+import os
 
 app = FastAPI()
 
 @app.post("/webhook")
 async def webhook_handler(request: Request):
     try:
-        # Try to parse JSON regardless of content-type
-        try:
-            data = await request.json()
-        except Exception as e:
-            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+        if request.headers.get("content-type") != "application/json":
+            return JSONResponse(status_code=415, content={"error": "Unsupported Media Type"})
+
+        data = await request.json()
 
         alert_type = data.get("type", "").lower()
         symbol = data.get("symbol", "").strip()
@@ -20,14 +20,15 @@ async def webhook_handler(request: Request):
         action = data.get("action", "").upper()
 
         if alert_type == "price_update":
-            # ✅ FIXED: Store multiple symbols now
-            try:
+            # ✅ FIX: preserve multiple symbols
+            if os.path.exists("live_prices.json"):
                 with open("live_prices.json", "r") as f:
                     all_prices = json.load(f)
-            except:
+            else:
                 all_prices = {}
 
             all_prices[symbol] = price
+
             with open("live_prices.json", "w") as f:
                 json.dump(all_prices, f)
 
