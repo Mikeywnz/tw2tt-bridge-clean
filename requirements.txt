@@ -1,3 +1,5 @@
 tigeropen==3.3.2
 flask
 gunicorn
+fastapi
+uvicorn
