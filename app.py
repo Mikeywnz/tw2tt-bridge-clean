@@ -11,6 +11,8 @@ live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
 async def webhook(request: Request):
     try:
         body_bytes = await request.body()
+        print("📩 Raw body received:", body_bytes)
+
         if not body_bytes:
             return {"error": "Empty request body"}
 
