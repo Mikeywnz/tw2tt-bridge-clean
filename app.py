@@ -10,11 +10,14 @@ live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
 @app.post("/webhook")
 async def webhook(request: Request):
     try:
-        body = await request.body()
-        if not body:
+        body_bytes = await request.body()
+        if not body_bytes:
             return {"error": "Empty request body"}
 
-        data = json.loads(body)
+        try:
+            data = json.loads(body_bytes.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {"error": "Malformed JSON"}
 
         if data.get("type") == "price_update":
             symbol = data.get("symbol")
