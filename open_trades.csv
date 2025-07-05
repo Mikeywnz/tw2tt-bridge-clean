@@ -1,4 +1,4 @@
-symbol,entry_price,tp1_mult,tp2_mult,tp3_mult,sl_price,action,contracts_remaining,trailing_tp_active,trail_offset,trail_expire,be_offset
-MGC2508,2345.6,1.0,1.5,2.0,2337.6,BUY,1,false,3.0,0.80,20,8.0
-MGC2508,2347.2,1.0,1.5,2.0,2339.2,BUY,1,false,3.0,0.80,20,8.0
-MGC2508,2349.0,1.0,1.5,2.0,2341.0,BUY,1,false,3.0,0.80,20,8.0
+symbol,entry_price,tp1_mult,tp2_mult,tp3_mult,sl_price,action,contracts_remaining,trail_hit,tp_trigger,trail_buffer,trail_timeout
+MGC2508,2345.6,1.0,1.5,2.0,2337.6,BUY,1,false,3.0,0.80,20
+MGC2508,2347.2,1.0,1.5,2.0,2339.2,BUY,1,false,3.0,0.80,20
+MGC2508,2349.0,1.0,1.5,2.0,2341.0,BUY,1,false,3.0,0.80,20
