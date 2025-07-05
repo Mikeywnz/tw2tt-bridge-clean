@@ -1,132 +1,105 @@
-import os
 import csv
-import json
 import time
+import json
+from datetime import datetime, timedelta
 
-# === PATH SETUP ===
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-open_trades_path = os.path.join(BASE_DIR, "open_trades.csv")
-live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
+# Load live prices from TradingView updates
+def load_live_prices():
+    with open('live_prices.json', 'r') as file:
+        return json.load(file)
 
-# === FUNCTION: Load current open trades from CSV ===
+# Load open trades
 def load_open_trades():
     trades = []
-    if os.path.exists(open_trades_path):
-        with open(open_trades_path, "r") as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                trades.append(row)
+    with open('open_trades.csv', 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            trade = {
+                'symbol': row['symbol'],
+                'entry_price': float(row['entry_price']),
+                'tp1_mult': float(row['tp1_mult']),
+                'tp2_mult': float(row['tp2_mult']),
+                'tp3_mult': float(row['tp3_mult']),
+                'sl_price': float(row['sl_price']),
+                'action': row['action'].upper(),
+                'contracts_remaining': int(row['contracts_remaining']),
+                'trailing_tp_active': row['trailing_tp_active'].lower() == 'true',
+                'trail_offset': float(row['trail_offset']),
+                'be_offset': float(row['be_offset']),
+                'trail_timeout': int(row['trail_timeout']),
+                'tp_hit_stage': 0,
+                'tp_trail_price': None,
+                'tp_timeout_start': None
+            }
+            trades.append(trade)
     return trades
 
-# === FUNCTION: Load live prices ===
-def load_live_prices():
-    if os.path.exists(live_prices_path):
-        with open(live_prices_path, "r") as f:
-            return json.load(f)
-    return {}
-
-# === FUNCTION: Save updated trades back to CSV ===
-def save_open_trades(trades):
-    if not trades:
-        return
-    with open(open_trades_path, "w", newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=trades[0].keys())
-        writer.writeheader()
-        writer.writerows(trades)
-
-# === FUNCTION: Monitor trades and evaluate TP/SL ===
+# Main monitor loop
 def monitor_trades():
-    print("🔁 Starting trade monitoring loop...")
-    while True:
-        trades = load_open_trades()
-        prices = load_live_prices()
+    trades = load_open_trades()
+    prices = load_live_prices()
 
-        updated_trades = []
-        for trade in trades:
-            symbol = trade["symbol"]
-            action = trade["action"].upper()
-            price = prices.get(symbol)
+    for trade in trades:
+        symbol = trade['symbol']
+        current_price = prices.get(symbol)
+        if current_price is None:
+            continue
 
-            if price is None:
-                print(f"⚠️ No price for {symbol}")
-                updated_trades.append(trade)
-                continue
+        direction = 1 if trade['action'] == 'BUY' else -1
+        atr = 1.0  # Temporary fixed ATR until dynamic ATR is wired in
+        tp1 = trade['entry_price'] + direction * (atr * trade['tp1_mult'])
+        tp2 = trade['entry_price'] + direction * (atr * trade['tp2_mult'])
+        tp3 = trade['entry_price'] + direction * (atr * trade['tp3_mult'])
 
-            entry = float(trade["entry_price"])
-            tp = float(trade["tp_price"])
-            sl = float(trade["sl_price"])
-            contracts = int(trade["contracts_remaining"])
+        # Handle trailing stop logic
+        if trade['trailing_tp_active']:
+            # Expiration timeout check
+            if trade['tp_timeout_start']:
+                elapsed = datetime.now() - trade['tp_timeout_start']
+                if elapsed.total_seconds() > trade['trail_timeout']:
+                    print(f"⏰ Timeout hit for {symbol}, closing at market.")
+                    trade['contracts_remaining'] = 0
+                    continue
 
-            # Convert TP flags
-            pt1 = trade.get("partial_tp1", "false").lower() == "true"
-            pt2 = trade.get("partial_tp2", "false").lower() == "true"
-            pt3 = trade.get("partial_tp3", "false").lower() == "true"
+            if trade['tp_trail_price'] is None:
+                trade['tp_trail_price'] = current_price - direction * trade['trail_offset']
+                trade['tp_timeout_start'] = datetime.now()
+            else:
+                new_trail = current_price - direction * trade['trail_offset']
+                if direction * new_trail > direction * trade['tp_trail_price']:
+                    trade['tp_trail_price'] = new_trail
+                    trade['tp_timeout_start'] = datetime.now()
 
-            # === ENTRY & EXIT LOGIC ===
-            if action == "BUY":
-                if not pt1 and price >= entry + 5:
-                    print(f"🎯 TP1 HIT for {symbol} at {price} (SELL 1)")
-                    contracts -= 1
-                    pt1 = True
-                    # PLACE SELL ORDER (placeholder)
+                if direction * current_price <= direction * trade['tp_trail_price']:
+                    print(f"📉 Trailing stop hit for {symbol} at {current_price}")
+                    trade['contracts_remaining'] = 0
+                    continue
 
-                elif not pt2 and price >= entry + 10:
-                    print(f"🎯 TP2 HIT for {symbol} at {price} (SELL 1)")
-                    contracts -= 1
-                    pt2 = True
-                    # PLACE SELL ORDER (placeholder)
+        # Handle stepwise take-profits
+        if trade['tp_hit_stage'] == 0 and direction * current_price >= direction * tp1:
+            print(f"✅ TP1 hit for {symbol}")
+            trade['contracts_remaining'] -= 1
+            trade['tp_hit_stage'] = 1
+            trade['sl_price'] = trade['entry_price'] + direction * trade['be_offset']
+            trade['trailing_tp_active'] = True
+            trade['tp_timeout_start'] = datetime.now()
+        elif trade['tp_hit_stage'] == 1 and direction * current_price >= direction * tp2:
+            print(f"✅ TP2 hit for {symbol}")
+            trade['contracts_remaining'] -= 1
+            trade['tp_hit_stage'] = 2
+        elif trade['tp_hit_stage'] == 2 and direction * current_price >= direction * tp3:
+            print(f"✅ TP3 hit for {symbol}")
+            trade['contracts_remaining'] -= 1
+            trade['tp_hit_stage'] = 3
 
-                elif not pt3 and price >= tp:
-                    print(f"🎯 FINAL TP HIT for {symbol} at {price} (SELL 1)")
-                    contracts -= 1
-                    pt3 = True
-                    # PLACE SELL ORDER (placeholder)
+        # Handle hard stop-loss
+        if direction * current_price <= direction * trade['sl_price']:
+            print(f"🛑 SL hit for {symbol} at {current_price}")
+            trade['contracts_remaining'] = 0
 
-                elif price <= sl:
-                    print(f"🛑 STOP LOSS HIT for {symbol} at {price} (SELL ALL)")
-                    contracts = 0
-                    # PLACE SELL ORDER FOR ALL (placeholder)
+    # TODO: Write back updated trades to CSV or handle execution
 
-            elif action == "SELL":
-                if not pt1 and price <= entry - 5:
-                    print(f"🎯 TP1 HIT for {symbol} at {price} (BUY 1)")
-                    contracts -= 1
-                    pt1 = True
-                    # PLACE BUY ORDER (placeholder)
-
-                elif not pt2 and price <= entry - 10:
-                    print(f"🎯 TP2 HIT for {symbol} at {price} (BUY 1)")
-                    contracts -= 1
-                    pt2 = True
-                    # PLACE BUY ORDER (placeholder)
-
-                elif not pt3 and price <= tp:
-                    print(f"🎯 FINAL TP HIT for {symbol} at {price} (BUY 1)")
-                    contracts -= 1
-                    pt3 = True
-                    # PLACE BUY ORDER (placeholder)
-
-                elif price >= sl:
-                    print(f"🛑 STOP LOSS HIT for {symbol} at {price} (BUY ALL)")
-                    contracts = 0
-                    # PLACE BUY ORDER FOR ALL (placeholder)
-
-            # Skip saving if all contracts exited
-            if contracts <= 0:
-                print(f"✅ POSITION CLOSED for {symbol}")
-                continue
-
-            # Save updated trade state
-            trade["contracts_remaining"] = str(contracts)
-            trade["partial_tp1"] = str(pt1).lower()
-            trade["partial_tp2"] = str(pt2).lower()
-            trade["partial_tp3"] = str(pt3).lower()
-            updated_trades.append(trade)
-
-        # Save remaining trades
-        save_open_trades(updated_trades)
-        time.sleep(10)
-
-# === MAIN ENTRY ===
 if __name__ == "__main__":
-    monitor_trades()
+    while True:
+        monitor_trades()
+        time.sleep(10)
