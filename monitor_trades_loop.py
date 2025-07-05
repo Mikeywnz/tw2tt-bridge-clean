@@ -57,58 +57,73 @@ def monitor_trades():
             sl = float(trade["sl_price"])
             contracts = int(trade["contracts_remaining"])
 
-            # Convert flags
+            # Convert TP flags
             pt1 = trade.get("partial_tp1", "false").lower() == "true"
             pt2 = trade.get("partial_tp2", "false").lower() == "true"
             pt3 = trade.get("partial_tp3", "false").lower() == "true"
 
+            # === ENTRY & EXIT LOGIC ===
             if action == "BUY":
                 if not pt1 and price >= entry + 5:
                     print(f"🎯 TP1 HIT for {symbol} at {price} (SELL 1)")
                     contracts -= 1
                     pt1 = True
+                    # PLACE SELL ORDER (placeholder)
+
                 elif not pt2 and price >= entry + 10:
                     print(f"🎯 TP2 HIT for {symbol} at {price} (SELL 1)")
                     contracts -= 1
                     pt2 = True
+                    # PLACE SELL ORDER (placeholder)
+
                 elif not pt3 and price >= tp:
                     print(f"🎯 FINAL TP HIT for {symbol} at {price} (SELL 1)")
                     contracts -= 1
                     pt3 = True
+                    # PLACE SELL ORDER (placeholder)
+
                 elif price <= sl:
                     print(f"🛑 STOP LOSS HIT for {symbol} at {price} (SELL ALL)")
                     contracts = 0
+                    # PLACE SELL ORDER FOR ALL (placeholder)
 
             elif action == "SELL":
                 if not pt1 and price <= entry - 5:
                     print(f"🎯 TP1 HIT for {symbol} at {price} (BUY 1)")
                     contracts -= 1
                     pt1 = True
+                    # PLACE BUY ORDER (placeholder)
+
                 elif not pt2 and price <= entry - 10:
                     print(f"🎯 TP2 HIT for {symbol} at {price} (BUY 1)")
                     contracts -= 1
                     pt2 = True
+                    # PLACE BUY ORDER (placeholder)
+
                 elif not pt3 and price <= tp:
                     print(f"🎯 FINAL TP HIT for {symbol} at {price} (BUY 1)")
                     contracts -= 1
                     pt3 = True
+                    # PLACE BUY ORDER (placeholder)
+
                 elif price >= sl:
                     print(f"🛑 STOP LOSS HIT for {symbol} at {price} (BUY ALL)")
                     contracts = 0
+                    # PLACE BUY ORDER FOR ALL (placeholder)
 
-            # Skip adding back if all contracts sold
+            # Skip saving if all contracts exited
             if contracts <= 0:
                 print(f"✅ POSITION CLOSED for {symbol}")
                 continue
 
-            # Update trade
+            # Save updated trade state
             trade["contracts_remaining"] = str(contracts)
             trade["partial_tp1"] = str(pt1).lower()
             trade["partial_tp2"] = str(pt2).lower()
             trade["partial_tp3"] = str(pt3).lower()
             updated_trades.append(trade)
 
-        # Save any changes
+        # Save remaining trades
         save_open_trades(updated_trades)
         time.sleep(10)
 
