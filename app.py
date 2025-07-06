@@ -1,47 +1,62 @@
 from fastapi import FastAPI, Request
 import json
-import os
+from datetime import datetime
 
 app = FastAPI()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-live_prices_path = os.path.join(BASE_DIR, "live_prices.json")
+# File paths
+PRICE_FILE = "live_prices.json"
+EMA_FILE = "ema_values.json"
+TRADE_LOG = "trade_log.json"
 
 @app.post("/webhook")
 async def webhook(request: Request):
-    try:
-        body_bytes = await request.body()
-        print("📩 Raw body received:", body_bytes)
+    data = await request.json()
+    print(f"📥 Incoming Webhook: {data}")
 
-        if not body_bytes:
-            return {"error": "Empty request body"}
+    # === Handle Price Update ===
+    if data.get("type") == "price_update":
+        symbol = data["symbol"]
+        price = float(data["price"])
 
+        # Load current prices or initialize
         try:
-            data = json.loads(body_bytes.decode("utf-8"))
-        except json.JSONDecodeError:
-            return {"error": "Malformed JSON"}
+            with open(PRICE_FILE, "r") as f:
+                prices = json.load(f)
+        except FileNotFoundError:
+            prices = {}
 
-        if data.get("type") == "price_update":
-            symbol = data.get("symbol")
-            price = data.get("price")
+        # Update and save
+        prices[symbol] = price
+        with open(PRICE_FILE, "w") as f:
+            json.dump(prices, f, indent=2)
 
-            if symbol and price:
-                if os.path.exists(live_prices_path):
-                    with open(live_prices_path, "r") as f:
-                        prices = json.load(f)
-                else:
-                    prices = {}
+        print(f"💾 Stored live price: {symbol} = {price}")
+        return {"status": "price stored"}
 
-                prices[symbol] = price
+    # === Handle EMA Update ===
+    elif data.get("type") == "ema_update":
+        symbol = data["symbol"]
+        ema9 = float(data["ema9"])
+        ema20 = float(data["ema20"])
 
-                with open(live_prices_path, "w") as f:
-                    json.dump(prices, f)
+        ema_data = {
+            "symbol": symbol,
+            "ema9": ema9,
+            "ema20": ema20,
+            "updated_at": datetime.utcnow().isoformat()
+        }
 
-                return {"status": "price updated"}
+        with open(EMA_FILE, "w") as f:
+            json.dump(ema_data, f, indent=2)
 
-            return {"error": "Missing symbol or price"}
+        print(f"💾 Stored EMA values for {symbol}: 9EMA={ema9}, 20EMA={ema20}")
+        return {"status": "ema stored"}
 
-        return {"status": "ignored"}
+    # === (Optional) Handle Trade Execution Alerts ===
+    elif data.get("action") in ("BUY", "SELL"):
+        print(f"⚠️ Trade signal received: {data}")
+        # Add your trade logic or log it for now
+        return {"status": "trade signal received"}
 
-    except Exception as e:
-        return {"error": str(e)}
+    return {"status": "unhandled alert type"}
