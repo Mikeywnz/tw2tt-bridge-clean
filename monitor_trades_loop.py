@@ -1,103 +1,133 @@
 import csv
-import time
 import json
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 
-# Load live prices from TradingView updates
+# === FILE PATHS ===
+PRICE_FILE = "live_prices.json"
+EMA_FILE = "ema_values.json"
+OPEN_TRADES_FILE = "open_trades.csv"
+CLOSED_TRADES_FILE = "closed_trades.csv"
+
+# === UTILITY LOADERS ===
 def load_live_prices():
-    with open('live_prices.json', 'r') as file:
+    with open(PRICE_FILE, 'r') as file:
         return json.load(file)
 
-# Load open trades
+def load_ema_values():
+    with open(EMA_FILE, 'r') as file:
+        return json.load(file)
+
 def load_open_trades():
     trades = []
-    with open('open_trades.csv', 'r') as file:
+    with open(OPEN_TRADES_FILE, 'r') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            trade = {
+            trades.append({
                 'symbol': row['symbol'],
                 'entry_price': float(row['entry_price']),
-                'tp1_mult': float(row['tp1_mult']),
-                'tp2_mult': float(row['tp2_mult']),
-                'tp3_mult': float(row['tp3_mult']),
-                'sl_price': float(row['sl_price']),
                 'action': row['action'].upper(),
                 'contracts_remaining': int(row['contracts_remaining']),
-                'trailing_tp_active': row['trailing_tp_active'].lower() == 'true',
+                'trail_perc': float(row['trail_perc']),
                 'trail_offset': float(row['trail_offset']),
-                'be_offset': float(row['be_offset']),
-                'trail_timeout': int(row['trail_timeout']),
-                'tp_hit_stage': 0,
-                'tp_trail_price': None,
-                'tp_timeout_start': None
-            }
-            trades.append(trade)
+                'tp_trail_price': float(row['tp_trail_price']) if row['tp_trail_price'] else None,
+                'ema9': None,
+                'ema20': None
+            })
     return trades
 
-# Main monitor loop
-def monitor_trades():
-    trades = load_open_trades()
-    prices = load_live_prices()
+def write_closed_trade(trade, reason, exit_price):
+    trade_record = trade.copy()
+    trade_record['exit_reason'] = reason
+    trade_record['exit_price'] = exit_price
+    trade_record['exit_time'] = datetime.utcnow().isoformat()
 
+    file_exists = False
+    try:
+        with open(CLOSED_TRADES_FILE, 'r') as f:
+            file_exists = True
+    except FileNotFoundError:
+        pass
+
+    with open(CLOSED_TRADES_FILE, 'a', newline='') as file:
+        fieldnames = list(trade_record.keys())
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(trade_record)
+
+def write_remaining_trades(trades):
+    with open(OPEN_TRADES_FILE, 'w', newline='') as file:
+        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'ema9', 'ema20']
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for t in trades:
+            writer.writerow({
+                'symbol': t['symbol'],
+                'entry_price': t['entry_price'],
+                'action': t['action'],
+                'contracts_remaining': t['contracts_remaining'],
+                'trail_perc': t['trail_perc'],
+                'trail_offset': t['trail_offset'],
+                'tp_trail_price': t['tp_trail_price'] if t['tp_trail_price'] else '',
+                'ema9': '',
+                'ema20': ''
+            })
+
+# === MONITOR LOGIC ===
+def monitor_trades():
+    prices = load_live_prices()
+    ema_data = load_ema_values()
+    trades = load_open_trades()
+
+    updated_trades = []
     for trade in trades:
         symbol = trade['symbol']
+        direction = 1 if trade['action'] == 'BUY' else -1
+
         current_price = prices.get(symbol)
-        if current_price is None:
+        ema9 = ema_data.get('ema9')
+        ema20 = ema_data.get('ema20')
+
+        if current_price is None or ema9 is None or ema20 is None:
+            print(f"⏳ Skipping {symbol}: missing price or EMA data")
+            updated_trades.append(trade)
             continue
 
-        direction = 1 if trade['action'] == 'BUY' else -1
-        atr = 1.0  # Temporary fixed ATR until dynamic ATR is wired in
-        tp1 = trade['entry_price'] + direction * (atr * trade['tp1_mult'])
-        tp2 = trade['entry_price'] + direction * (atr * trade['tp2_mult'])
-        tp3 = trade['entry_price'] + direction * (atr * trade['tp3_mult'])
+        trade['ema9'] = ema9
+        trade['ema20'] = ema20
 
-        # Handle trailing stop logic
-        if trade['trailing_tp_active']:
-            # Expiration timeout check
-            if trade['tp_timeout_start']:
-                elapsed = datetime.now() - trade['tp_timeout_start']
-                if elapsed.total_seconds() > trade['trail_timeout']:
-                    print(f"⏰ Timeout hit for {symbol}, closing at market.")
-                    trade['contracts_remaining'] = 0
-                    continue
+        # === Emergency EMA20 cross exit ===
+        if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
+            print(f"🛑 Emergency EMA20 exit for {symbol} at {current_price}")
+            write_closed_trade(trade, "ema20_exit", current_price)
+            continue
 
-            if trade['tp_trail_price'] is None:
-                trade['tp_trail_price'] = current_price - direction * trade['trail_offset']
-                trade['tp_timeout_start'] = datetime.now()
-            else:
-                new_trail = current_price - direction * trade['trail_offset']
-                if direction * new_trail > direction * trade['tp_trail_price']:
-                    trade['tp_trail_price'] = new_trail
-                    trade['tp_timeout_start'] = datetime.now()
+        # === Momentum EMA9 close fade exit ===
+        if (trade['action'] == 'BUY' and current_price < ema9) or (trade['action'] == 'SELL' and current_price > ema9):
+            print(f"💨 Momentum EMA9 exit for {symbol} at {current_price}")
+            write_closed_trade(trade, "ema9_exit", current_price)
+            continue
 
-                if direction * current_price <= direction * trade['tp_trail_price']:
-                    print(f"📉 Trailing stop hit for {symbol} at {current_price}")
-                    trade['contracts_remaining'] = 0
-                    continue
+        # === Trailing TP Logic ===
+        trail_amount = trade['trail_perc'] / 100 * trade['entry_price']
+        offset_amount = trade['trail_offset'] / 100 * trade['entry_price']
+        trail_candidate = current_price - direction * offset_amount
 
-        # Handle stepwise take-profits
-        if trade['tp_hit_stage'] == 0 and direction * current_price >= direction * tp1:
-            print(f"✅ TP1 hit for {symbol}")
-            trade['contracts_remaining'] -= 1
-            trade['tp_hit_stage'] = 1
-            trade['sl_price'] = trade['entry_price'] + direction * trade['be_offset']
-            trade['trailing_tp_active'] = True
-            trade['tp_timeout_start'] = datetime.now()
-        elif trade['tp_hit_stage'] == 1 and direction * current_price >= direction * tp2:
-            print(f"✅ TP2 hit for {symbol}")
-            trade['contracts_remaining'] -= 1
-            trade['tp_hit_stage'] = 2
-        elif trade['tp_hit_stage'] == 2 and direction * current_price >= direction * tp3:
-            print(f"✅ TP3 hit for {symbol}")
-            trade['contracts_remaining'] -= 1
-            trade['tp_hit_stage'] = 3
+        if trade['tp_trail_price'] is None:
+            trade['tp_trail_price'] = trail_candidate
+        elif direction * trail_candidate > direction * trade['tp_trail_price']:
+            trade['tp_trail_price'] = trail_candidate
 
-        # Handle hard stop-loss
-        if direction * current_price <= direction * trade['sl_price']:
-            print(f"🛑 SL hit for {symbol} at {current_price}")
-            trade['contracts_remaining'] = 0
+        if direction * current_price <= direction * trade['tp_trail_price']:
+            print(f"📉 Trailing TP exit for {symbol} at {current_price}")
+            write_closed_trade(trade, "trailing_tp_exit", current_price)
+            continue
 
-    # TODO: Write back updated trades to CSV or handle execution
+        # Keep trade
+        updated_trades.append(trade)
+
+    write_remaining_trades(updated_trades)
 
 if __name__ == "__main__":
     while True:
