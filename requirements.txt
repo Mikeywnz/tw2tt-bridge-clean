@@ -3,3 +3,5 @@ flask
 gunicorn
 fastapi
 uvicorn
+gspread
+oauth2client
