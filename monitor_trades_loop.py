@@ -32,15 +32,29 @@ def load_open_trades():
                 'trail_offset': float(row['trail_offset']),
                 'tp_trail_price': float(row['tp_trail_price']) if row['tp_trail_price'] else None,
                 'ema9': None,
-                'ema20': None
+                'ema20': None,
+                'entry_time': row.get('entry_time', ''),
+                'trail_triggered': row.get('trail_triggered', 'False') == 'True'
             })
     return trades
 
 def write_closed_trade(trade, reason, exit_price):
-    trade_record = trade.copy()
-    trade_record['exit_reason'] = reason
-    trade_record['exit_price'] = exit_price
-    trade_record['exit_time'] = datetime.utcnow().isoformat()
+    direction_val = 1 if trade['action'] == 'BUY' else -1
+    pnl = round(direction_val * (exit_price - trade['entry_price']), 2)
+
+    trade_record = {
+        'symbol': trade['symbol'],
+        'entry_price': trade['entry_price'],
+        'exit_price': exit_price,
+        'direction': direction_val,
+        'reason_for_exit': reason,
+        'pnl_dollars': pnl,
+        'entry_time': trade.get('entry_time', ''),
+        'exit_time': datetime.utcnow().isoformat(),
+        'trail_triggered': trade.get('trail_triggered', False),
+        'ema9_cross_exit': int(reason == 'ema9_exit'),
+        'ema20_emergency_exit': int(reason == 'ema20_exit')
+    }
 
     file_exists = False
     try:
@@ -58,7 +72,7 @@ def write_closed_trade(trade, reason, exit_price):
 
 def write_remaining_trades(trades):
     with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'ema9', 'ema20']
+        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'ema9', 'ema20', 'entry_time', 'trail_triggered']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for t in trades:
@@ -71,7 +85,9 @@ def write_remaining_trades(trades):
                 'trail_offset': t['trail_offset'],
                 'tp_trail_price': t['tp_trail_price'] if t['tp_trail_price'] else '',
                 'ema9': '',
-                'ema20': ''
+                'ema20': '',
+                'entry_time': t.get('entry_time', ''),
+                'trail_triggered': t.get('trail_triggered', False)
             })
 
 # === MONITOR LOGIC ===
@@ -118,6 +134,7 @@ def monitor_trades():
             trade['tp_trail_price'] = trail_candidate
         elif direction * trail_candidate > direction * trade['tp_trail_price']:
             trade['tp_trail_price'] = trail_candidate
+            trade['trail_triggered'] = True
 
         if direction * current_price <= direction * trade['tp_trail_price']:
             print(f"📉 Trailing TP exit for {symbol} at {current_price}")
