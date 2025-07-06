@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 import json
 from datetime import datetime
+import os
 
 app = FastAPI()
 
@@ -8,6 +9,11 @@ app = FastAPI()
 PRICE_FILE = "live_prices.json"
 EMA_FILE = "ema_values.json"
 TRADE_LOG = "trade_log.json"
+
+# === Ensure the EMA file exists on startup ===
+if not os.path.exists(EMA_FILE):
+    with open(EMA_FILE, "w") as f:
+        json.dump({}, f)
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -19,14 +25,12 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         price = float(data["price"])
 
-        # Load or initialize price store
         try:
             with open(PRICE_FILE, "r") as f:
                 prices = json.load(f)
         except FileNotFoundError:
             prices = {}
 
-        # Update and write back
         prices[symbol] = price
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
@@ -34,20 +38,18 @@ async def webhook(request: Request):
         print(f"💾 Stored live price: {symbol} = {price}")
         return {"status": "price stored"}
 
-    # === Handle EMA Update (multi-symbol) ===
+    # === Handle EMA Update ===
     elif data.get("type") == "ema_update":
         symbol = data["symbol"]
         ema9 = float(data["ema9"])
         ema20 = float(data["ema20"])
 
-        # Load or initialize EMA store
         try:
             with open(EMA_FILE, "r") as f:
                 ema_data = json.load(f)
         except FileNotFoundError:
             ema_data = {}
 
-        # Update this symbol
         ema_data[symbol] = {
             "ema9": ema9,
             "ema20": ema20,
@@ -60,10 +62,9 @@ async def webhook(request: Request):
         print(f"💾 Stored EMAs for {symbol} — 9EMA={ema9}, 20EMA={ema20}")
         return {"status": "ema stored"}
 
-    # === Handle Trade Signals (optional) ===
+    # === Handle Trade Signal (optional) ===
     elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
-        # You could extend this to write to trade_log.json or queue trade execution
         return {"status": "trade signal received"}
 
     return {"status": "unhandled alert type"}
