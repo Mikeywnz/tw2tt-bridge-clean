@@ -76,7 +76,7 @@ async def webhook(request: Request):
         log_to_file(f"Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
         return {"status": "ema stored"}
 
-    # === Handle Trade Signal ===
+    # === Handle Trade Signal (with execution) ===
     elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
         log_to_file(f"Trade signal received: {data}")
@@ -156,5 +156,34 @@ async def webhook(request: Request):
             log_to_file(f"Failed to execute trade: {e}")
 
         return {"status": "trade signal received"}
+
+    # === Handle Trade Entry Only (No Tiger Execution) ===
+    elif data.get("type") == "trade_entry":
+        symbol = data["symbol"]
+        price = data["price"]
+        action = data["action"].upper()
+
+        new_trade = {
+            "symbol": symbol,
+            "entry_price": price,
+            "action": action,
+            "contracts_remaining": 1,
+            "trail_perc": 1.0,
+            "trail_offset": 0.5,
+            "tp_trail_price": "",
+            "ema9": "",
+            "ema20": ""
+        }
+
+        try:
+            with open(OPEN_TRADES_FILE, "a", newline='') as file:
+                writer = csv.DictWriter(file, fieldnames=new_trade.keys())
+                writer.writerow(new_trade)
+                log_to_file(f"✅ Logged new trade: {new_trade}")
+        except Exception as e:
+            print(f"❌ Failed to write trade to open_trades.csv: {e}")
+            log_to_file(f"❌ Failed to write trade: {e}")
+
+        return {"status": "trade logged"}
 
     return {"status": "unhandled alert type"}
