@@ -66,23 +66,13 @@ async def webhook(request: Request):
         return {"status": "ema stored"}
 
     # === Handle Trade Signal ===
-    elif data.get("action") in ("BUY", "SELL"):
+        elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
 
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
 
-        # ✅ Step 1: Get latest live price
-        try:
-            with open(PRICE_FILE, "r") as f:
-                prices = json.load(f)
-            price = float(prices.get(symbol, 0.0))
-        except Exception as e:
-            print(f"⚠️ Could not get price from live_prices.json: {e}")
-            price = 0.0
-
-        # ✅ Step 2: Execute trade
         try:
             print(f"🐅 Sending order to TigerTrade: {symbol} {action} x{quantity}")
             result = subprocess.run([
@@ -95,11 +85,16 @@ async def webhook(request: Request):
             print("✅ TigerTrade stdout:", result.stdout)
             print("⚠️ TigerTrade stderr:", result.stderr)
 
-        except Exception as e:
-            print(f"❌ Failed to execute trade: {e}")
+            # ✅ Load latest price from live_prices.json
+            try:
+                with open(PRICE_FILE, "r") as f:
+                    prices = json.load(f)
+                    price = float(prices.get(symbol, 0.0))
+            except Exception as e:
+                print(f"❌ Could not load price for {symbol}: {e}")
+                price = 0.0
 
-        # ✅ Step 3: Log each contract to open_trades.csv
-        try:
+            # ✅ Append one row per contract
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
@@ -110,13 +105,11 @@ async def webhook(request: Request):
                         1,           # contracts_remaining
                         1.0,         # trail_perc
                         0.5,         # trail_offset
-                        "", "", "", ""  # tp_trail_price, ema9, ema20, updated_at
+                        "", "", ""   # tp_trail_price, ema9, ema20
                     ])
             print("📥 Trade logged to open_trades.csv")
 
         except Exception as e:
-            print(f"❌ Failed to log trade to CSV: {e}")
+            print(f"❌ Failed to execute trade: {e}")
 
         return {"status": "trade signal received"}
-
-    return {"status": "unhandled alert type"}
