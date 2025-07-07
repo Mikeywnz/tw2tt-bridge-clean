@@ -108,21 +108,23 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load price for {symbol}: {e}")
                 price = 0.0
 
-            # ✅ Append one row per contract
-            for _ in range(quantity):
-                with open(OPEN_TRADES_FILE, "a", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([
-                        symbol,
-                        price,
-                        action,
-                        1,           # contracts_remaining
-                        1.0,         # trail_perc
-                        0.5,         # trail_offset
-                        "", "", ""   # tp_trail_price, ema9, ema20
-                    ])
-            print("📥 Trade logged to open_trades.csv")
-            log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
+           # ✅ Append one row per contract to open_trades.csv
+for _ in range(quantity):
+    with open(OPEN_TRADES_FILE, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            symbol,      # e.g. MGC2508
+            price,       # float, e.g. 2345.6
+            action.upper(),  # BUY or SELL
+            1,           # contracts_remaining (always 1 per row)
+            1.0,         # trail_perc (default 1%)
+            0.5,         # trail_offset (default 0.5%)
+            "",          # tp_trail_price (placeholder until TP hit)
+            "",          # ema9 placeholder
+            ""           # ema20 placeholder
+        ])
+print("📥 Trade logged to open_trades.csv")
+log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
 
             # ✅ Log to trade_log.json
             try:
