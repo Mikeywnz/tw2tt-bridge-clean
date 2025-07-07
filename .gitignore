@@ -3,3 +3,4 @@ dist
 .env
 *.logservice_account.json
 tiger_openapi_config.properties
+service_account.json
