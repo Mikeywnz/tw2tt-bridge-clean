@@ -6,13 +6,13 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # === FILE PATHS ===
-PRICE_FILE = "live_prices.json"
+PRICE_FILE = "src/live_prices.json"
 EMA_FILE = "src/ema_values.json"
-OPEN_TRADES_FILE = "open_trades.csv"
-CLOSED_TRADES_FILE = "closed_trades.csv"
+OPEN_TRADES_FILE = "src/open_trades.csv"
+CLOSED_TRADES_FILE = "src/closed_trades.csv"  # Optional: if you want this tracked too
 
 # === GOOGLE SHEETS CONFIG ===
-SHEET_NAME = "Closed Trades Journal"  # Make sure this name matches exactly
+SHEET_NAME = "Closed Trades Journal"
 GOOGLE_CREDS_FILE = "service_account.json"
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 
@@ -44,12 +44,11 @@ def load_open_trades():
     return trades
 
 def write_closed_trade(trade, reason, exit_price):
-    # === CALCULATE EXTRA FIELDS ===
     entry_price = trade['entry_price']
     direction = trade['action']
     pnl = (exit_price - entry_price) * (-1 if direction == "SELL" else 1)
     exit_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    entry_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")  # You can adjust if tracking real entry times
+    entry_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     trail_triggered = "YES" if reason == "trailing_tp_exit" else ""
     ema9_cross_exit = "YES" if reason == "ema9_exit" else ""
     ema20_emergency_exit = "YES" if reason == "ema20_exit" else ""
@@ -68,7 +67,6 @@ def write_closed_trade(trade, reason, exit_price):
         "ema20_emergency_exit": ema20_emergency_exit
     }
 
-    # === WRITE TO CSV ===
     file_exists = False
     try:
         with open(CLOSED_TRADES_FILE, 'r') as f:
@@ -83,7 +81,6 @@ def write_closed_trade(trade, reason, exit_price):
             writer.writeheader()
         writer.writerow(row)
 
-    # === WRITE TO GOOGLE SHEETS ===
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
@@ -129,12 +126,11 @@ def monitor_trades():
     print("🟢 Loaded live_prices.json:", prices)
     
     trades = load_open_trades()
-
     updated_trades = []
+
     for trade in trades:
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
-         
         ema_data = prices.get(symbol) or {}
         current_price = prices.get(symbol)
         ema9 = ema_data.get('ema9')
@@ -148,19 +144,16 @@ def monitor_trades():
         trade['ema9'] = ema9
         trade['ema20'] = ema20
 
-        # === Emergency EMA20 cross exit ===
         if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
             print(f"🛑 Emergency EMA20 exit for {symbol} at {current_price}")
             write_closed_trade(trade, "ema20_exit", current_price)
             continue
 
-        # === Momentum EMA9 close fade exit ===
         if (trade['action'] == 'BUY' and current_price < ema9) or (trade['action'] == 'SELL' and current_price > ema9):
             print(f"💨 Momentum EMA9 exit for {symbol} at {current_price}")
             write_closed_trade(trade, "ema9_exit", current_price)
             continue
 
-        # === Trailing TP Logic ===
         trail_amount = trade['trail_perc'] / 100 * trade['entry_price']
         offset_amount = trade['trail_offset'] / 100 * trade['entry_price']
         trail_candidate = current_price - direction * offset_amount
@@ -175,7 +168,6 @@ def monitor_trades():
             write_closed_trade(trade, "trailing_tp_exit", current_price)
             continue
 
-        # Keep trade
         updated_trades.append(trade)
 
     write_remaining_trades(updated_trades)
