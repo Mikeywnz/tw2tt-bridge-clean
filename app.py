@@ -94,7 +94,7 @@ async def webhook(request: Request):
                 print(f"❌ Could not load price for {symbol}: {e}")
                 price = 0.0
 
-            # ✅ Append one row per contract
+            # ✅ Append one row per contract to open_trades.csv
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
@@ -102,10 +102,10 @@ async def webhook(request: Request):
                         symbol,
                         price,
                         action,
-                        1,           # contracts_remaining
-                        1.0,         # trail_perc
-                        0.5,         # trail_offset
-                        "", "", ""   # tp_trail_price, ema9, ema20
+                        1,      # contracts_remaining
+                        1.0,    # trail_perc
+                        0.5,    # trail_offset
+                        "", "", ""  # tp_trail_price, ema9, ema20
                     ])
             print("📥 Trade logged to open_trades.csv")
 
@@ -114,4 +114,5 @@ async def webhook(request: Request):
 
         return {"status": "trade signal received"}
 
+    # === If no known alert matched ===
     return {"status": "unhandled alert type"}
