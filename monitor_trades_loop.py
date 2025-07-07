@@ -127,7 +127,7 @@ def write_remaining_trades(trades):
 def monitor_trades():
     prices = load_live_prices()
     print("🟢 Loaded live_prices.json:", prices)
-    ema_data = prices.get(symbol) or {}
+   
     
     trades = load_open_trades()
 
@@ -135,7 +135,8 @@ def monitor_trades():
     for trade in trades:
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
-
+         
+        ema_data = prices.get(symbol) or {}
         current_price = prices.get(symbol)
         ema9 = ema_data.get('ema9')
         ema20 = ema_data.get('ema20')
