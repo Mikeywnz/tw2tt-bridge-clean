@@ -55,7 +55,7 @@ try:
     except Exception as e:
         print("⚠️ Could not read ema_values.json:", e)
 
-    # === STEP 8: Append to open_trades.csv ===
+    # === STEP 8: Append to open_trades.csv in /src ===
     row = [
         symbol,
         live_price,
@@ -68,7 +68,8 @@ try:
         ema20
     ]
     try:
-        csv_path = os.path.join(os.path.dirname(__file__), 'open_trades.csv')
+        # ✅ FIXED HERE:
+        csv_path = os.path.join(os.path.dirname(__file__), 'src', 'open_trades.csv')
         with open(csv_path, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
