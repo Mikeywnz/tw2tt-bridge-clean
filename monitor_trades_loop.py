@@ -7,7 +7,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 # === FILE PATHS ===
 PRICE_FILE = "live_prices.json"
-EMA_FILE = "ema_values.json"
+EMA_FILE = "src/ema_values.json"
 OPEN_TRADES_FILE = "open_trades.csv"
 CLOSED_TRADES_FILE = "closed_trades.csv"
 
