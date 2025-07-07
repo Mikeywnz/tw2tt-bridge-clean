@@ -85,44 +85,30 @@ async def webhook(request: Request):
             print("✅ TigerTrade stdout:", result.stdout)
             print("⚠️ TigerTrade stderr:", result.stderr)
 
-            # === Try to load live price for logging
+            # === Log to open_trades.csv ===
+            price = result.stdout.split("Symbol:")[1].split("Action")[0].strip().split(",")[-1]
             try:
-                with open(PRICE_FILE, "r") as f:
-                    prices = json.load(f)
-                    entry_price = prices.get(symbol, None)
+                price = float(price)
             except:
-                entry_price = None
+                price = 0.0  # fallback
 
-            if entry_price is not None:
-                for _ in range(quantity):
-                    row = [
+            for _ in range(quantity):
+                with open(OPEN_TRADES_FILE, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
                         symbol,
-                        entry_price,
+                        price,
                         action,
-                        1,      # contracts_remaining
-                        1.0,    # trail_perc
-                        0.5,    # trail_offset
-                        "",     # tp_trail_price
-                        "",     # ema9_exit_active
-                        ""      # ema20_exit_active
-                    ]
-                    file_exists = os.path.isfile(OPEN_TRADES_FILE)
-                    with open(OPEN_TRADES_FILE, "a", newline="") as csvfile:
-                        writer = csv.writer(csvfile)
-                        if not file_exists or os.path.getsize(OPEN_TRADES_FILE) == 0:
-                            writer.writerow([
-                                "symbol", "entry_price", "action", "contracts_remaining",
-                                "trail_perc", "trail_offset", "tp_trail_price",
-                                "ema9_exit_active", "ema20_exit_active"
-                            ])
-                        writer.writerow(row)
-                    print(f"📈 Trade logged to open_trades.csv: {row}")
-            else:
-                print("⚠️ No live price available to log trade.")
+                        1,           # contracts_remaining
+                        1.0,         # trail_perc
+                        0.5,         # trail_offset
+                        "", "", "", ""  # tp_trail_price, ema9, ema20 (optional at entry)
+                    ])
+            print("📥 Trade logged to open_trades.csv")
 
         except Exception as e:
             print(f"❌ Failed to execute trade: {e}")
 
-        return {"status": "trade executed and logged"}
+        return {"status": "trade signal received"}
 
     return {"status": "unhandled alert type"}
