@@ -1,7 +1,7 @@
-symbol,entry_price,action,contracts_remaining,trailing_tp_active,trail_perc,trail_offset,ema9_exit_active,ema20_exit_active
-MGC2508,2345.60,BUY,1,true,1.0,0.5,true,true
-MGC2508,2347.20,BUY,1,true,1.0,0.5,true,true
-MGC2508,2349.00,BUY,1,true,1.0,0.5,true,true
-MGC2508,3319.50,SELL,1,true,1.0,0.5,true,true
-MGC2508,3321.40,SELL,1,true,1.0,0.5,true,true
-MGC2508,3321.00,SELL,1,true,1.0,0.5,true,true
+symbol,entry_price,action,contracts_remaining,trail_perc,trail_offset,tp_trail_price,ema9,ema20
+MGC2508,2345.60,BUY,1,1.0,0.5,,,
+MGC2508,2347.20,BUY,1,1.0,0.5,,,
+MGC2508,2349.00,BUY,1,1.0,0.5,,,
+MGC2508,3319.50,SELL,1,1.0,0.5,,,
+MGC2508,3321.40,SELL,1,1.0,0.5,,,
+MGC2508,3321.00,SELL,1,1.0,0.5,,,
