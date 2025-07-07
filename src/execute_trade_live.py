@@ -69,7 +69,7 @@ try:
     ]
     try:
         # ✅ FIXED HERE:
-        csv_path = os.path.join(os.path.dirname(__file__), 'src', 'open_trades.csv')
+        csv_path = os.path.join(os.path.dirname(__file__), 'open_trades.csv')
         with open(csv_path, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
