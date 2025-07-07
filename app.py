@@ -67,8 +67,27 @@ async def webhook(request: Request):
 
     # === Handle Trade Signals (optional) ===
     elif data.get("action") in ("BUY", "SELL"):
-        print(f"⚠️ Trade signal received: {data}")
-        # Optional: log this to TRADE_LOG
-        return {"status": "trade signal received"}
+    print(f"⚠️ Trade signal received: {data}")
 
-    return {"status": "unhandled alert type"}
+    import subprocess
+
+    symbol = data["symbol"]
+    action = data["action"]
+    quantity = str(data.get("quantity", 1))
+
+    try:
+        print(f"🐅 Sending order to TigerTrade: {symbol} {action} x{quantity}")
+        result = subprocess.run([
+            "python3", "execute_trade_live.py",
+            "--symbol", symbol,
+            "--action", action,
+            "--quantity", quantity
+        ], capture_output=True, text=True)
+
+        print("✅ TigerTrade stdout:", result.stdout)
+        print("⚠️ TigerTrade stderr:", result.stderr)
+
+    except Exception as e:
+        print(f"❌ Failed to execute trade: {e}")
+
+    return {"status": "trade signal received"}
