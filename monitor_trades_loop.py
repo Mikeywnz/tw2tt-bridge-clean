@@ -127,7 +127,6 @@ def write_remaining_trades(trades):
 def monitor_trades():
     prices = load_live_prices()
     print("🟢 Loaded live_prices.json:", prices)
-   
     
     trades = load_open_trades()
 
