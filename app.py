@@ -12,6 +12,13 @@ PRICE_FILE = "live_prices.json"
 EMA_FILE = "ema_values.json"
 TRADE_LOG = "trade_log.json"
 OPEN_TRADES_FILE = "open_trades.csv"
+LOG_FILE = "app.log"
+
+# === Logging helper ===
+def log_to_file(message: str):
+    timestamp = datetime.utcnow().isoformat()
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {message}\n")
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -19,9 +26,11 @@ async def webhook(request: Request):
         data = await request.json()
     except Exception as e:
         print(f"❌ Failed to parse JSON: {e}")
+        log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
 
     print(f"📥 Incoming Webhook: {data}")
+    log_to_file(f"Webhook received: {data}")
 
     # === Handle Price Update ===
     if data.get("type") == "price_update":
@@ -39,6 +48,7 @@ async def webhook(request: Request):
             json.dump(prices, f, indent=2)
 
         print(f"💾 Stored live price: {symbol} = {price}")
+        log_to_file(f"Stored live price: {symbol} = {price}")
         return {"status": "price stored"}
 
     # === Handle EMA Update ===
@@ -63,11 +73,13 @@ async def webhook(request: Request):
             json.dump(ema_data, f, indent=2)
 
         print(f"💾 Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
+        log_to_file(f"Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
         return {"status": "ema stored"}
 
     # === Handle Trade Signal ===
     elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
+        log_to_file(f"Trade signal received: {data}")
 
         symbol = data["symbol"]
         action = data["action"]
@@ -84,6 +96,7 @@ async def webhook(request: Request):
 
             print("✅ TigerTrade stdout:", result.stdout)
             print("⚠️ TigerTrade stderr:", result.stderr)
+            log_to_file(f"Executed TigerTrade: stdout={result.stdout.strip()} stderr={result.stderr.strip()}")
 
             # ✅ Load latest price from live_prices.json
             try:
@@ -92,9 +105,10 @@ async def webhook(request: Request):
                     price = float(prices.get(symbol, 0.0))
             except Exception as e:
                 print(f"❌ Could not load price for {symbol}: {e}")
+                log_to_file(f"Could not load price for {symbol}: {e}")
                 price = 0.0
 
-            # ✅ Append one row per contract to open_trades.csv
+            # ✅ Append one row per contract
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
@@ -102,17 +116,18 @@ async def webhook(request: Request):
                         symbol,
                         price,
                         action,
-                        1,      # contracts_remaining
-                        1.0,    # trail_perc
-                        0.5,    # trail_offset
-                        "", "", ""  # tp_trail_price, ema9, ema20
+                        1,           # contracts_remaining
+                        1.0,         # trail_perc
+                        0.5,         # trail_offset
+                        "", "", ""   # tp_trail_price, ema9, ema20
                     ])
             print("📥 Trade logged to open_trades.csv")
+            log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
 
         except Exception as e:
             print(f"❌ Failed to execute trade: {e}")
+            log_to_file(f"Failed to execute trade: {e}")
 
         return {"status": "trade signal received"}
 
-    # === If no known alert matched ===
     return {"status": "unhandled alert type"}
