@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request
 import json
 from datetime import datetime
 import subprocess
+import csv
+import os
 
 app = FastAPI()
 
@@ -9,6 +11,7 @@ app = FastAPI()
 PRICE_FILE = "live_prices.json"
 EMA_FILE = "ema_values.json"
 TRADE_LOG = "trade_log.json"
+OPEN_TRADES_FILE = "open_trades.csv"
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -25,7 +28,6 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         price = float(data["price"])
 
-        # Load or initialize price store
         try:
             with open(PRICE_FILE, "r") as f:
                 prices = json.load(f)
@@ -39,7 +41,7 @@ async def webhook(request: Request):
         print(f"💾 Stored live price: {symbol} = {price}")
         return {"status": "price stored"}
 
-    # === Handle EMA Update (multi-symbol) ===
+    # === Handle EMA Update ===
     elif data.get("type") == "ema_update":
         symbol = data["symbol"]
         ema9 = float(data["ema9"])
@@ -69,7 +71,7 @@ async def webhook(request: Request):
 
         symbol = data["symbol"]
         action = data["action"]
-        quantity = str(data.get("quantity", 1))
+        quantity = int(data.get("quantity", 1))
 
         try:
             print(f"🐅 Sending order to TigerTrade: {symbol} {action} x{quantity}")
@@ -77,15 +79,50 @@ async def webhook(request: Request):
                 "python3", "execute_trade_live.py",
                 symbol,
                 action,
-                quantity
+                str(quantity)
             ], capture_output=True, text=True)
 
             print("✅ TigerTrade stdout:", result.stdout)
             print("⚠️ TigerTrade stderr:", result.stderr)
 
+            # === Try to load live price for logging
+            try:
+                with open(PRICE_FILE, "r") as f:
+                    prices = json.load(f)
+                    entry_price = prices.get(symbol, None)
+            except:
+                entry_price = None
+
+            if entry_price is not None:
+                for _ in range(quantity):
+                    row = [
+                        symbol,
+                        entry_price,
+                        action,
+                        1,      # contracts_remaining
+                        1.0,    # trail_perc
+                        0.5,    # trail_offset
+                        "",     # tp_trail_price
+                        "",     # ema9_exit_active
+                        ""      # ema20_exit_active
+                    ]
+                    file_exists = os.path.isfile(OPEN_TRADES_FILE)
+                    with open(OPEN_TRADES_FILE, "a", newline="") as csvfile:
+                        writer = csv.writer(csvfile)
+                        if not file_exists or os.path.getsize(OPEN_TRADES_FILE) == 0:
+                            writer.writerow([
+                                "symbol", "entry_price", "action", "contracts_remaining",
+                                "trail_perc", "trail_offset", "tp_trail_price",
+                                "ema9_exit_active", "ema20_exit_active"
+                            ])
+                        writer.writerow(row)
+                    print(f"📈 Trade logged to open_trades.csv: {row}")
+            else:
+                print("⚠️ No live price available to log trade.")
+
         except Exception as e:
             print(f"❌ Failed to execute trade: {e}")
 
-        return {"status": "trade signal received"}
+        return {"status": "trade executed and logged"}
 
     return {"status": "unhandled alert type"}
