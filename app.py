@@ -32,7 +32,6 @@ async def webhook(request: Request):
         except FileNotFoundError:
             prices = {}
 
-        # Update and write back
         prices[symbol] = price
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
@@ -46,14 +45,12 @@ async def webhook(request: Request):
         ema9 = float(data["ema9"])
         ema20 = float(data["ema20"])
 
-        # Load or initialize EMA store
         try:
             with open(EMA_FILE, "r") as f:
                 ema_data = json.load(f)
         except FileNotFoundError:
             ema_data = {}
 
-        # Update this symbol
         ema_data[symbol] = {
             "ema9": ema9,
             "ema20": ema20,
@@ -66,7 +63,7 @@ async def webhook(request: Request):
         print(f"💾 Stored EMAs for {symbol} — 9EMA={ema9}, 20EMA={ema20}")
         return {"status": "ema stored"}
 
-    # === Handle Trade Signals (optional) ===
+    # === Handle Trade Signal ===
     elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
 
@@ -78,9 +75,9 @@ async def webhook(request: Request):
             print(f"🐅 Sending order to TigerTrade: {symbol} {action} x{quantity}")
             result = subprocess.run([
                 "python3", "execute_trade_live.py",
-                "--symbol", symbol,
-                "--action", action,
-                "--quantity", quantity
+                symbol,
+                action,
+                quantity
             ], capture_output=True, text=True)
 
             print("✅ TigerTrade stdout:", result.stdout)
