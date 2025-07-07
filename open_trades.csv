@@ -2,3 +2,5 @@ symbol,entry_price,action,contracts_remaining,trailing_tp_active,trail_perc,trai
 MGC2508,2345.60,BUY,1,true,1.0,0.5,true,true
 MGC2508,2347.20,BUY,1,true,1.0,0.5,true,true
 MGC2508,2349.00,BUY,1,true,1.0,0.5,true,true
+MGC2508,3319.5.0,SELL,1,true,1.0,0.5,true,true
+MGC2508,3321.4,SELL,1,true,1.0,0.5,true,true
