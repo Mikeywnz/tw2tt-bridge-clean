@@ -6,10 +6,10 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # === FILE PATHS ===
-PRICE_FILE = "src/live_prices.json"
-EMA_FILE = "src/ema_values.json"
-OPEN_TRADES_FILE = "src/open_trades.csv"
-CLOSED_TRADES_FILE = "src/closed_trades.csv"  # Optional: if you want this tracked too
+PRICE_FILE = "live_prices.json"
+EMA_FILE = "ema_values.json"
+OPEN_TRADES_FILE = "open_trades.csv"
+CLOSED_TRADES_FILE = "closed_trades.csv"  # Optional: if you want this tracked too
 
 # === GOOGLE SHEETS CONFIG ===
 SHEET_NAME = "Closed Trades Journal"
