@@ -62,11 +62,11 @@ async def webhook(request: Request):
         with open(EMA_FILE, "w") as f:
             json.dump(ema_data, f, indent=2)
 
-        print(f"💾 Stored EMAs for {symbol} — 9EMA={ema9}, 20EMA={ema20}")
+        print(f"💾 Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
         return {"status": "ema stored"}
 
     # === Handle Trade Signal ===
-        elif data.get("action") in ("BUY", "SELL"):
+    elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
 
         symbol = data["symbol"]
@@ -113,3 +113,5 @@ async def webhook(request: Request):
             print(f"❌ Failed to execute trade: {e}")
 
         return {"status": "trade signal received"}
+
+    return {"status": "unhandled alert type"}
