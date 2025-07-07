@@ -8,11 +8,11 @@ import os
 app = FastAPI()
 
 # === File paths ===
-PRICE_FILE = "live_prices.json"
-EMA_FILE = "ema_values.json"
-TRADE_LOG = "trade_log.json"
-OPEN_TRADES_FILE = "open_trades.csv"
-LOG_FILE = "app.log"
+PRICE_FILE = "src/live_prices.json"
+EMA_FILE = "src/ema_values.json"
+TRADE_LOG = "src/trade_log.json"
+OPEN_TRADES_FILE = "src/open_trades.csv"
+LOG_FILE = "src/app.log"
 
 # === Logging helper ===
 def log_to_file(message: str):
@@ -123,6 +123,33 @@ async def webhook(request: Request):
                     ])
             print("📥 Trade logged to open_trades.csv")
             log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
+
+            # ✅ Log to trade_log.json
+            try:
+                log_entry = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "symbol": symbol,
+                    "action": action,
+                    "price": price,
+                    "quantity": quantity
+                }
+
+                if os.path.exists(TRADE_LOG):
+                    with open(TRADE_LOG, "r") as f:
+                        logs = json.load(f)
+                else:
+                    logs = []
+
+                logs.append(log_entry)
+
+                with open(TRADE_LOG, "w") as f:
+                    json.dump(logs, f, indent=2)
+
+                log_to_file(f"Trade logged to trade_log.json: {log_entry}")
+
+            except Exception as e:
+                print(f"❌ Failed to write to trade log: {e}")
+                log_to_file(f"Failed to write to trade log: {e}")
 
         except Exception as e:
             print(f"❌ Failed to execute trade: {e}")
