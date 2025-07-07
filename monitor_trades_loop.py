@@ -126,7 +126,10 @@ def write_remaining_trades(trades):
 # === MONITOR LOGIC ===
 def monitor_trades():
     prices = load_live_prices()
+    print("🟢 Loaded live_prices.json:", prices)
     ema_data = load_ema_values()
+    print("📘 Loaded ema_values.json:", ema_data)
+    
     trades = load_open_trades()
 
     updated_trades = []
