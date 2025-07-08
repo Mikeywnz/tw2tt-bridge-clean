@@ -5,3 +5,4 @@ fastapi
 uvicorn
 gspread
 oauth2client
+firebase-admin
