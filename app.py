@@ -113,20 +113,31 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load price for {symbol}: {e}")
                 price = 0.0
 
+            # ✅ Load EMA values from ema_values.json
+            try:
+                with open(EMA_FILE, "r") as f:
+                    ema_data = json.load(f)
+                    ema9 = float(ema_data.get(symbol, {}).get("ema9", 0.0))
+                    ema20 = float(ema_data.get(symbol, {}).get("ema20", 0.0))
+            except Exception as e:
+                print(f"❌ Could not load EMAs for {symbol}: {e}")
+                log_to_file(f"Could not load EMAs for {symbol}: {e}")
+                ema9, ema20 = 0.0, 0.0
+
             # ✅ Append one row per contract to open_trades.csv
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([
-                        symbol,
-                        price,
-                        action.upper(),
-                        1,
-                        1.0,
-                        0.5,
-                        "",
-                        "",
-                        ""
+                        symbol,       # symbol
+                        price,        # entry_price
+                        action.upper(),  # action
+                        1,            # contracts_remaining
+                        1.0,          # tp1_mult
+                        0.5,          # sl_price
+                        ema9,         # EMA9 at entry
+                        ema20,        # EMA20 at entry
+                        ""            # trail_triggered / placeholder
                     ])
 
             print("📥 Trade logged to open_trades.csv")
