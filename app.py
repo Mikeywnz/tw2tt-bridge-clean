@@ -1,3 +1,6 @@
+with open("app.log", "a") as f:
+    f.write("[BOOT] ✅ app.py started\n")
+
 # ✅ This is a harmless test comment to trigger a Git update
 
 from fastapi import FastAPI, Request
