@@ -131,17 +131,17 @@ def write_remaining_trades(trades):
 def monitor_trades():
     prices = load_live_prices()
     print("🟢 Loaded live_prices from Firebase:", prices)
-    
+
     trades = load_open_trades()
     updated_trades = []
 
     for trade in trades:
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
-        ema_data = prices.get(symbol) or {}
-        current_price = prices.get(symbol)
-        ema9 = ema_data.get('ema9')
-        ema20 = ema_data.get('ema20')
+        symbol_data = prices.get(symbol, {})
+        current_price = symbol_data.get('price')
+        ema9 = symbol_data.get('ema9')
+        ema20 = symbol_data.get('ema20')
 
         if current_price is None or ema9 is None or ema20 is None:
             print(f"⏳ Skipping {symbol}: missing price or EMA data")
@@ -176,6 +176,7 @@ def monitor_trades():
             continue
 
         updated_trades.append(trade)
+
     write_remaining_trades(updated_trades)
 
 # === LOOP ===
