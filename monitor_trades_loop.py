@@ -1,9 +1,18 @@
+import firebase_admin
+from firebase_admin import credentials, db
 import csv
 import json
 import time
 from datetime import datetime
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+
+# === FIREBASE INITIALIZATION ===
+if not firebase_admin._apps:
+    cred = credentials.Certificate("firebase_key.json")
+    firebase_admin.initialize_app(cred, {
+        "databaseURL": "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    })
 
 # === FILE PATHS ===
 PRICE_FILE = "live_prices.json"
@@ -18,12 +27,10 @@ GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis
 
 # === UTILITY LOADERS ===
 def load_live_prices():
-    with open(PRICE_FILE, 'r') as file:
-        return json.load(file)
+    return db.reference("live_prices").get() or {}
 
 def load_ema_values():
-    with open(EMA_FILE, 'r') as file:
-        return json.load(file)
+    return db.reference("ema_values").get() or {}
 
 def load_open_trades():
     trades = []
@@ -123,7 +130,7 @@ def write_remaining_trades(trades):
 # === MONITOR LOGIC ===
 def monitor_trades():
     prices = load_live_prices()
-    print("🟢 Loaded live_prices.json:", prices)
+    print("🟢 Loaded live_prices from Firebase:", prices)
     
     trades = load_open_trades()
     updated_trades = []
@@ -169,7 +176,6 @@ def monitor_trades():
             continue
 
         updated_trades.append(trade)
-
     write_remaining_trades(updated_trades)
 
 # === LOOP ===
