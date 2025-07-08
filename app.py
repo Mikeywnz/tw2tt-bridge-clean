@@ -110,47 +110,54 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load price for {symbol}: {e}")
                 price = 0.0
 
-         # ✅ Append one row per contract to open_trades.csv
-for _ in range(quantity):
-    with open(OPEN_TRADES_FILE, "a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            symbol,      # e.g. MGC2508
-            price,       # float, e.g. 2345.6
-            action.upper(),  # BUY or SELL
-            1,           # contracts_remaining (always 1 per row)
-            1.0,         # trail_perc (default 1%)
-            0.5,         # trail_offset (default 0.5%)
-            "",          # tp_trail_price (placeholder until TP hit)
-            "",          # ema9 placeholder
-            ""           # ema20 placeholder
-        ])
+            # ✅ Append one row per contract to open_trades.csv
+            for _ in range(quantity):
+                with open(OPEN_TRADES_FILE, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        symbol,
+                        price,
+                        action.upper(),
+                        1,
+                        1.0,
+                        0.5,
+                        "",
+                        "",
+                        ""
+                    ])
 
-print("📥 Trade logged to open_trades.csv")
-log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
+            print("📥 Trade logged to open_trades.csv")
+            log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
 
-# ✅ Log to trade_log.json
-try:
-    log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "symbol": symbol,
-        "action": action,
-        "price": price,
-        "quantity": quantity
-    }
+            # ✅ Log to trade_log.json
+            try:
+                log_entry = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "symbol": symbol,
+                    "action": action,
+                    "price": price,
+                    "quantity": quantity
+                }
 
-    if os.path.exists(TRADE_LOG):
-        with open(TRADE_LOG, "r") as f:
-            logs = json.load(f)
-    else:
-        logs = []
+                if os.path.exists(TRADE_LOG):
+                    with open(TRADE_LOG, "r") as f:
+                        logs = json.load(f)
+                else:
+                    logs = []
 
-    logs.append(log_entry)
-    with open(TRADE_LOG, "w") as f:
-        json.dump(logs, f, indent=2)
+                logs.append(log_entry)
+                with open(TRADE_LOG, "w") as f:
+                    json.dump(logs, f, indent=2)
 
-    print("🧾 Trade also logged to trade_log.json")
+                print("🧾 Trade also logged to trade_log.json")
 
-except Exception as e:
-    print(f"❌ Failed to log to trade_log.json: {e}")
-    log_to_file(f"❌ Failed to log to trade_log.json: {e}")
+            except Exception as e:
+                print(f"❌ Failed to log to trade_log.json: {e}")
+                log_to_file(f"❌ Failed to log to trade_log.json: {e}")
+
+        except Exception as e:
+            print(f"❌ TigerTrade execution failed: {e}")
+            log_to_file(f"TigerTrade execution failed: {e}")
+            return {"status": "trade failed", "error": str(e)}
+
+    return {"status": "ok"}
