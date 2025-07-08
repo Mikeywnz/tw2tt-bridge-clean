@@ -1,14 +1,16 @@
 with open("app.log", "a") as f:
     f.write("[BOOT] ✅ app.py started\n")
 
-# ✅ This is a harmless test comment to trigger a Git update
-
 from fastapi import FastAPI, Request
 import json
 from datetime import datetime
 import subprocess
 import csv
 import os
+
+# ✅ ADD THIS IF MISSING AT THE TOP
+from firebase import firebase
+firebase = firebase.FirebaseApplication("https://tw2tt-firebase-default-rtdb.firebaseio.com/", None)
 
 app = FastAPI()
 
@@ -51,6 +53,9 @@ async def webhook(request: Request):
         prices[symbol] = price
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
+
+        # ✅ NEW: Store to Firebase
+        firebase.put("live_prices", symbol, price)
 
         print(f"💾 Stored live price: {symbol} = {price}")
         log_to_file(f"Stored live price: {symbol} = {price}")
