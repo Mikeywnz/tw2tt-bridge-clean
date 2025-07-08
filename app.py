@@ -7,10 +7,7 @@ from datetime import datetime
 import subprocess
 import csv
 import os
-
-# ✅ ADD THIS IF MISSING AT THE TOP
-from firebase import firebase
-firebase = firebase.FirebaseApplication("https://tw2tt-firebase-default-rtdb.firebaseio.com/", None)
+import requests  # ✅ Replaced broken firebase module
 
 app = FastAPI()
 
@@ -54,8 +51,13 @@ async def webhook(request: Request):
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
 
-        # ✅ NEW: Store to Firebase
-        firebase.put("live_prices", symbol, price)
+        # ✅ Store to Firebase using REST
+        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.firebaseio.com"
+        try:
+            requests.put(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(price))
+        except Exception as e:
+            print(f"❌ Failed to push price to Firebase: {e}")
+            log_to_file(f"❌ Failed to push price to Firebase: {e}")
 
         print(f"💾 Stored live price: {symbol} = {price}")
         log_to_file(f"Stored live price: {symbol} = {price}")
