@@ -129,8 +129,8 @@ def monitor_trades():
             updated_trades.append(trade)
             continue
 
-        trade['ema9'] = ema9
-        trade['ema20'] = ema20
+            trade['ema9'] = ema9
+            trade['ema20'] = ema20
 
         # === Emergency exits ===
         if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
