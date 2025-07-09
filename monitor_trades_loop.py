@@ -1,7 +1,6 @@
 import firebase_admin
 from firebase_admin import credentials, db
 import csv
-import json
 import time
 from datetime import datetime
 import gspread
@@ -15,22 +14,15 @@ if not firebase_admin._apps:
     })
 
 # === FILE PATHS ===
-PRICE_FILE = "live_prices.json"
-EMA_FILE = "ema_values.json"
 OPEN_TRADES_FILE = "open_trades.csv"
-CLOSED_TRADES_FILE = "closed_trades.csv"  # Optional: if you want this tracked too
-
-# === GOOGLE SHEETS CONFIG ===
-SHEET_NAME = "Closed Trades Journal"
+CLOSED_TRADES_FILE = "closed_trades.csv"
 GOOGLE_CREDS_FILE = "service_account.json"
+SHEET_NAME = "Closed Trades Journal"
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 
-# === UTILITY LOADERS ===
+# === LOADERS ===
 def load_live_prices():
     return db.reference("live_prices").get() or {}
-
-def load_ema_values():
-    return db.reference("ema_values").get() or {}
 
 def load_open_trades():
     trades = []
@@ -51,29 +43,24 @@ def load_open_trades():
     return trades
 
 def write_closed_trade(trade, reason, exit_price):
-    entry_price = trade['entry_price']
-    direction = trade['action']
-    pnl = (exit_price - entry_price) * (-1 if direction == "SELL" else 1)
-    exit_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    entry_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    trail_triggered = "YES" if reason == "trailing_tp_exit" else ""
-    ema9_cross_exit = "YES" if reason == "ema9_exit" else ""
-    ema20_emergency_exit = "YES" if reason == "ema20_exit" else ""
+    pnl = (exit_price - trade['entry_price']) * (-1 if trade['action'] == 'SELL' else 1)
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     row = {
         "symbol": trade['symbol'],
-        "entry_price": entry_price,
+        "entry_price": trade['entry_price'],
         "exit_price": exit_price,
-        "direction": direction,
+        "direction": trade['action'],
         "reason_for_exit": reason,
         "pnl_dollars": round(pnl, 2),
-        "entry_time": entry_time,
-        "exit_time": exit_time,
-        "trail_triggered": trail_triggered,
-        "ema9_cross_exit": ema9_cross_exit,
-        "ema20_emergency_exit": ema20_emergency_exit
+        "entry_time": now,
+        "exit_time": now,
+        "trail_triggered": "YES" if reason == "trailing_tp_exit" else "",
+        "ema9_cross_exit": "YES" if reason == "ema9_exit" else "",
+        "ema20_emergency_exit": "YES" if reason == "ema20_exit" else ""
     }
 
+    # Local CSV logging
     file_exists = False
     try:
         with open(CLOSED_TRADES_FILE, 'r') as f:
@@ -88,26 +75,15 @@ def write_closed_trade(trade, reason, exit_price):
             writer.writeheader()
         writer.writerow(row)
 
+    # Google Sheets logging
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
         sheet = gc.open(SHEET_NAME).sheet1
-        sheet.append_row([
-            row["symbol"],
-            row["entry_price"],
-            row["exit_price"],
-            row["direction"],
-            row["reason_for_exit"],
-            row["pnl_dollars"],
-            row["entry_time"],
-            row["exit_time"],
-            row["trail_triggered"],
-            row["ema9_cross_exit"],
-            row["ema20_emergency_exit"]
-        ])
-        print(f"✅ Trade written to Google Sheet: {row['symbol']} - {reason}")
+        sheet.append_row(list(row.values()))
+        print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
     except Exception as e:
-        print(f"❌ Failed to write to Google Sheet: {e}")
+        print(f"❌ Google Sheets error: {e}")
 
 def write_remaining_trades(trades):
     with open(OPEN_TRADES_FILE, 'w', newline='') as file:
@@ -127,10 +103,10 @@ def write_remaining_trades(trades):
                 'ema20': ''
             })
 
-# === MONITOR LOGIC ===
+# === MONITOR LOOP ===
 def monitor_trades():
     prices = load_live_prices()
-    print("🟢 Loaded live_prices from Firebase:", prices)
+    print("🟢 Prices loaded:", prices)
 
     trades = load_open_trades()
     updated_trades = []
@@ -144,34 +120,41 @@ def monitor_trades():
         ema20 = symbol_data.get('ema20')
 
         if current_price is None or ema9 is None or ema20 is None:
-            print(f"⏳ Skipping {symbol}: missing price or EMA data")
+            print(f"⏳ Skipping {symbol}: missing price or EMA")
             updated_trades.append(trade)
             continue
 
         trade['ema9'] = ema9
         trade['ema20'] = ema20
 
+        # === Emergency exits ===
         if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
-            print(f"🛑 Emergency EMA20 exit for {symbol} at {current_price}")
+            print(f"🛑 EMA20 exit: {symbol} at {current_price}")
             write_closed_trade(trade, "ema20_exit", current_price)
             continue
 
         if (trade['action'] == 'BUY' and current_price < ema9) or (trade['action'] == 'SELL' and current_price > ema9):
-            print(f"💨 Momentum EMA9 exit for {symbol} at {current_price}")
+            print(f"💨 EMA9 exit: {symbol} at {current_price}")
             write_closed_trade(trade, "ema9_exit", current_price)
             continue
 
-        trail_amount = trade['trail_perc'] / 100 * trade['entry_price']
-        offset_amount = trade['trail_offset'] / 100 * trade['entry_price']
-        trail_candidate = current_price - direction * offset_amount
+        # === Trailing TP logic ===
+        entry = trade['entry_price']
+        trigger_pct = trade['trail_perc'] / 100
+        offset_pct = trade['trail_offset'] / 100
+
+        trail_candidate = current_price - direction * (entry * offset_pct)
 
         if trade['tp_trail_price'] is None:
-            trade['tp_trail_price'] = trail_candidate
+            trigger_price = entry + direction * (entry * trigger_pct)
+            if direction * current_price >= direction * trigger_price:
+                trade['tp_trail_price'] = trail_candidate
+                print(f"🎯 Trigger hit for {symbol}, trail begins: {trail_candidate}")
         elif direction * trail_candidate > direction * trade['tp_trail_price']:
             trade['tp_trail_price'] = trail_candidate
 
-        if direction * current_price <= direction * trade['tp_trail_price']:
-            print(f"📉 Trailing TP exit for {symbol} at {current_price}")
+        if trade['tp_trail_price'] is not None and direction * current_price <= direction * trade['tp_trail_price']:
+            print(f"📉 Trailing TP exit: {symbol} at {current_price}")
             write_closed_trade(trade, "trailing_tp_exit", current_price)
             continue
 
@@ -179,7 +162,6 @@ def monitor_trades():
 
     write_remaining_trades(updated_trades)
 
-# === LOOP ===
 if __name__ == "__main__":
     while True:
         monitor_trades()

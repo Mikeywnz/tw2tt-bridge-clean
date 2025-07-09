@@ -140,8 +140,8 @@ async def webhook(request: Request):
                         price,        # entry_price
                         action.upper(),  # action
                         1,            # contracts_remaining
-                        0.5,          # tp1_mult (✅ UPDATED)
-                        0.2,          # sl_price  (✅ UPDATED)
+                        1.0,          # tp1_mult
+                        0.5,          # sl_price
                         ema9,         # EMA9 at entry
                         ema20,        # EMA20 at entry
                         ""            # trail_triggered / placeholder
