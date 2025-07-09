@@ -112,26 +112,26 @@ def monitor_trades():
     updated_trades = []
 
     for trade in trades:
-    symbol = trade['symbol']
-    direction = 1 if trade['action'] == 'BUY' else -1
-    symbol_data = prices.get(symbol, {})
+        symbol = trade['symbol']
+        direction = 1 if trade['action'] == 'BUY' else -1
+        symbol_data = prices.get(symbol, {})
 
-    if isinstance(symbol_data, dict):
-        current_price = symbol_data.get('price')
-        ema9 = symbol_data.get('ema9')
-        ema20 = symbol_data.get('ema20')
-    else:
-        current_price = symbol_data
-        ema9 = None
-        ema20 = None
+        if isinstance(symbol_data, dict):
+            current_price = symbol_data.get('price')
+            ema9 = symbol_data.get('ema9')
+            ema20 = symbol_data.get('ema20')
+        else:
+            current_price = symbol_data
+            ema9 = None
+            ema20 = None
 
-    if current_price is None or ema9 is None or ema20 is None:
-        print(f"⏳ Skipping {symbol}: missing price or EMA")
-        updated_trades.append(trade)
-        continue
+        if current_price is None or ema9 is None or ema20 is None:
+            print(f"⏳ Skipping {symbol}: missing price or EMA")
+            updated_trades.append(trade)
+            continue
 
-    trade['ema9'] = ema9
-    trade['ema20'] = ema20
+        trade['ema9'] = ema9
+        trade['ema20'] = ema20
 
         # === Emergency exits ===
         if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
