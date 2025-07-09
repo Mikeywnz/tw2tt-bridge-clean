@@ -52,7 +52,7 @@ async def webhook(request: Request):
             json.dump(prices, f, indent=2)
 
         # ✅ Store to Firebase using REST
-        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.firebaseio.com"
+        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
             requests.put(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(price))
         except Exception as e:
