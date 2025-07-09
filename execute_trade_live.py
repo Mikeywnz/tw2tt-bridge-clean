@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import csv
+from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.util.contract_utils import future_contract
@@ -31,10 +32,16 @@ order.order_type = "MKT"
 order.quantity = quantity
 order.outside_rth = False
 
-# ✅ Step 5: Submit Order
+# ✅ Step 5: Submit Order and detect fill
 try:
     response = client.place_order(order)
     print("✅ Order submitted. Response:", response)
+
+    # === STEP 5B: Check fill status ===
+    order_status = getattr(response, "status", "UNKNOWN")
+    filled_qty = getattr(response, "filled", 0)
+    is_filled = order_status in ["Submitted", "Filled"] or filled_qty > 0
+    filled_str = "true" if is_filled else "false"
 
     # === STEP 6: Get current price from live_prices.json ===
     live_price = 0.0
@@ -55,20 +62,24 @@ try:
     except Exception as e:
         print("⚠️ Could not read ema_values.json:", e)
 
-    # === STEP 8: Append to open_trades.csv in /src ===
+    # === STEP 8: Create timestamp ===
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    # === STEP 9: Append to open_trades.csv ===
     row = [
         symbol,
         live_price,
         action,
         1,        # contracts_remaining
-        1.0,      # trail_perc
-        0.5,      # trail_offset
+        0.5,      # trail_perc (✅ updated)
+        0.2,      # trail_offset (✅ updated)
         '',       # tp_trail_price (initially blank)
         ema9,
-        ema20
+        ema20,
+        filled_str,
+        timestamp
     ]
     try:
-        # ✅ FIXED HERE:
         csv_path = os.path.join(os.path.dirname(__file__), 'open_trades.csv')
         with open(csv_path, 'a', newline='') as f:
             writer = csv.writer(f)

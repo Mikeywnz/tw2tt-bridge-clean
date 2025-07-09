@@ -7,7 +7,7 @@ from datetime import datetime
 import subprocess
 import csv
 import os
-import requests  # ✅ Replaced broken firebase module
+import requests
 
 app = FastAPI()
 
@@ -51,7 +51,6 @@ async def webhook(request: Request):
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
 
-        # ✅ Store to Firebase using REST
         FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
             requests.put(f"{FIREBASE_URL}/live_prices/{symbol}/price.json", data=json.dumps(price))
@@ -84,7 +83,6 @@ async def webhook(request: Request):
         with open(EMA_FILE, "w") as f:
             json.dump(ema_data, f, indent=2)
 
-        # ✅ Push both EMAs to Firebase with .update()
         FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
             requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps({
@@ -108,6 +106,7 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
+        entry_timestamp = datetime.utcnow().isoformat()
 
         try:
             print(f"🐅 Sending order to TigerTrade: {symbol} {action} x{quantity}")
@@ -122,7 +121,6 @@ async def webhook(request: Request):
             print("⚠️ TigerTrade stderr:", result.stderr)
             log_to_file(f"Executed TigerTrade: stdout={result.stdout.strip()} stderr={result.stderr.strip()}")
 
-            # ✅ Load latest price from live_prices.json
             try:
                 with open(PRICE_FILE, "r") as f:
                     prices = json.load(f)
@@ -132,7 +130,6 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load price for {symbol}: {e}")
                 price = 0.0
 
-            # ✅ Load EMA values from ema_values.json
             try:
                 with open(EMA_FILE, "r") as f:
                     ema_data = json.load(f)
@@ -143,29 +140,29 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load EMAs for {symbol}: {e}")
                 ema9, ema20 = 0.0, 0.0
 
-            # ✅ Append one row per contract to open_trades.csv
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([
-                        symbol,       # symbol
-                        price,        # entry_price
-                        action.upper(),  # action
-                        1,            # contracts_remaining
-                        0.5,          # tp1_mult (✅ UPDATED)
-                        0.2,          # sl_price  (✅ UPDATED)
-                        ema9,         # EMA9 at entry
-                        ema20,        # EMA20 at entry
-                        ""            # trail_triggered / placeholder
+                        symbol,
+                        price,
+                        action.upper(),
+                        1,
+                        0.5,
+                        0.2,
+                        ema9,
+                        ema20,
+                        "",             # trail_triggered placeholder
+                        "true",         # ✅ filled status
+                        entry_timestamp # ✅ entry_timestamp
                     ])
 
             print("📥 Trade logged to open_trades.csv")
             log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
 
-            # ✅ Log to trade_log.json
             try:
                 log_entry = {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": entry_timestamp,
                     "symbol": symbol,
                     "action": action,
                     "price": price,

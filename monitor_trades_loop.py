@@ -29,6 +29,9 @@ def load_open_trades():
     with open(OPEN_TRADES_FILE, 'r') as file:
         reader = csv.DictReader(file)
         for row in reader:
+            # Skip unfilled trades
+            if row.get("filled", "true") != "true":
+                continue
             trades.append({
                 'symbol': row['symbol'],
                 'entry_price': float(row['entry_price']),
@@ -38,13 +41,24 @@ def load_open_trades():
                 'trail_offset': float(row['trail_offset']),
                 'tp_trail_price': float(row['tp_trail_price']) if row.get('tp_trail_price') else None,
                 'ema9': None,
-                'ema20': None
+                'ema20': None,
+                'filled': row.get('filled', 'true'),
+                'entry_timestamp': row.get('entry_timestamp', '')
             })
     return trades
 
 def write_closed_trade(trade, reason, exit_price):
     pnl = (exit_price - trade['entry_price']) * (-1 if trade['action'] == 'SELL' else 1)
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    exit_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    entry_time = trade.get("entry_timestamp", exit_time)
+
+    exit_color = {
+        "trailing_tp_exit": "Green",
+        "ema9_exit": "Blue",
+        "ema20_exit": "Red",
+        "manual_exit": "Orange",
+        "liquidated": "Purple"
+    }.get(reason, "")
 
     row = {
         "symbol": trade['symbol'],
@@ -53,11 +67,12 @@ def write_closed_trade(trade, reason, exit_price):
         "direction": trade['action'],
         "reason_for_exit": reason,
         "pnl_dollars": round(pnl, 2),
-        "entry_time": now,
-        "exit_time": now,
+        "entry_time": entry_time,
+        "exit_time": exit_time,
         "trail_triggered": "YES" if reason == "trailing_tp_exit" else "",
         "ema9_cross_exit": "YES" if reason == "ema9_exit" else "",
-        "ema20_emergency_exit": "YES" if reason == "ema20_exit" else ""
+        "ema20_emergency_exit": "YES" if reason == "ema20_exit" else "",
+        "exit_color": exit_color
     }
 
     # Local CSV logging
@@ -87,7 +102,7 @@ def write_closed_trade(trade, reason, exit_price):
 
 def write_remaining_trades(trades):
     with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'ema9', 'ema20']
+        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'ema9', 'ema20', 'filled', 'entry_timestamp']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for t in trades:
@@ -100,7 +115,9 @@ def write_remaining_trades(trades):
                 'trail_offset': t['trail_offset'],
                 'tp_trail_price': t['tp_trail_price'] if t['tp_trail_price'] else '',
                 'ema9': '',
-                'ema20': ''
+                'ema20': '',
+                'filled': t.get('filled', 'true'),
+                'entry_timestamp': t.get('entry_timestamp', '')
             })
 
 # === MONITOR LOOP ===
