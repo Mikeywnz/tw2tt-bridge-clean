@@ -115,9 +115,14 @@ def monitor_trades():
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
         symbol_data = prices.get(symbol, {})
+    if isinstance(symbol_data, dict):
         current_price = symbol_data.get('price')
         ema9 = symbol_data.get('ema9')
         ema20 = symbol_data.get('ema20')
+    else:
+        current_price = symbol_data
+        ema9 = None
+        ema20 = None
 
         if current_price is None or ema9 is None or ema20 is None:
             print(f"⏳ Skipping {symbol}: missing price or EMA")
