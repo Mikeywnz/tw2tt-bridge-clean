@@ -54,7 +54,7 @@ async def webhook(request: Request):
         # ✅ Store to Firebase using REST
         FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
-            requests.put(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(price))
+            requests.put(f"{FIREBASE_URL}/live_prices/{symbol}/price.json", data=json.dumps(price))
         except Exception as e:
             print(f"❌ Failed to push price to Firebase: {e}")
             log_to_file(f"❌ Failed to push price to Firebase: {e}")
@@ -83,6 +83,18 @@ async def webhook(request: Request):
 
         with open(EMA_FILE, "w") as f:
             json.dump(ema_data, f, indent=2)
+
+        # ✅ Push both EMAs to Firebase with .update()
+        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+        try:
+            requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps({
+                "ema9": ema9,
+                "ema20": ema20,
+                "updated_at": datetime.utcnow().isoformat()
+            }))
+        except Exception as e:
+            print(f"❌ Failed to push EMAs to Firebase: {e}")
+            log_to_file(f"❌ Failed to push EMAs to Firebase: {e}")
 
         print(f"💾 Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
         log_to_file(f"Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")

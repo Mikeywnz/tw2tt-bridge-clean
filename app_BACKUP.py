@@ -52,7 +52,7 @@ async def webhook(request: Request):
             json.dump(prices, f, indent=2)
 
         # ✅ Store to Firebase using REST
-        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.firebaseio.com"
+        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
             requests.put(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(price))
         except Exception as e:
@@ -140,8 +140,8 @@ async def webhook(request: Request):
                         price,        # entry_price
                         action.upper(),  # action
                         1,            # contracts_remaining
-                        1.0,          # tp1_mult
-                        0.5,          # sl_price
+                        0.5,          # tp1_mult (✅ UPDATED)
+                        0.2,          # sl_price  (✅ UPDATED)
                         ema9,         # EMA9 at entry
                         ema20,        # EMA20 at entry
                         ""            # trail_triggered / placeholder

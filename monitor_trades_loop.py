@@ -170,5 +170,8 @@ def monitor_trades():
 
 if __name__ == "__main__":
     while True:
-        monitor_trades()
+        try:
+            monitor_trades()
+        except Exception as e:
+            print(f"❌ ERROR in monitor_trades(): {e}")
         time.sleep(10)
