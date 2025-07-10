@@ -29,7 +29,6 @@ def load_open_trades():
     with open(OPEN_TRADES_FILE, 'r') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            # Skip unfilled trades
             if row.get("filled", "true") != "true":
                 continue
             trades.append({
@@ -39,7 +38,9 @@ def load_open_trades():
                 'contracts_remaining': int(row['contracts_remaining']),
                 'trail_perc': float(row['trail_perc']),
                 'trail_offset': float(row['trail_offset']),
-                'tp_trail_price': float(row['tp_trail_price']) if row.get('tp_trail_price') else None,
+                'tp_trail_price': float(row.get('tp_trail_price') or 0),
+                'trail_hit': row.get('trail_hit', 'false') == 'true',
+                'trail_peak': float(row.get('trail_peak') or row['entry_price']),
                 'ema9': None,
                 'ema20': None,
                 'filled': row.get('filled', 'true'),
@@ -57,7 +58,8 @@ def write_closed_trade(trade, reason, exit_price):
         "ema9_exit": "Blue",
         "ema20_exit": "Red",
         "manual_exit": "Orange",
-        "liquidated": "Purple"
+        "liquidated": "Purple",
+        "ghost_trade_exit": "Grey"
     }.get(reason, "")
 
     row = {
@@ -75,22 +77,19 @@ def write_closed_trade(trade, reason, exit_price):
         "exit_color": exit_color
     }
 
-    # Local CSV logging
-    file_exists = False
     try:
+        file_exists = False
         with open(CLOSED_TRADES_FILE, 'r') as f:
             file_exists = True
     except FileNotFoundError:
         pass
 
     with open(CLOSED_TRADES_FILE, 'a', newline='') as file:
-        fieldnames = list(row.keys())
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer = csv.DictWriter(file, fieldnames=row.keys())
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
 
-    # Google Sheets logging
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
@@ -102,7 +101,7 @@ def write_closed_trade(trade, reason, exit_price):
 
 def write_remaining_trades(trades):
     with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'ema9', 'ema20', 'filled', 'entry_timestamp']
+        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema9_live', 'ema20_live', 'filled', 'entry_timestamp']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for t in trades:
@@ -113,9 +112,11 @@ def write_remaining_trades(trades):
                 'contracts_remaining': t['contracts_remaining'],
                 'trail_perc': t['trail_perc'],
                 'trail_offset': t['trail_offset'],
-                'tp_trail_price': t['tp_trail_price'] if t['tp_trail_price'] else '',
-                'ema9': '',
-                'ema20': '',
+                'tp_trail_price': t.get('tp_trail_price', ''),
+                'trail_hit': str(t.get('trail_hit', False)).lower(),
+                'trail_peak': t.get('trail_peak', ''),
+                'ema9_live': t.get('ema9_live', ''),
+                'ema20_live': t.get('ema20_live', ''),
                 'filled': t.get('filled', 'true'),
                 'entry_timestamp': t.get('entry_timestamp', '')
             })
@@ -147,10 +148,9 @@ def monitor_trades():
             updated_trades.append(trade)
             continue
 
-        trade['ema9'] = ema9
-        trade['ema20'] = ema20
+        trade['ema9_live'] = ema9
+        trade['ema20_live'] = ema20
 
-        # === Emergency exits ===
         if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
             print(f"🛑 EMA20 exit: {symbol} at {current_price}")
             write_closed_trade(trade, "ema20_exit", current_price)
@@ -161,22 +161,13 @@ def monitor_trades():
             write_closed_trade(trade, "ema9_exit", current_price)
             continue
 
-        # === Trailing TP logic with % trigger and % buffer ===
-
+        # === Trailing TP logic ===
         entry = trade['entry_price']
-        direction = 1 if trade['action'].upper() == 'BUY' else -1
-
-        # Convert percentages to price distances
-        tp_trigger_pct = float(trade.get('trail_perc', 0))
-        trail_buffer_pct = float(trade.get('trail_offset', 0))
+        tp_trigger_pct = trade['trail_perc']
+        trail_buffer_pct = trade['trail_offset']
         tp_trigger = entry * tp_trigger_pct / 100
 
-        # Get or initialize trailing state
-        trail_hit = trade.get('trail_hit', False)
-        trail_peak = trade.get('trail_peak', entry)
-
-        # === 1. Activate trailing if TP trigger is hit ===
-        if not trail_hit and (
+        if not trade.get('trail_hit') and (
             (direction == 1 and current_price >= entry + tp_trigger) or
             (direction == -1 and current_price <= entry - tp_trigger)
         ):
@@ -184,65 +175,36 @@ def monitor_trades():
             trade['trail_peak'] = current_price
             print(f"🎯 TP trigger hit for {symbol} → trailing activated at {current_price}")
 
-        # === 2. Update peak while trailing ===
         if trade.get('trail_hit'):
-            if direction == 1 and current_price > trail_peak:
-                trail_peak = current_price
-                trade['trail_peak'] = trail_peak
-            elif direction == -1 and current_price < trail_peak:
-                trail_peak = current_price
-                trade['trail_peak'] = trail_peak
+            if direction == 1 and current_price > trade.get('trail_peak', entry):
+                trade['trail_peak'] = current_price
+            elif direction == -1 and current_price < trade.get('trail_peak', entry):
+                trade['trail_peak'] = current_price
 
-            # Calculate trail buffer in price points
-            trail_buffer = trail_peak * trail_buffer_pct / 100
+            trail_buffer = trade['trail_peak'] * trail_buffer_pct / 100
 
-            # === 3. Exit if price pulls back more than buffer from peak ===
             if (
-                (direction == 1 and current_price <= trail_peak - trail_buffer) or
-                (direction == -1 and current_price >= trail_peak + trail_buffer)
+                (direction == 1 and current_price <= trade['trail_peak'] - trail_buffer) or
+                (direction == -1 and current_price >= trade['trail_peak'] + trail_buffer)
             ):
-                print(f"🚨 Trailing TP exit: {symbol} at {current_price} (peak was {trail_peak})")
+                print(f"🚨 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
                 write_closed_trade(trade, "trailing_tp_exit", current_price)
                 continue
 
-        # === End of trade logic ===
+        # === Ghost trade detection === (placeholder: price == -1)
+        if current_price == -1:
+            print(f"👻 Ghost trade detected: {symbol} — no longer live in TigerTrade.")
+            write_closed_trade(trade, "ghost_trade_exit", trade['entry_price'])
+            continue
+
         updated_trades.append(trade)
-        write_remaining_trades(updated_trades)
 
-        if __name__ == "__main__":
-            while True:
-                try:
-                    monitor_trades()
-                except Exception as e:
-                    print(f"❌ ERROR in monitor_trades(): {e}")
-                time.sleep(10)# === Trailing TP logic ===
-                entry = trade['entry_price']
-                trigger_pct = trade['trail_perc'] / 100
-                offset_pct = trade['trail_offset'] / 100
+    write_remaining_trades(updated_trades)
 
-                trail_candidate = current_price - direction * (entry * offset_pct)
-
-                if trade['tp_trail_price'] is None:
-                    trigger_price = entry + direction * (entry * trigger_pct)
-                    if direction * current_price >= direction * trigger_price:
-                        trade['tp_trail_price'] = trail_candidate
-                        print(f"🎯 Trigger hit for {symbol}, trail begins: {trail_candidate}")
-                elif direction * trail_candidate > direction * trade['tp_trail_price']:
-                    trade['tp_trail_price'] = trail_candidate
-
-                if trade['tp_trail_price'] is not None and direction * current_price <= direction * trade['tp_trail_price']:
-                    print(f"📉 Trailing TP exit: {symbol} at {current_price}")
-                    write_closed_trade(trade, "trailing_tp_exit", current_price)
-                    continue
-
-                updated_trades.append(trade)
-
-            write_remaining_trades(updated_trades)
-
-        if __name__ == "__main__":
-            while True:
-                try:
-                    monitor_trades()
-                except Exception as e:
-                    print(f"❌ ERROR in monitor_trades(): {e}")
-                time.sleep(10)e
+if __name__ == "__main__":
+    while True:
+        try:
+            monitor_trades()
+        except Exception as e:
+            print(f"❌ ERROR in monitor_trades(): {e}")
+        time.sleep(10)
