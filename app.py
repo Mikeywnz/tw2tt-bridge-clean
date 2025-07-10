@@ -36,10 +36,13 @@ async def webhook(request: Request):
     print(f"📥 Incoming Webhook: {data}")
     log_to_file(f"Webhook received: {data}")
 
-    # === Handle Price Update ===
+    # === Unified Price + EMA Update ===
     if data.get("type") == "price_update":
         symbol = data["symbol"]
         price = float(data["price"])
+        ema9 = float(data["ema9"])
+        ema20 = float(data["ema20"])
+        timestamp = datetime.utcnow().isoformat()
 
         try:
             with open(PRICE_FILE, "r") as f:
@@ -53,52 +56,21 @@ async def webhook(request: Request):
 
         FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
-            requests.put(f"{FIREBASE_URL}/live_prices/{symbol}/price.json", data=json.dumps(price))
-        except Exception as e:
-            print(f"❌ Failed to push price to Firebase: {e}")
-            log_to_file(f"❌ Failed to push price to Firebase: {e}")
-
-        print(f"💾 Stored live price: {symbol} = {price}")
-        log_to_file(f"Stored live price: {symbol} = {price}")
-        return {"status": "price stored"}
-
-    # === Handle EMA Update ===
-    elif data.get("type") == "ema_update":
-        symbol = data["symbol"]
-        ema9 = float(data["ema9"])
-        ema20 = float(data["ema20"])
-
-        try:
-            with open(EMA_FILE, "r") as f:
-                ema_data = json.load(f)
-        except FileNotFoundError:
-            ema_data = {}
-
-        ema_data[symbol] = {
-            "ema9": ema9,
-            "ema20": ema20,
-            "updated_at": datetime.utcnow().isoformat()
-        }
-
-        with open(EMA_FILE, "w") as f:
-            json.dump(ema_data, f, indent=2)
-
-        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-        try:
             requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps({
+                "price": price,
                 "ema9": ema9,
                 "ema20": ema20,
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": timestamp
             }))
+            print(f"✅ Firebase updated: {symbol} - Price: {price}, EMA9: {ema9}, EMA20: {ema20}")
         except Exception as e:
-            print(f"❌ Failed to push EMAs to Firebase: {e}")
-            log_to_file(f"❌ Failed to push EMAs to Firebase: {e}")
+            print(f"❌ Failed to push to Firebase: {e}")
+            log_to_file(f"❌ Firebase push error: {e}")
 
-        print(f"💾 Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
-        log_to_file(f"Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
-        return {"status": "ema stored"}
+        log_to_file(f"Stored live price: {symbol} = {price}")
+        return {"status": "price + ema stored"}
 
-    # === Handle Trade Signal (with execution) ===
+            # === Handle Trade Signal (with execution) ===
     elif data.get("action") in ("BUY", "SELL"):
         print(f"⚠️ Trade signal received: {data}")
         log_to_file(f"Trade signal received: {data}")
@@ -137,10 +109,10 @@ async def webhook(request: Request):
                     ema20 = float(ema_data.get(symbol, {}).get("ema20", 0.0))
             except Exception as e:
                 print(f"❌ Could not load EMAs for {symbol}: {e}")
-                log_to_file(f"Could not load EMAs for {symbol}: {e}")
+                log_to_file(f"❌ Could not load EMAs for {symbol}: {e}")
                 ema9, ema20 = 0.0, 0.0
 
-            for _ in range(quantity):
+                            for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([
