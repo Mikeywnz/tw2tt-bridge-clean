@@ -1,4 +1,4 @@
-symbol,entry_price,action,contracts_remaining,trail_perc,trail_offset,tp_trail_price,ema9,ema20,filled,entry_timestamp
+symbol,entry_price,action,contracts_remaining,trail_perc,trail_offset,tp_trail_price,ema9,ema20,trail_peak_price,filled,entry_timestamp
 MGC2508,2345.60,BUY,1,0.5,0.2,,,
 MGC2508,2347.20,BUY,1,0.5,0.2,,,
 MGC2508,2349.00,BUY,1,0.5,0.2,,,
