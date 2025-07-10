@@ -161,34 +161,88 @@ def monitor_trades():
             write_closed_trade(trade, "ema9_exit", current_price)
             continue
 
-        # === Trailing TP logic ===
+        # === Trailing TP logic with % trigger and % buffer ===
+
         entry = trade['entry_price']
-        trigger_pct = trade['trail_perc'] / 100
-        offset_pct = trade['trail_offset'] / 100
+        direction = 1 if trade['action'].upper() == 'BUY' else -1
 
-        trail_candidate = current_price - direction * (entry * offset_pct)
+        # Convert percentages to price distances
+        tp_trigger_pct = float(trade.get('trail_perc', 0))
+        trail_buffer_pct = float(trade.get('trail_offset', 0))
+        tp_trigger = entry * tp_trigger_pct / 100
 
-        if trade['tp_trail_price'] is None:
-            trigger_price = entry + direction * (entry * trigger_pct)
-            if direction * current_price >= direction * trigger_price:
-                trade['tp_trail_price'] = trail_candidate
-                print(f"🎯 Trigger hit for {symbol}, trail begins: {trail_candidate}")
-        elif direction * trail_candidate > direction * trade['tp_trail_price']:
-            trade['tp_trail_price'] = trail_candidate
+        # Get or initialize trailing state
+        trail_hit = trade.get('trail_hit', False)
+        trail_peak = trade.get('trail_peak', entry)
 
-        if trade['tp_trail_price'] is not None and direction * current_price <= direction * trade['tp_trail_price']:
-            print(f"📉 Trailing TP exit: {symbol} at {current_price}")
-            write_closed_trade(trade, "trailing_tp_exit", current_price)
-            continue
+        # === 1. Activate trailing if TP trigger is hit ===
+        if not trail_hit and (
+            (direction == 1 and current_price >= entry + tp_trigger) or
+            (direction == -1 and current_price <= entry - tp_trigger)
+        ):
+            trade['trail_hit'] = True
+            trade['trail_peak'] = current_price
+            print(f"🎯 TP trigger hit for {symbol} → trailing activated at {current_price}")
 
+        # === 2. Update peak while trailing ===
+        if trade.get('trail_hit'):
+            if direction == 1 and current_price > trail_peak:
+                trail_peak = current_price
+                trade['trail_peak'] = trail_peak
+            elif direction == -1 and current_price < trail_peak:
+                trail_peak = current_price
+                trade['trail_peak'] = trail_peak
+
+            # Calculate trail buffer in price points
+            trail_buffer = trail_peak * trail_buffer_pct / 100
+
+            # === 3. Exit if price pulls back more than buffer from peak ===
+            if (
+                (direction == 1 and current_price <= trail_peak - trail_buffer) or
+                (direction == -1 and current_price >= trail_peak + trail_buffer)
+            ):
+                print(f"🚨 Trailing TP exit: {symbol} at {current_price} (peak was {trail_peak})")
+                write_closed_trade(trade, "trailing_tp_exit", current_price)
+                continue
+
+        # === End of trade logic ===
         updated_trades.append(trade)
+        write_remaining_trades(updated_trades)
 
-    write_remaining_trades(updated_trades)
+        if __name__ == "__main__":
+            while True:
+                try:
+                    monitor_trades()
+                except Exception as e:
+                    print(f"❌ ERROR in monitor_trades(): {e}")
+                time.sleep(10)# === Trailing TP logic ===
+                entry = trade['entry_price']
+                trigger_pct = trade['trail_perc'] / 100
+                offset_pct = trade['trail_offset'] / 100
 
-if __name__ == "__main__":
-    while True:
-        try:
-            monitor_trades()
-        except Exception as e:
-            print(f"❌ ERROR in monitor_trades(): {e}")
-        time.sleep(10)
+                trail_candidate = current_price - direction * (entry * offset_pct)
+
+                if trade['tp_trail_price'] is None:
+                    trigger_price = entry + direction * (entry * trigger_pct)
+                    if direction * current_price >= direction * trigger_price:
+                        trade['tp_trail_price'] = trail_candidate
+                        print(f"🎯 Trigger hit for {symbol}, trail begins: {trail_candidate}")
+                elif direction * trail_candidate > direction * trade['tp_trail_price']:
+                    trade['tp_trail_price'] = trail_candidate
+
+                if trade['tp_trail_price'] is not None and direction * current_price <= direction * trade['tp_trail_price']:
+                    print(f"📉 Trailing TP exit: {symbol} at {current_price}")
+                    write_closed_trade(trade, "trailing_tp_exit", current_price)
+                    continue
+
+                updated_trades.append(trade)
+
+            write_remaining_trades(updated_trades)
+
+        if __name__ == "__main__":
+            while True:
+                try:
+                    monitor_trades()
+                except Exception as e:
+                    print(f"❌ ERROR in monitor_trades(): {e}")
+                time.sleep(10)e

@@ -143,6 +143,19 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load EMAs for {symbol}: {e}")
                 ema9, ema20 = 0.0, 0.0
 
+            # === Only proceed if TigerTrade did not reject the order ===
+            stderr = result.stderr.lower()
+            if (
+                "不支持" in stderr or
+                "not support" in stderr or
+                "error" in stderr or
+                "insufficient margin" in stderr
+            ):
+                print("⚠️ TigerTrade order likely rejected — skipping CSV log.")
+                log_to_file("⚠️ TigerTrade order rejected — skipping CSV log.")
+                return {"status": "trade not filled"}
+
+            # ✅ Proceed to log trade only if no error found
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
