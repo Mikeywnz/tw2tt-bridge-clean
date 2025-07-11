@@ -36,7 +36,7 @@ def load_open_trades():
                 'entry_price': float(row['entry_price']),
                 'action': row['action'].upper(),
                 'contracts_remaining': int(row['contracts_remaining']),
-                trail_trigger = trade["trail_trigger"] in ["True", "true", True]
+                'trail_trigger': row['trail_trigger'] in ["True", "true", True],
                 'trail_offset': float(row['trail_offset']),
                 'tp_trail_price': float(row.get('tp_trail_price') or 0),
                 'trail_hit': row.get('trail_hit', 'false') == 'true',
