@@ -5,6 +5,7 @@ import subprocess
 import csv
 import os
 import requests
+import pytz  # ✅ For NZ timezone
 
 app = FastAPI()
 
@@ -33,9 +34,15 @@ async def webhook(request: Request):
 
     # === Handle Price + EMA50 Update ===
     if data.get("type") == "price_update":
-        symbol = data["symbol"]
-        price = float(data["price"])
-        ema50 = float(data["ema50"])
+        symbol = data.get("symbol")
+        symbol = symbol.split("@")[0] if symbol else "UNKNOWN"
+
+        try:
+            price = float(data.get("price"))
+            ema50 = float(data.get("ema50"))
+        except (ValueError, TypeError):
+            log_to_file("❌ Invalid price or ema50 value received")
+            return {"status": "error", "reason": "invalid numeric values"}
 
         # Save live price locally
         try:
@@ -48,12 +55,15 @@ async def webhook(request: Request):
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
 
-        # Push price + ema50 to Firebase
+        # ✅ Push price + ema50 to Firebase with NZT timestamp
+        nz_time = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
         payload = {
             "price": price,
             "ema50": ema50,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": nz_time
         }
+
+        log_to_file(f"📤 Pushing to Firebase: {symbol} → price={price}, ema50={ema50}")
 
         try:
             requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(payload))
@@ -115,7 +125,7 @@ async def webhook(request: Request):
                         0.4,           # trail_trigger
                         0.2,           # trail_offset
                         ema50,         # ema50
-                        True,            # trail_triggered
+                        True,          # trail_triggered
                         "true",        # filled
                         entry_timestamp
                     ])
