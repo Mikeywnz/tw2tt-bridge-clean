@@ -44,7 +44,7 @@ def load_open_trades():
                     'trail_offset': float(row['trail_offset']) if row['trail_offset'] else 0.0,
                     'tp_trail_price': float(row['tp_trail_price']) if row['tp_trail_price'] else None,
                     'trail_hit': row['trail_hit'].strip().lower() == 'true',
-                    'trail_peak': float(row['trail_peak']) if row['trail_peak'] else None,
+                    'trail_peak': float(row['trail_peak']) if row['trail_peak'].replace('.', '', 1).isdigit() else None,
                     'ema50': float(row['ema50_live']) if row['ema50_live'] else None,
                     'filled': row.get('filled', 'true'),
                     'entry_timestamp': row.get('entry_timestamp', '')
