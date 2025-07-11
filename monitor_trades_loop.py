@@ -3,6 +3,7 @@ from firebase_admin import credentials, db
 import csv
 import time
 from datetime import datetime
+from pytz import timezone
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -29,27 +30,32 @@ def load_open_trades():
     with open(OPEN_TRADES_FILE, 'r') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            if row.get("filled", "true") != "true":
+            if not row.get("symbol") or not row.get("entry_price"):
                 continue
-            trades.append({
-                'symbol': row['symbol'],
-                'entry_price': float(row['entry_price']),
-                'action': row['action'].upper(),
-                'contracts_remaining': int(row['contracts_remaining']),
-                'trail_trigger': row['trail_trigger'] in ["True", "true", True],
-                'trail_offset': float(row['trail_offset']),
-                'tp_trail_price': float(row.get('tp_trail_price') or 0),
-                'trail_hit': row.get('trail_hit', 'false') == 'true',
-                'trail_peak': float(row.get('trail_peak') or row['entry_price']),
-                'ema50': None,
-                'filled': row.get('filled', 'true'),
-                'entry_timestamp': row.get('entry_timestamp', '')
-            })
+            if row.get("filled", "true").strip().lower() != "true":
+                continue
+            try:
+                trades.append({
+                    'symbol': row['symbol'],
+                    'entry_price': float(row['entry_price']),
+                    'action': row['action'].upper(),
+                    'contracts_remaining': int(row['contracts_remaining']),
+                    'trail_trigger': float(row['trail_trigger']) if row['trail_trigger'] else 0.0,
+                    'trail_offset': float(row['trail_offset']) if row['trail_offset'] else 0.0,
+                    'tp_trail_price': float(row['tp_trail_price']) if row['tp_trail_price'] else None,
+                    'trail_hit': row['trail_hit'].strip().lower() == 'true',
+                    'trail_peak': float(row['trail_peak']) if row['trail_peak'] else None,
+                    'ema50': float(row['ema50_live']) if row['ema50_live'] else None,
+                    'filled': row.get('filled', 'true'),
+                    'entry_timestamp': row.get('entry_timestamp', '')
+                })
+            except Exception as e:
+                print(f"❌ Failed to parse row: {row} → {e}")
     return trades
 
 def write_closed_trade(trade, reason, exit_price):
     pnl = (exit_price - trade['entry_price']) * (-1 if trade['action'] == 'SELL' else 1)
-    exit_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    exit_time = datetime.now(timezone('Pacific/Auckland')).strftime("%Y-%m-%d %H:%M:%S")
     entry_time = trade.get("entry_timestamp", exit_time)
 
     exit_color = {
@@ -68,8 +74,8 @@ def write_closed_trade(trade, reason, exit_price):
         "pnl_dollars": round((exit_price - trade["entry_price"]) * (1 if trade["action"] == "BUY" else -1), 2),
         "reason_for_exit": reason,
         "entry_time": trade["entry_timestamp"],
-        "exit_time": datetime.utcnow().isoformat(),
-        "trail_triggered": "YES" if trade.get("tp_trigger") else "NO",
+        "exit_time": datetime.now(timezone('Pacific/Auckland')).isoformat(),
+        "trail_triggered": "YES" if trade.get("trail_hit") else "NO",
         "ema50_exit": "YES" if reason == "ema50_exit" else "NO"
     }
 
@@ -93,11 +99,12 @@ def write_closed_trade(trade, reason, exit_price):
         sheet.append_row(list(row.values()))
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
     except Exception as e:
-        print(f"❌ Google Sheets error: {e}")
+        log_line = f"❌ Google Sheets error for {trade['symbol']}: {e}"
+        print(log_line)
 
 def write_remaining_trades(trades):
     with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema50_live', 'filled', 'entry_timestamp']
+        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_trigger', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema50_live', 'filled', 'entry_timestamp']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for t in trades:
@@ -155,13 +162,16 @@ def monitor_trades():
         trail_buffer_pct = trade['trail_offset']
         tp_trigger = entry * tp_trigger_pct / 100
 
-        if not trade.get('trail_hit') and (
-            (direction == 1 and current_price >= entry + tp_trigger) or
-            (direction == -1 and current_price <= entry - tp_trigger)
-        ):
-            trade['trail_hit'] = True
-            trade['trail_peak'] = current_price
-            print(f"🎯 TP trigger hit for {symbol} → trailing activated at {current_price}")
+        if not trade.get('trail_hit'):
+            if trade.get('trail_peak') is None:
+                trade['trail_peak'] = entry
+            if (
+                (direction == 1 and current_price >= entry + tp_trigger) or
+                (direction == -1 and current_price <= entry - tp_trigger)
+            ):
+                trade['trail_hit'] = True
+                trade['trail_peak'] = current_price
+                print(f"🎯 TP trigger hit for {symbol} → trailing activated at {current_price}")
 
         if trade.get('trail_hit'):
             if direction == 1 and current_price > trade.get('trail_peak', entry):
