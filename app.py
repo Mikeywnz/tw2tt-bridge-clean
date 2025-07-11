@@ -157,6 +157,7 @@ async def webhook(request: Request):
                 }
 
                 existing.append(new_trade)
+                log_to_file(f"📦 Pushing to Firebase:\n{json.dumps(existing, indent=2)}")
                 put_response = requests.put(firebase_endpoint, json=existing)
 
                 if put_response.status_code == 200:
