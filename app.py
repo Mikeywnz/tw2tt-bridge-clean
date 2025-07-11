@@ -6,6 +6,14 @@ import csv
 import os
 import requests
 import pytz  # ✅ For NZ timezone
+import random
+import string
+
+def generate_trade_id(symbol: str, side: str, qty: int) -> str:
+    now = datetime.utcnow()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    suffix = ''.join(random.choices(string.ascii_lowercase, k=2))
+    return f"{symbol.lower()}_{timestamp}_{side.lower()}_{qty}_{suffix}"
 
 app = FastAPI()
 
@@ -79,6 +87,7 @@ async def webhook(request: Request):
         action = data["action"]
         quantity = int(data.get("quantity", 1))
         entry_timestamp = datetime.utcnow().isoformat()
+        trade_id = generate_trade_id(symbol, action, quantity)
 
         log_to_file(f"Trade signal received: {data}")
         try:
@@ -118,6 +127,7 @@ async def webhook(request: Request):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([
+                        trade_id,      # trade ID
                         symbol,        # symbol
                         price,         # entry price
                         action,        # BUY or SELL
@@ -142,6 +152,7 @@ async def webhook(request: Request):
                 existing = response.json() or []
 
                 new_trade = {
+                    "trade_id": trade_id, 
                     "symbol": symbol,
                     "entry_price": price,   
                     "action": action,
@@ -171,6 +182,7 @@ async def webhook(request: Request):
             try:
                 log_entry = {
                     "timestamp": entry_timestamp,
+                    "trade_id": trade_id,
                     "symbol": symbol,
                     "action": action,
                     "price": price,
