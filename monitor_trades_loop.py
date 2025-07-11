@@ -7,6 +7,22 @@ from pytz import timezone
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+import subprocess  # Add this if it's not already at the top
+
+def close_position(symbol, original_action):
+    exit_action = "SELL" if original_action == "BUY" else "BUY"
+    try:
+        result = subprocess.run(
+            ["python3", "execute_trade_live.py", symbol, exit_action, "1"],
+            capture_output=True,
+            text=True
+        )
+        print(f"📤 Exit order sent: {exit_action} 1 {symbol}")
+        print("stdout:", result.stdout.strip())
+        print("stderr:", result.stderr.strip())
+    except Exception as e:
+        print(f"❌ Failed to execute exit order: {e}")
+
 # === FIREBASE INITIALIZATION ===
 if not firebase_admin._apps:
     cred = credentials.Certificate("firebase_key.json")
@@ -153,6 +169,7 @@ def monitor_trades():
         # === 50EMA Emergency Exit ===
         if (trade['action'] == 'BUY' and current_price < ema50) or (trade['action'] == 'SELL' and current_price > ema50):
             print(f"🛑 EMA50 exit: {symbol} at {current_price}")
+            close_position(symbol, trade["action"])
             write_closed_trade(trade, "ema50_exit", current_price)
             continue
 
@@ -186,6 +203,7 @@ def monitor_trades():
                 (direction == -1 and current_price >= trade['trail_peak'] + trail_buffer)
             ):
                 print(f"🚨 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
+                close_position(symbol, trade["action"])
                 write_closed_trade(trade, "trailing_tp_exit", current_price)
                 continue
 
