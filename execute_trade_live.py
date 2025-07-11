@@ -63,7 +63,7 @@ try:
         live_price,
         action,
         1,        # contracts_remaining
-        0.4,      # trail_perc
+        0.4,      # trail_trigger
         0.2,      # trail_offset
         '',       # tp_trail_price
         ema50,

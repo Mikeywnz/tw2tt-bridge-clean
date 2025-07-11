@@ -112,7 +112,7 @@ async def webhook(request: Request):
                         price,         # entry price
                         action,        # BUY or SELL
                         1,             # contracts remaining
-                        0.4,           # trail_perc
+                        0.4,           # trail_trigger
                         0.2,           # trail_offset
                         ema50,         # ema50
                         "",            # trail_triggered

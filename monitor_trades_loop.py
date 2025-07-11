@@ -36,7 +36,7 @@ def load_open_trades():
                 'entry_price': float(row['entry_price']),
                 'action': row['action'].upper(),
                 'contracts_remaining': int(row['contracts_remaining']),
-                'trail_perc': float(row['trail_perc']),
+                'trail_trigger': float(row['trail_trigger']),
                 'trail_offset': float(row['trail_offset']),
                 'tp_trail_price': float(row.get('tp_trail_price') or 0),
                 'trail_hit': row.get('trail_hit', 'false') == 'true',
@@ -61,17 +61,16 @@ def write_closed_trade(trade, reason, exit_price):
     }.get(reason, "")
 
     row = {
-        "symbol": trade['symbol'],
-        "entry_price": trade['entry_price'],
+        "symbol": trade["symbol"],
+        "direction": trade["action"],
+        "entry_price": trade["entry_price"],
         "exit_price": exit_price,
-        "direction": trade['action'],
+        "pnl_dollars": round((exit_price - trade["entry_price"]) * (1 if trade["action"] == "BUY" else -1), 2),
         "reason_for_exit": reason,
-        "pnl_dollars": round(pnl, 2),
-        "entry_time": entry_time,
-        "exit_time": exit_time,
-        "trail_triggered": "YES" if reason == "trailing_tp_exit" else "",
-        "ema50_emergency_exit": "YES" if reason == "ema50_exit" else "",
-        "exit_color": exit_color
+        "entry_time": trade["entry_timestamp"],
+        "exit_time": datetime.utcnow().isoformat(),
+        "trail_triggered": "YES" if trade.get("tp_trigger") else "NO",
+        "ema50_exit": "YES" if reason == "ema50_exit" else "NO"
     }
 
     try:
@@ -107,7 +106,7 @@ def write_remaining_trades(trades):
                 'entry_price': t['entry_price'],
                 'action': t['action'],
                 'contracts_remaining': t['contracts_remaining'],
-                'trail_perc': t['trail_perc'],
+                'trail_trigger': t['trail_trigger'],
                 'trail_offset': t['trail_offset'],
                 'tp_trail_price': t.get('tp_trail_price', ''),
                 'trail_hit': str(t.get('trail_hit', False)).lower(),
@@ -152,7 +151,7 @@ def monitor_trades():
 
         # === Trailing TP logic ===
         entry = trade['entry_price']
-        tp_trigger_pct = trade['trail_perc']
+        tp_trigger_pct = trade['trail_trigger']
         trail_buffer_pct = trade['trail_offset']
         tp_trigger = entry * tp_trigger_pct / 100
 
