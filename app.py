@@ -1,6 +1,3 @@
-with open("app.log", "a") as f:
-    f.write("[BOOT] ✅ app.py started\n")
-
 from fastapi import FastAPI, Request
 import json
 from datetime import datetime
@@ -13,10 +10,10 @@ app = FastAPI()
 
 # === File paths ===
 PRICE_FILE = "live_prices.json"
-EMA_FILE = "ema_values.json"
-TRADE_LOG = "trade_log.json"
 OPEN_TRADES_FILE = "open_trades.csv"
+TRADE_LOG = "trade_log.json"
 LOG_FILE = "app.log"
+FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # === Logging helper ===
 def log_to_file(message: str):
@@ -29,18 +26,18 @@ async def webhook(request: Request):
     try:
         data = await request.json()
     except Exception as e:
-        print(f"❌ Failed to parse JSON: {e}")
         log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
 
-    print(f"📥 Incoming Webhook: {data}")
     log_to_file(f"Webhook received: {data}")
 
-    # === Handle Price Update ===
+    # === Handle Price + EMA50 Update ===
     if data.get("type") == "price_update":
         symbol = data["symbol"]
         price = float(data["price"])
+        ema50 = float(data["ema50"])
 
+        # Save live price locally
         try:
             with open(PRICE_FILE, "r") as f:
                 prices = json.load(f)
@@ -51,131 +48,81 @@ async def webhook(request: Request):
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
 
-        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-        try:
-            requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps({
-                "price": price,
-                "updated_at": datetime.utcnow().isoformat()
-            }))
-        except Exception as e:
-            print(f"❌ Failed to push price to Firebase: {e}")
-            log_to_file(f"❌ Failed to push price to Firebase: {e}")
-
-        print(f"💾 Stored live price: {symbol} = {price}")
-        log_to_file(f"Stored live price: {symbol} = {price}")
-        return {"status": "price stored"}
-
-    # === Handle EMA Update ===
-    elif data.get("type") == "ema_update":
-        symbol = data["symbol"]
-        ema9 = float(data["ema9"])
-        ema20 = float(data["ema20"])
-
-        try:
-            with open(EMA_FILE, "r") as f:
-                ema_data = json.load(f)
-        except FileNotFoundError:
-            ema_data = {}
-
-        ema_data[symbol] = {
-            "ema9": ema9,
-            "ema20": ema20,
+        # Push price + ema50 to Firebase
+        payload = {
+            "price": price,
+            "ema50": ema50,
             "updated_at": datetime.utcnow().isoformat()
         }
 
-        with open(EMA_FILE, "w") as f:
-            json.dump(ema_data, f, indent=2)
-
-        FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
         try:
-            requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps({
-                "ema9": ema9,
-                "ema20": ema20,
-                "updated_at": datetime.utcnow().isoformat()
-            }))
+            requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(payload))
+            log_to_file(f"✅ Pushed to Firebase: {payload}")
         except Exception as e:
-            print(f"❌ Failed to push EMAs to Firebase: {e}")
-            log_to_file(f"❌ Failed to push EMAs to Firebase: {e}")
+            log_to_file(f"❌ Failed to push to Firebase: {e}")
 
-        print(f"💾 Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
-        log_to_file(f"Stored EMAs for {symbol} - 9EMA={ema9}, 20EMA={ema20}")
-        return {"status": "ema stored"}
+        return {"status": "price + ema50 stored"}
 
-    # === Handle Trade Signal (with execution) ===
+    # === Handle Trade Signal ===
     elif data.get("action") in ("BUY", "SELL"):
-        print(f"⚠️ Trade signal received: {data}")
-        log_to_file(f"Trade signal received: {data}")
-
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
         entry_timestamp = datetime.utcnow().isoformat()
 
+        log_to_file(f"Trade signal received: {data}")
         try:
-            print(f"🐅 Sending order to TigerTrade: {symbol} {action} x{quantity}")
             result = subprocess.run([
                 "python3", "execute_trade_live.py",
-                symbol,
-                action,
-                str(quantity)
+                symbol, action, str(quantity)
             ], capture_output=True, text=True)
 
-            print("✅ TigerTrade stdout:", result.stdout)
-            print("⚠️ TigerTrade stderr:", result.stderr)
             log_to_file(f"Executed TigerTrade: stdout={result.stdout.strip()} stderr={result.stderr.strip()}")
 
+            # Load latest price
             try:
                 with open(PRICE_FILE, "r") as f:
                     prices = json.load(f)
                     price = float(prices.get(symbol, 0.0))
             except Exception as e:
-                print(f"❌ Could not load price for {symbol}: {e}")
-                log_to_file(f"Could not load price for {symbol}: {e}")
+                log_to_file(f"Could not load price: {e}")
                 price = 0.0
 
+            # Load latest ema50 from Firebase
             try:
-                with open(EMA_FILE, "r") as f:
-                    ema_data = json.load(f)
-                    ema9 = float(ema_data.get(symbol, {}).get("ema9", 0.0))
-                    ema20 = float(ema_data.get(symbol, {}).get("ema20", 0.0))
+                resp = requests.get(f"{FIREBASE_URL}/live_prices/{symbol}/ema50.json")
+                ema50 = float(resp.json() or 0.0)
             except Exception as e:
-                print(f"❌ Could not load EMAs for {symbol}: {e}")
-                log_to_file(f"Could not load EMAs for {symbol}: {e}")
-                ema9, ema20 = 0.0, 0.0
+                log_to_file(f"Could not load ema50 from Firebase: {e}")
+                ema50 = 0.0
 
-            # === Only proceed if TigerTrade did not reject the order ===
-            stderr = result.stderr.lower()
-            if (
-                "不支持" in stderr or
-                "not support" in stderr or
-                "error" in stderr or
-                "insufficient margin" in stderr
-            ):
-                print("⚠️ TigerTrade order likely rejected — skipping CSV log.")
+            # Check for rejection
+            if any(error in result.stderr.lower() for error in [
+                "不支持", "not support", "error", "insufficient margin"
+            ]):
                 log_to_file("⚠️ TigerTrade order rejected — skipping CSV log.")
                 return {"status": "trade not filled"}
 
-            # ✅ Proceed to log trade only if no error found
+            # ✅ Log each contract to CSV
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow([
-                        symbol,
-                        price,
-                        action.upper(),
-                        1,
-                        0.5,
-                        0.2,
-                        ema9,
-                        ema20,
-                        "",             # trail_triggered
-                        "true",         # filled
+                        symbol,        # symbol
+                        price,         # entry price
+                        action,        # BUY or SELL
+                        1,             # contracts remaining
+                        0.4,           # trail_perc
+                        0.2,           # trail_offset
+                        ema50,         # ema50
+                        "",            # trail_triggered
+                        "true",        # filled
                         entry_timestamp
                     ])
 
-            print("📥 Trade logged to open_trades.csv")
-            log_to_file(f"Trade logged to open_trades.csv: {symbol} {action} x{quantity} @ {price}")
+            log_to_file(f"📥 Trade logged to open_trades.csv: {symbol} {action} @ {price}")
 
+            # Log to JSON trade log
             try:
                 log_entry = {
                     "timestamp": entry_timestamp,
@@ -195,14 +142,12 @@ async def webhook(request: Request):
                 with open(TRADE_LOG, "w") as f:
                     json.dump(logs, f, indent=2)
 
-                print("🧾 Trade also logged to trade_log.json")
+                log_to_file("🧾 Trade also logged to trade_log.json")
 
             except Exception as e:
-                print(f"❌ Failed to log to trade_log.json: {e}")
                 log_to_file(f"❌ Failed to log to trade_log.json: {e}")
 
         except Exception as e:
-            print(f"❌ TigerTrade execution failed: {e}")
             log_to_file(f"TigerTrade execution failed: {e}")
             return {"status": "trade failed", "error": str(e)}
 
