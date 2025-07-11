@@ -45,37 +45,28 @@ try:
 
     # === STEP 6: Get current price from live_prices.json ===
     live_price = 0.0
+    ema50 = ""
     try:
         with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
             live_data = json.load(f)
             live_price = float(live_data.get(symbol, 0.0))
+            ema50 = live_data.get("ema50", "")
     except Exception as e:
         print("⚠️ Could not read live_prices.json:", e)
 
-    # === STEP 7: Get EMA values from ema_values.json ===
-    ema9, ema20 = "", ""
-    try:
-        with open(os.path.join(os.path.dirname(__file__), 'ema_values.json')) as f:
-            ema_data = json.load(f)
-            ema9 = ema_data.get("ema9", "")
-            ema20 = ema_data.get("ema20", "")
-    except Exception as e:
-        print("⚠️ Could not read ema_values.json:", e)
-
-    # === STEP 8: Create timestamp ===
+    # === STEP 7: Create timestamp ===
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    # === STEP 9: Append to open_trades.csv ===
+    # === STEP 8: Append to open_trades.csv ===
     row = [
         symbol,
         live_price,
         action,
         1,        # contracts_remaining
-        0.5,      # trail_perc (✅ updated)
-        0.2,      # trail_offset (✅ updated)
-        '',       # tp_trail_price (initially blank)
-        ema9,
-        ema20,
+        0.4,      # trail_perc
+        0.2,      # trail_offset
+        '',       # tp_trail_price
+        ema50,
         filled_str,
         timestamp
     ]
