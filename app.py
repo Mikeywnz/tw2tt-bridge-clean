@@ -115,7 +115,7 @@ async def webhook(request: Request):
                         0.4,           # trail_trigger
                         0.2,           # trail_offset
                         ema50,         # ema50
-                        "",            # trail_triggered
+                        True,            # trail_triggered
                         "true",        # filled
                         entry_timestamp
                     ])
