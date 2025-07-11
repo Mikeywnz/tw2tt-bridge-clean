@@ -1,4 +1,4 @@
-symbol,entry_price,action,contracts_remaining,trail_trigger,trail_offset,tp_trail_price,trail_hit,trail_peak,ema50_live,filled,entry_timestamp
+trade_id,symbol,entry_price,action,contracts_remaining,trail_trigger,trail_offset,tp_trail_price,trail_hit,trail_peak,ema50_live,filled,entry_timestamp
 MGC2508,2345.60,BUY,1,0.4,0.2,,,False,,true,
 MGC2508,2347.20,BUY,1,0.4,0.2,,,False,,true,
 MGC2508,2349.00,BUY,1,0.4,0.2,,,False,,true,
