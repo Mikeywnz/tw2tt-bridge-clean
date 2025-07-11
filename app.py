@@ -130,7 +130,41 @@ async def webhook(request: Request):
                         entry_timestamp
                     ])
 
-            log_to_file(f"📥 Trade logged to open_trades.csv: {symbol} {action} @ {price}")
+            log_to_file(f"📩 Trade logged to open_trades.csv: {symbol} {action} @ {price}")
+
+            # ✅ Also log to Firebase
+            try:
+                firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+                firebase_key = f"/open_trades/{symbol}.json"
+                firebase_endpoint = firebase_url + firebase_key
+
+                response = requests.get(firebase_endpoint)
+                existing = response.json() or []
+
+                new_trade = {
+                    "symbol": symbol,
+                    "entry_price": price,   
+                    "action": action,
+                    "contracts_remaining": 1,
+                    "trail_trigger": 0.004,
+                    "trail_offset": 0.002,
+                    "tp_trail_price": None,
+                    "trail_hit": False,
+                    "trail_peak": price,
+                    "ema50_live": ema50,
+                    "filled": True,
+                    "entry_timestamp": entry_timestamp
+                }
+
+                existing.append(new_trade)
+                put_response = requests.put(firebase_endpoint, json=existing)
+
+                if put_response.status_code == 200:
+                    log_to_file(f"✅ Trade also pushed to Firebase for {symbol}")
+                else:
+                    log_to_file(f"❌ Failed to push trade to Firebase: {put_response.text}")
+            except Exception as e:
+                log_to_file(f"❌ Firebase push error: {e}")
 
             # Log to JSON trade log
             try:
