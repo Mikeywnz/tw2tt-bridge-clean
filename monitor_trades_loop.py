@@ -41,8 +41,7 @@ def load_open_trades():
                 'tp_trail_price': float(row.get('tp_trail_price') or 0),
                 'trail_hit': row.get('trail_hit', 'false') == 'true',
                 'trail_peak': float(row.get('trail_peak') or row['entry_price']),
-                'ema9': None,
-                'ema20': None,
+                'ema50': None,
                 'filled': row.get('filled', 'true'),
                 'entry_timestamp': row.get('entry_timestamp', '')
             })
@@ -55,8 +54,7 @@ def write_closed_trade(trade, reason, exit_price):
 
     exit_color = {
         "trailing_tp_exit": "Green",
-        "ema9_exit": "Blue",
-        "ema20_exit": "Red",
+        "ema50_exit": "Red",
         "manual_exit": "Orange",
         "liquidated": "Purple",
         "ghost_trade_exit": "Grey"
@@ -72,8 +70,7 @@ def write_closed_trade(trade, reason, exit_price):
         "entry_time": entry_time,
         "exit_time": exit_time,
         "trail_triggered": "YES" if reason == "trailing_tp_exit" else "",
-        "ema9_cross_exit": "YES" if reason == "ema9_exit" else "",
-        "ema20_emergency_exit": "YES" if reason == "ema20_exit" else "",
+        "ema50_emergency_exit": "YES" if reason == "ema50_exit" else "",
         "exit_color": exit_color
     }
 
@@ -101,7 +98,7 @@ def write_closed_trade(trade, reason, exit_price):
 
 def write_remaining_trades(trades):
     with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema9_live', 'ema20_live', 'filled', 'entry_timestamp']
+        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_perc', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema50_live', 'filled', 'entry_timestamp']
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for t in trades:
@@ -115,8 +112,7 @@ def write_remaining_trades(trades):
                 'tp_trail_price': t.get('tp_trail_price', ''),
                 'trail_hit': str(t.get('trail_hit', False)).lower(),
                 'trail_peak': t.get('trail_peak', ''),
-                'ema9_live': t.get('ema9_live', ''),
-                'ema20_live': t.get('ema20_live', ''),
+                'ema50_live': t.get('ema50_live', ''),
                 'filled': t.get('filled', 'true'),
                 'entry_timestamp': t.get('entry_timestamp', '')
             })
@@ -136,29 +132,22 @@ def monitor_trades():
 
         if isinstance(symbol_data, dict):
             current_price = symbol_data.get('price')
-            ema9 = symbol_data.get('ema9')
-            ema20 = symbol_data.get('ema20')
+            ema50 = symbol_data.get('ema50')
         else:
             current_price = symbol_data
-            ema9 = None
-            ema20 = None
+            ema50 = None
 
-        if current_price is None or ema9 is None or ema20 is None:
-            print(f"⏳ Skipping {symbol}: missing price or EMA")
+        if current_price is None or ema50 is None:
+            print(f"⏳ Skipping {symbol}: missing price or ema50")
             updated_trades.append(trade)
             continue
 
-        trade['ema9_live'] = ema9
-        trade['ema20_live'] = ema20
+        trade['ema50_live'] = ema50
 
-        if (trade['action'] == 'BUY' and current_price < ema20) or (trade['action'] == 'SELL' and current_price > ema20):
-            print(f"🛑 EMA20 exit: {symbol} at {current_price}")
-            write_closed_trade(trade, "ema20_exit", current_price)
-            continue
-
-        if (trade['action'] == 'BUY' and current_price < ema9) or (trade['action'] == 'SELL' and current_price > ema9):
-            print(f"💨 EMA9 exit: {symbol} at {current_price}")
-            write_closed_trade(trade, "ema9_exit", current_price)
+        # === 50EMA Emergency Exit ===
+        if (trade['action'] == 'BUY' and current_price < ema50) or (trade['action'] == 'SELL' and current_price > ema50):
+            print(f"🛑 EMA50 exit: {symbol} at {current_price}")
+            write_closed_trade(trade, "ema50_exit", current_price)
             continue
 
         # === Trailing TP logic ===
@@ -191,7 +180,7 @@ def monitor_trades():
                 write_closed_trade(trade, "trailing_tp_exit", current_price)
                 continue
 
-        # === Ghost trade detection === (placeholder: price == -1)
+        # === Ghost trade detection ===
         if current_price == -1:
             print(f"👻 Ghost trade detected: {symbol} — no longer live in TigerTrade.")
             write_closed_trade(trade, "ghost_trade_exit", trade['entry_price'])
