@@ -8,6 +8,8 @@ import requests
 import pytz  # ✅ For NZ timezone
 import random
 import string
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 def generate_trade_id(symbol: str, side: str, qty: int) -> str:
     now = datetime.utcnow()
@@ -29,6 +31,13 @@ def log_to_file(message: str):
     timestamp = datetime.utcnow().isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
+
+def get_google_sheet():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_credentials.json", scope)
+    client = gspread.authorize(creds)
+    sheet = client.open("Trade Log").worksheet("Open Trades")  # 🔁 Update name if needed
+    return sheet
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -125,22 +134,41 @@ async def webhook(request: Request):
             # ✅ Log each contract to CSV
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
-                    writer = csv.writer(f)
+                     writer = csv.writer(f)
                     writer.writerow([
-                        trade_id,      # trade ID
-                        symbol,        # symbol
-                        price,         # entry price
-                        action,        # BUY or SELL
-                        1,             # contracts remaining
-                        0.4,           # trail_trigger
-                        0.2,           # trail_offset
-                        ema50,         # ema50
-                        True,          # trail_triggered
-                        "true",        # filled
+                        trade_id,
+                        symbol,
+                        price,
+                        action,
+                        1,
+                        0.4,
+                        0.2,
+                        ema50,
+                        True,
+                        "true",
                         entry_timestamp
                     ])
 
-            log_to_file(f"📩 Trade logged to open_trades.csv: {symbol} {action} @ {price}")
+                log_to_file(f"📩 Trade logged to open_trades.csv: {symbol} {action} @ {price}")
+
+                try:
+                    sheet = get_google_sheet()
+                    sheet.append_row([
+                        trade_id,
+                        symbol,
+                        price,
+                        action,
+                        1,
+                        0.4,
+                        0.2,
+                        ema50,
+                        True,
+                        "true",
+                        entry_timestamp
+                    ])
+                    log_to_file(f"📋 Trade also logged to Google Sheets: {trade_id}")
+                except Exception as e:
+                    log_to_file(f"❌ Google Sheets logging failed: {e}")
 
             # ✅ Also log to Firebase
             try:
