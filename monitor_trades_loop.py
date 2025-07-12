@@ -244,7 +244,7 @@ if trade.get('trail_hit'):
         except Exception as e:
             print(f"❌ Failed to clean up Firebase: {e}")
 
-        continue
+            continue
 
         # === Ghost trade detection ===
         if current_price == -1:
