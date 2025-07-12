@@ -198,11 +198,13 @@ def monitor_trades():
 
             continue
 
-# === Trailing TP logic ===
-entry = trade['entry_price']
-tp_trigger_pct = trade['trail_trigger']
-trail_offset_pct = trade['trail_offset']
-tp_trigger = entry * tp_trigger_pct / 100
+# === Loop through open trades ===
+for trade in open_trades:
+    # === Trailing TP logic ===
+    entry = trade['entry_price']
+    tp_trigger_pct = trade['trail_trigger']
+    trail_offset_pct = trade['trail_offset']
+    tp_trigger = entry * tp_trigger_pct / 100
 
 # === Step 1: Activate trailing logic if TP trigger is hit ===
 if not trade.get('trail_hit'):
@@ -223,7 +225,7 @@ if trade.get('trail_hit'):
     elif direction == -1 and current_price < trade.get('trail_peak', entry):
         trade['trail_peak'] = current_price
 
-    trail_offset = trade['trail_peak'] * trail_offset_pct / 100
+        trail_offset = trade['trail_peak'] * trail_offset_pct / 100
 
     if (
         (direction == 1 and current_price <= trade['trail_peak'] - trail_offset) or
@@ -232,24 +234,7 @@ if trade.get('trail_hit'):
         print(f"🧯 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
         close_position(symbol, trade["action"])
         write_closed_trade(trade, "trailing_tp_exit", current_price)
-        for trade in open_trades:
-            # === Step 2: Update peak price if trailing is active ===
-            if trade.get('trail_hit'):
-                if direction == 1 and current_price > trade.get('trail_peak', entry):
-                    trade['trail_peak'] = current_price
-                elif direction == -1 and current_price < trade.get('trail_peak', entry):
-                    trade['trail_peak'] = current_price
-
-                trail_offset = trade['trail_peak'] * trail_offset_pct / 100
-
-                if (
-                    (direction == 1 and current_price <= trade['trail_peak'] - trail_offset) or
-                    (direction == -1 and current_price >= trade['trail_peak'] + trail_offset)
-                ):
-                    print(f"📉 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
-                    close_position(symbol, trade["action"])
-                    write_closed_trade(trade, "trailing_tp_exit", current_price)
-                    continue
+        continue
 
             # ✅ REMOVE FROM FIREBASE
             try:
