@@ -12,7 +12,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 def generate_trade_id(symbol: str, side: str, qty: int) -> str:
-    now = datetime.utcnow()
+    now = datetime.now(pytz.timezone("Pacific/Auckland"))
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     suffix = ''.join(random.choices(string.ascii_lowercase, k=2))
     return f"{symbol.lower()}_{timestamp}_{side.lower()}_{qty}_{suffix}"
@@ -28,7 +28,7 @@ FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedata
 
 # === Logging helper ===
 def log_to_file(message: str):
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
 
@@ -95,7 +95,7 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
-        entry_timestamp = datetime.utcnow().isoformat()
+        entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
         trade_id = generate_trade_id(symbol, action, quantity)
 
         log_to_file(f"Trade signal received: {data}")
