@@ -234,10 +234,10 @@ for trade in open_trades:
             print(f"🧯 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
             close_position(symbol, trade["action"])
             write_closed_trade(trade, "trailing_tp_exit", current_price)
-            
-            # ✅ REMOVE FROM FIREBASE
+
+            # ✅ REMOVE FROM FIREBASE (MUST BE INDENTED)
             try:
-                firebase_url = "https://tw2tt-..."  # <-- use full Firebase URL here
+                firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades.json"
                 response = requests.get(firebase_url)
                 existing_trades = response.json() or []
                 updated_trades = [t for t in existing_trades if t.get("trade_id") != trade.get("trade_id")]
@@ -246,7 +246,7 @@ for trade in open_trades:
             except Exception as e:
                 print(f"❌ Failed to clean up Firebase: {e}")
 
-            continue  # ✅ VALID – exit loop iteration after closing the trade
+            continue
 
     # === Ghost trade detection ===
     if current_price == -1:
