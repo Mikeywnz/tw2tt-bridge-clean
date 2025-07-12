@@ -198,13 +198,13 @@ def monitor_trades():
 
             continue
 
-# === Loop through open trades ===
-for trade in open_trades:
-    # === Trailing TP logic ===
-    entry = trade['entry_price']
-    tp_trigger_pct = trade['trail_trigger']
-    trail_offset_pct = trade['trail_offset']
-    tp_trigger = entry * tp_trigger_pct / 100
+    # === Loop through open trades ===
+    for trade in trades:
+        # === Trailing TP logic ===
+        entry = trade['entry_price']
+        tp_trigger_pct = trade['trail_trigger']
+        trail_offset_pct = trade['trail_offset']
+        tp_trigger = entry * tp_trigger_pct / 100
 
     # === Step 1: Activate trailing logic if TP trigger is hit ===
     if not trade.get('trail_hit'):
