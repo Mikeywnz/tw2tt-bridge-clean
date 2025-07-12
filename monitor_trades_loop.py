@@ -184,41 +184,67 @@ def monitor_trades():
             print(f"🛑 EMA50 exit: {symbol} at {current_price}")
             close_position(symbol, trade["action"])
             write_closed_trade(trade, "ema50_exit", current_price)
+
+            # ✅ REMOVE FROM FIREBASE
+            try:
+                firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
+                response = requests.get(firebase_url)
+                existing_trades = response.json() or []
+                updated_trades = [t for t in existing_trades if t.get("trade_id") != trade.get("trade_id")]
+                requests.put(firebase_url, json=updated_trades)
+                print(f"🧹 Removed trade from Firebase: {trade.get('trade_id')}")
+            except Exception as e:
+                print(f"❌ Failed to clean up Firebase: {e}")
+
             continue
 
-        # === Trailing TP logic ===
-        entry = trade['entry_price']
-        tp_trigger_pct = trade['trail_trigger']
-        trail_buffer_pct = trade['trail_offset']
-        tp_trigger = entry * tp_trigger_pct / 100
+# === Trailing TP logic ===
+entry = trade['entry_price']
+tp_trigger_pct = trade['trail_trigger']
+trail_offset_pct = trade['trail_offset']
+tp_trigger = entry * tp_trigger_pct / 100
 
-        if not trade.get('trail_hit'):
-            if trade.get('trail_peak') is None:
-                trade['trail_peak'] = entry
-            if (
-                (direction == 1 and current_price >= entry + tp_trigger) or
-                (direction == -1 and current_price <= entry - tp_trigger)
-            ):
-                trade['trail_hit'] = True
-                trade['trail_peak'] = current_price
-                print(f"🎯 TP trigger hit for {symbol} → trailing activated at {current_price}")
+# === Step 1: Activate trailing logic if TP trigger is hit ===
+if not trade.get('trail_hit'):
+    if trade.get('trail_peak') is None:
+        trade['trail_peak'] = entry
+    if (
+        (direction == 1 and current_price >= entry + tp_trigger) or
+        (direction == -1 and current_price <= entry - tp_trigger)
+    ):
+        trade['trail_hit'] = True
+        trade['trail_peak'] = current_price
+        print(f"📍 TP trigger hit for {symbol} → trailing activated at {current_price}")
 
-        if trade.get('trail_hit'):
-            if direction == 1 and current_price > trade.get('trail_peak', entry):
-                trade['trail_peak'] = current_price
-            elif direction == -1 and current_price < trade.get('trail_peak', entry):
-                trade['trail_peak'] = current_price
+# === Step 2: Update peak price if trailing is active ===
+if trade.get('trail_hit'):
+    if direction == 1 and current_price > trade.get('trail_peak', entry):
+        trade['trail_peak'] = current_price
+    elif direction == -1 and current_price < trade.get('trail_peak', entry):
+        trade['trail_peak'] = current_price
 
-            trail_buffer = trade['trail_peak'] * trail_buffer_pct / 100
+    trail_offset = trade['trail_peak'] * trail_offset_pct / 100
 
-            if (
-                (direction == 1 and current_price <= trade['trail_peak'] - trail_buffer) or
-                (direction == -1 and current_price >= trade['trail_peak'] + trail_buffer)
-            ):
-                print(f"🚨 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
-                close_position(symbol, trade["action"])
-                write_closed_trade(trade, "trailing_tp_exit", current_price)
-                continue
+    if (
+        (direction == 1 and current_price <= trade['trail_peak'] - trail_offset) or
+        (direction == -1 and current_price >= trade['trail_peak'] + trail_offset)
+    ):
+        print(f"🧯 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
+        close_position(symbol, trade["action"])
+        write_closed_trade(trade, "trailing_tp_exit", current_price)
+
+        # ✅ REMOVE FROM FIREBASE
+        try:
+            firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
+            response = requests.get(firebase_url)
+            existing_trades = response.json() or []
+            updated_trades = [t for t in existing_trades if t.get("trade_id") != trade.get("trade_id")]
+            requests.put(firebase_url, json=updated_trades)
+            print(f"🧹 Removed trade from Firebase: {trade.get('trade_id')}")
+        except Exception as e:
+            print(f"❌ Failed to clean up Firebase: {e}")
+
+        continue
 
         # === Ghost trade detection ===
         if current_price == -1:
