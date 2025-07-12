@@ -231,6 +231,10 @@ def monitor_trades():
     write_remaining_trades(updated_trades)
 
 if __name__ == "__main__":
+    # 🔧 TEMP TEST – Trigger a manual close
+    close_position("MGC2508", "BUY")
+    exit()
+
     while True:
         try:
             monitor_trades()
