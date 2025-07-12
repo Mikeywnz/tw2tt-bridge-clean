@@ -241,11 +241,11 @@ if trade.get('trail_hit'):
             updated_trades = [t for t in existing_trades if t.get("trade_id") != trade.get("trade_id")]
             requests.put(firebase_url, json=updated_trades)
             print(f"🧹 Removed trade from Firebase: {trade.get('trade_id')}")
+            
+            continue
         except Exception as e:
             print(f"❌ Failed to clean up Firebase: {e}")
-
-            continue
-
+          
         # === Ghost trade detection ===
         if current_price == -1:
             print(f"👻 Ghost trade detected: {symbol} — no longer live in TigerTrade.")
