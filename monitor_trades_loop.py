@@ -246,10 +246,11 @@ def monitor_trades():
                     updated_trades = [t for t in existing_trades if t.get("trade_id") != trade.get("trade_id")]
                     requests.put(firebase_url, json=updated_trades)
                     print(f"🧹 Removed trade from Firebase: {trade.get('trade_id')}")
+
+                    continue  # ✅ Inside the try block and inside the for loop
+
                 except Exception as e:
                     print(f"❌ Failed to clean up Firebase: {e}")
-
-                continue
 
         # === Ghost trade detection ===
         if current_price == 0:
