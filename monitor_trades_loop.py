@@ -63,7 +63,7 @@ def load_open_trades():
                     'trail_peak': float(row['trail_peak']) if row['trail_peak'].replace('.', '', 1).isdigit() else None,
                     'ema50': float(row['ema50_live']) if row['ema50_live'] else None,
                     'filled': row.get('filled', 'true'),
-                    'entry_timestamp': row.get('entry_timestamp', '')
+                    'entry_timestamp': row.get('entry_timestamp', ''),
                     'trade_id': row.get('trade_id', ''),
                 })
             except Exception as e:

@@ -135,7 +135,7 @@ async def webhook(request: Request):
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
                      writer = csv.writer(f)
-                    writer.writerow([
+                     writer.writerow([
                         trade_id,
                         symbol,
                         price,
