@@ -151,7 +151,7 @@ def load_open_trades():
     except Exception as e:
         print(f"❌ Failed to fetch open trades from Firebase: {e}")
         return []
-        
+
 # === Save open trades to Firebase ===
 def save_open_trades(trades):
     firebase_url = "https://<your-firebase-project>.firebaseio.com/open_trades/MGC2508.json"
@@ -238,7 +238,7 @@ def monitor_trades():
 
         updated_trades.append(trade)
 
-    write_remaining_trades(updated_trades)
+    save_open_trades(updated_trades)
 
 if __name__ == "__main__":
     while True:
