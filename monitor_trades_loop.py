@@ -23,6 +23,18 @@ def close_position(symbol, original_action):
     except Exception as e:
         print(f"❌ Failed to execute exit order: {e}")
 
+        # === Save open trades to Firebase ===
+def save_open_trades(trades):
+    firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
+    try:
+        response = requests.put(firebase_url, json=trades)
+        if response.status_code == 200:
+            print("✅ Open trades saved to Firebase.")
+        else:
+            print(f"❌ Failed to save trades: {response.text}")
+    except Exception as e:
+        print(f"❌ Error saving trades to Firebase: {e}")
+
 # === FIREBASE INITIALIZATION ===
 if not firebase_admin._apps:
     cred = credentials.Certificate("firebase_key.json")
@@ -40,35 +52,6 @@ GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis
 # === LOADERS ===
 def load_live_prices():
     return db.reference("live_prices").get() or {}
-
-def load_open_trades():
-    trades = []
-    with open(OPEN_TRADES_FILE, 'r') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            if not row.get("symbol") or not row.get("entry_price"):
-                continue
-            if row.get("filled", "true").strip().lower() != "true":
-                continue
-            try:
-                trades.append({
-                    'symbol': row['symbol'],
-                    'entry_price': float(row['entry_price']),
-                    'action': row['action'].upper(),
-                    'contracts_remaining': int(row['contracts_remaining']),
-                    'trail_trigger': float(row['trail_trigger']) if row['trail_trigger'] else 0.0,
-                    'trail_offset': float(row['trail_offset']) if row['trail_offset'] else 0.0,
-                    'tp_trail_price': float(row['tp_trail_price']) if row['tp_trail_price'] else None,
-                    'trail_hit': row['trail_hit'].strip().lower() == 'true',
-                    'trail_peak': float(row['trail_peak']) if row['trail_peak'].replace('.', '', 1).isdigit() else None,
-                    'ema50': float(row['ema50_live']) if row['ema50_live'] else None,
-                    'filled': row.get('filled', 'true'),
-                    'entry_timestamp': row.get('entry_timestamp', ''),
-                    'trade_id': row.get('trade_id', ''),
-                })
-            except Exception as e:
-                print(f"❌ Failed to parse row: {row} → {e}")
-    return trades
 
 def write_closed_trade(trade, reason, exit_price):
     pnl = (exit_price - trade['entry_price']) * (-1 if trade['action'] == 'SELL' else 1)
@@ -120,26 +103,6 @@ def write_closed_trade(trade, reason, exit_price):
         log_line = f"❌ Google Sheets error for {trade['symbol']}: {e}"
         print(log_line)
 
-def write_remaining_trades(trades):
-    with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_trigger', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema50_live', 'filled', 'entry_timestamp']
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        for t in trades:
-            writer.writerow({
-                'symbol': t['symbol'],
-                'entry_price': t['entry_price'],
-                'action': t['action'],
-                'contracts_remaining': t['contracts_remaining'],
-                'trail_trigger': t['trail_trigger'],
-                'trail_offset': t['trail_offset'],
-                'tp_trail_price': t.get('tp_trail_price', ''),
-                'trail_hit': str(t.get('trail_hit', False)).lower(),
-                'trail_peak': t.get('trail_peak', ''),
-                'ema50_live': t.get('ema50_live', ''),
-                'filled': t.get('filled', 'true'),
-                'entry_timestamp': t.get('entry_timestamp', '')
-            })
 
 def load_open_trades():
     # ✅ Load open trades from Firebase instead of CSV
@@ -151,6 +114,18 @@ def load_open_trades():
     except Exception as e:
         print(f"❌ Failed to fetch open trades from Firebase: {e}")
         return []
+
+# === DELETE FROM FIREBASE ===
+def delete_trade_from_firebase(trade_id):
+    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/{trade_id}.json"
+    try:
+        response = requests.delete(firebase_url)
+        if response.status_code == 200:
+            print(f"✅ Deleted trade {trade_id} from Firebase.")
+        else:
+            print(f"❌ Failed to delete trade {trade_id} from Firebase: {response.text}")
+    except Exception as e:
+        print(f"❌ Error deleting trade {trade_id} from Firebase: {e}")
 
 # === MONITOR LOOP ===
 def monitor_trades():
@@ -184,6 +159,7 @@ def monitor_trades():
             print(f"🛑 EMA50 exit: {symbol} at {current_price}")
             close_position(symbol, trade["action"])
             write_closed_trade(trade, "ema50_exit", current_price)
+            delete_trade_from_firebase(trade.get("trade_id", ""))
 
             # ✅ REMOVE FROM FIREBASE
             try:
@@ -237,6 +213,7 @@ def monitor_trades():
                 print(f"📌 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
                 close_position(symbol, trade["action"])
                 write_closed_trade(trade, "trailing_tp_exit", current_price)
+                delete_trade_from_firebase(trade.get("trade_id", ""))
 
                 # ✅ REMOVE FROM FIREBASE (MUST BE INDENTED)
                 try:
@@ -252,7 +229,7 @@ def monitor_trades():
                 except Exception as e:
                     print(f"❌ Failed to clean up Firebase: {e}")
 
-        # === Ghost trade detection ===
+            # === Ghost trade detection ===
         if current_price == 0:
             print(f"👻 Ghost Trade Detected: No price for {symbol} — skipping")
             continue
@@ -261,3 +238,12 @@ def monitor_trades():
 
     # === Save back updated list ===
     save_open_trades(updated_trades)
+
+    # === LOOP FOREVER ===
+    if __name__ == "__main__":
+        while True:
+            try:
+                monitor_trades()
+            except Exception as e:
+                print(f"❌ ERROR in monitor_trades(): {e}")
+            time.sleep(10)
