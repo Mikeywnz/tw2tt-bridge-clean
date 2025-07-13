@@ -91,27 +91,6 @@ def write_closed_trade(trade, reason, exit_price):
         log_line = f"❌ Google Sheets error for {trade['symbol']}: {e}"
         print(log_line)
 
-def write_remaining_trades(trades):
-    with open(OPEN_TRADES_FILE, 'w', newline='') as file:
-        fieldnames = ['symbol', 'entry_price', 'action', 'contracts_remaining', 'trail_trigger', 'trail_offset', 'tp_trail_price', 'trail_hit', 'trail_peak', 'ema50_live', 'filled', 'entry_timestamp']
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        for t in trades:
-            writer.writerow({
-                'symbol': t['symbol'],
-                'entry_price': t['entry_price'],
-                'action': t['action'],
-                'contracts_remaining': t['contracts_remaining'],
-                'trail_trigger': t['trail_trigger'],
-                'trail_offset': t['trail_offset'],
-                'tp_trail_price': t.get('tp_trail_price', ''),
-                'trail_hit': str(t.get('trail_hit', False)).lower(),
-                'trail_peak': t.get('trail_peak', ''),
-                'ema50_live': t.get('ema50_live', ''),
-                'filled': t.get('filled', 'true'),
-                'entry_timestamp': t.get('entry_timestamp', '')
-            })
-
 def load_open_trades():
     # ✅ Load open trades from Firebase instead of CSV
     firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
