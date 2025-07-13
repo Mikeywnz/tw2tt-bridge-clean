@@ -156,6 +156,7 @@ def monitor_trades():
             print(f"🛑 EMA50 exit: {symbol} at {current_price}")
             close_position(symbol, trade["action"])
             write_closed_trade(trade, "ema50_exit", current_price)
+            delete_trade_from_firebase(trade.get("trade_id", ""))
             continue
 
         # === Trailing TP logic ===
