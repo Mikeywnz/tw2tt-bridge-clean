@@ -139,10 +139,13 @@ def delete_trade_from_firebase(trade_id):
 
 # === MONITOR LOOP ===
 def monitor_trades():
+    trades = load_open_trades()
+    if not trades:
+        return
+
     prices = load_live_prices()
     print("🟢 Prices loaded:", prices)
 
-    trades = load_open_trades()
     updated_trades = []
 
     for trade in trades:
