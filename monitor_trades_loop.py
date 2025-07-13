@@ -43,9 +43,12 @@ def load_live_prices():
 
 def write_closed_trade(trade, reason, exit_price):
     pnl = (exit_price - trade['entry_price']) * (-1 if trade['action'] == 'SELL' else 1)
-    exit_time = datetime.now(timezone('Pacific/Auckland')).strftime("%Y-%m-%d %H:%M:%S")
-    entry_time = trade.get("entry_timestamp", exit_time)
-
+    exit_time = datetime.now(timezone("Pacific/Auckland")).strftime("%Y-%m-%d %H:%M:%S")
+    entry_time = trade.get(
+        "entry_timestamp",
+        datetime.now(timezone("Pacific/Auckland")).strftime("%Y-%m-%d %H:%M:%S")
+    )
+    
     exit_color = {
         "trade_id": trade.get("trade_id", ""),
         "trailing_tp_exit": "Green",
