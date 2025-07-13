@@ -141,8 +141,9 @@ def delete_trade_from_firebase(trade_id):
 def monitor_trades():
     # — Heartbeat ping every run —
     prices = load_live_prices()
-    current_price = prices.get("MGCQ2025", {}).get("price")
-    print(f"📡 System working – current MGCQ2025 price: {current_price}")
+for sym, data in prices.items():
+    price = data.get("price")
+    print(f"📡 System working – current {sym} price: {price}")prices = load_live_prices()
 
     # — Load and filter only active trades —
     all_trades = load_open_trades()
