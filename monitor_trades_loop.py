@@ -139,22 +139,22 @@ def delete_trade_from_firebase(trade_id):
 
 # === MONITOR LOOP ===
 def monitor_trades():
+    # 1️⃣ Pull every trade, but only keep those still “live”
     all_trades = load_open_trades()
-
-    # ——— filter out any “empty” or test trades ———
     trades = [
         t for t in all_trades
         if t.get("contracts_remaining", 0) > 0 and t.get("filled", True)
     ]
+    # 2️⃣ If *none* pass that filter, bail out silently
     if not trades:
-        # nothing to do
         return
 
+    # 3️⃣ Otherwise, do your normal work:
     prices = load_live_prices()
     print("🟢 Prices loaded:", prices)
 
     updated_trades = []
-
+    
     for trade in trades:
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
