@@ -8,6 +8,9 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import requests 
 import subprocess  # Add this if it's not already at the top
+import time
+
+last_heartbeat = 0  # Initialize at top of your script if not already
 
 def close_position(symbol, original_action):
     exit_action = "SELL" if original_action == "BUY" else "BUY"
@@ -140,10 +143,13 @@ def delete_trade_from_firebase(trade_id):
 # === MONITOR LOOP ===
 def monitor_trades():
     # — Heartbeat ping every run —
-    prices = load_live_prices()
-for sym, data in prices.items():
-    price = data.get("price")
-    print(f"📡 System working – current {sym} price: {price}")prices = load_live_prices()
+    current_time = time.time()
+    if current_time - last_heartbeat >= 60:
+        live_prices = load_live_prices()
+        mgc_data = live_prices.get("MGC2508", {})
+        mgc_price = mgc_data.get("price")
+        print(f"🛰️ System working – current MGC2508 price: {mgc_price}")
+        last_heartbeat = current_time
 
     # — Load and filter only active trades —
     all_trades = load_open_trades()
