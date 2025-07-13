@@ -114,7 +114,7 @@ def save_open_trades(trades):
 
 # === Delete trade from Firebase ===
 def delete_trade_from_firebase(trade_id):
-    firebase_url = f"https://<your-firebase-project>.firebaseio.com/open_trades/{trade_id}.json"
+    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
     try:
         response = requests.delete(firebase_url)
         if response.status_code == 200:
