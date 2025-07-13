@@ -64,6 +64,7 @@ def load_open_trades():
                     'ema50': float(row['ema50_live']) if row['ema50_live'] else None,
                     'filled': row.get('filled', 'true'),
                     'entry_timestamp': row.get('entry_timestamp', '')
+                    'trade_id': row.get('trade_id', ''),
                 })
             except Exception as e:
                 print(f"❌ Failed to parse row: {row} → {e}")
@@ -75,6 +76,7 @@ def write_closed_trade(trade, reason, exit_price):
     entry_time = trade.get("entry_timestamp", exit_time)
 
     exit_color = {
+        "trade_id": trade.get("trade_id", ""),
         "trailing_tp_exit": "Green",
         "ema50_exit": "Red",
         "manual_exit": "Orange",
