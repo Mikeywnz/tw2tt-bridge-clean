@@ -91,15 +91,25 @@ def write_closed_trade(trade, reason, exit_price):
         log_line = f"❌ Google Sheets error for {trade['symbol']}: {e}"
         print(log_line)
 
+# === Load open trades from Firebase instead of CSV ===
 def load_open_trades():
-    # ✅ Load open trades from Firebase instead of CSV
     firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
     try:
-        response = requests.get(firebase_url)
-        response.raise_for_status()
-        return response.json() or []
+        resp = requests.get(firebase_url)
+        resp.raise_for_status()
+        data = resp.json() or {}
+        trades = []
+        if isinstance(data, dict):
+            # Firebase returns { trade_id: trade_data, … }
+            for tid, td in data.items():
+                td["trade_id"] = tid
+                trades.append(td)
+        else:
+            # in case it's already a list
+            trades = data
+        return trades
     except Exception as e:
-        print(f"❌ Failed to fetch open trades from Firebase: {e}")
+        print(f"❌ Failed to fetch open trades: {e}")
         return []
 
 # === Save open trades to Firebase ===
