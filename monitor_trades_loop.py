@@ -163,9 +163,6 @@ def save_open_trades(trades):
 
 # === MONITOR LOOP ===
 def monitor_trades():
-    …
-# === MONITOR LOOP ===
-def monitor_trades():
     prices = load_live_prices()
     print("🟢 Prices loaded:", prices)
 
