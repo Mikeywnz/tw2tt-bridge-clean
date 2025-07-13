@@ -104,13 +104,25 @@ def load_open_trades():
 
 # === Save open trades to Firebase ===
 def save_open_trades(trades):
-    firebase_url = "https://<your-firebase-project>.firebaseio.com/open_trades/MGC2508.json"
+    firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
     try:
         response = requests.put(firebase_url, json=trades)
         response.raise_for_status()
         print("✅ Open trades saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
+
+# === Delete trade from Firebase ===
+def delete_trade_from_firebase(trade_id):
+    firebase_url = f"https://<your-firebase-project>.firebaseio.com/open_trades/{trade_id}.json"
+    try:
+        response = requests.delete(firebase_url)
+        if response.status_code == 200:
+            print(f"✅ Deleted trade {trade_id} from Firebase.")
+        else:
+            print(f"❌ Failed to delete trade {trade_id} from Firebase: {response.text}")
+    except Exception as e:
+        print(f"❌ Error deleting trade {trade_id} from Firebase: {e}")
 
 # === MONITOR LOOP ===
 def monitor_trades():
