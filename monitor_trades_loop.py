@@ -139,46 +139,47 @@ def delete_trade_from_firebase(trade_id):
 
 # === MONITOR LOOP ===
 def monitor_trades():
-    # 1️⃣ Pull every trade, but only keep those still “live”
+    # — Heartbeat ping every run —
+    prices = load_live_prices()
+    current_price = prices.get("MGCQ2025", {}).get("price")
+    print(f"📡 System working – current MGCQ2025 price: {current_price}")
+
+    # — Load and filter only active trades —
     all_trades = load_open_trades()
     trades = [
         t for t in all_trades
-        if t.get("contracts_remaining", 0) > 0 and t.get("filled", True)
+        if t.get("contracts_remaining", 0) > 0 and t.get("filled", False)
     ]
-    # 2️⃣ If *none* pass that filter, bail out silently
     if not trades:
-        return
+        return  # nothing to do
 
-    # 3️⃣ Otherwise, do your normal work:
-    prices = load_live_prices()
-    print("🟢 Prices loaded:", prices)
-
+    # — Now process each trade exactly once —
     updated_trades = []
-    
     for trade in trades:
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
         symbol_data = prices.get(symbol, {})
 
         if isinstance(symbol_data, dict):
-            current_price = symbol_data.get('price')
+            current = symbol_data.get('price')
             ema50 = symbol_data.get('ema50')
         else:
-            current_price = symbol_data
+            current = symbol_data
             ema50 = None
 
-        if current_price is None or ema50 is None:
-            print(f"⏳ Skipping {symbol}: missing price or ema50")
+        # Skip if missing data
+        if current is None or ema50 is None:
             updated_trades.append(trade)
             continue
 
         trade['ema50_live'] = ema50
 
         # === 50EMA Emergency Exit ===
-        if (trade['action'] == 'BUY' and current_price < ema50) or (trade['action'] == 'SELL' and current_price > ema50):
-            print(f"🛑 EMA50 exit: {symbol} at {current_price}")
+        if (trade['action'] == 'BUY' and current < ema50) or \
+           (trade['action'] == 'SELL' and current > ema50):
+            print(f"🔴 EMA50 exit: {symbol} at {current}")
             close_position(symbol, trade["action"])
-            write_closed_trade(trade, "ema50_exit", current_price)
+            write_closed_trade(trade, "ema50_exit", current)
             delete_trade_from_firebase(trade.get("trade_id", ""))
             continue
 
@@ -217,14 +218,16 @@ def monitor_trades():
                 continue
 
         # === Ghost trade detection ===
-        if current_price == -1:
-            print(f"👻 Ghost trade detected: {symbol} — no longer live in TigerTrade.")
+        if current == -1:
             write_closed_trade(trade, "ghost_trade_exit", trade['entry_price'])
             continue
 
+        # If still open, keep it
         updated_trades.append(trade)
 
-    save_open_trades(updated_trades)
+    # — Save any remaining open trades back to Firebase —
+    if updated_trades:
+        save_open_trades(updated_trades)
 
 if __name__ == "__main__":
     while True:
