@@ -139,8 +139,15 @@ def delete_trade_from_firebase(trade_id):
 
 # === MONITOR LOOP ===
 def monitor_trades():
-    trades = load_open_trades()
+    all_trades = load_open_trades()
+
+    # ——— filter out any “empty” or test trades ———
+    trades = [
+        t for t in all_trades
+        if t.get("contracts_remaining", 0) > 0 and t.get("filled", True)
+    ]
     if not trades:
+        # nothing to do
         return
 
     prices = load_live_prices()
