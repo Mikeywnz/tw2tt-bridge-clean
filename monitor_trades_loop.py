@@ -41,35 +41,6 @@ GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis
 def load_live_prices():
     return db.reference("live_prices").get() or {}
 
-def load_open_trades():
-    trades = []
-    with open(OPEN_TRADES_FILE, 'r') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            if not row.get("symbol") or not row.get("entry_price"):
-                continue
-            if row.get("filled", "true").strip().lower() != "true":
-                continue
-            try:
-                trades.append({
-                    'symbol': row['symbol'],
-                    'entry_price': float(row['entry_price']),
-                    'action': row['action'].upper(),
-                    'contracts_remaining': int(row['contracts_remaining']),
-                    'trail_trigger': float(row['trail_trigger']) if row['trail_trigger'] else 0.0,
-                    'trail_offset': float(row['trail_offset']) if row['trail_offset'] else 0.0,
-                    'tp_trail_price': float(row['tp_trail_price']) if row['tp_trail_price'] else None,
-                    'trail_hit': row['trail_hit'].strip().lower() == 'true',
-                    'trail_peak': float(row['trail_peak']) if row['trail_peak'].replace('.', '', 1).isdigit() else None,
-                    'ema50': float(row['ema50_live']) if row['ema50_live'] else None,
-                    'filled': row.get('filled', 'true'),
-                    'entry_timestamp': row.get('entry_timestamp', ''),
-                    'trade_id': row.get('trade_id', ''),
-                })
-            except Exception as e:
-                print(f"❌ Failed to parse row: {row} → {e}")
-    return trades
-
 def write_closed_trade(trade, reason, exit_price):
     pnl = (exit_price - trade['entry_price']) * (-1 if trade['action'] == 'SELL' else 1)
     exit_time = datetime.now(timezone('Pacific/Auckland')).strftime("%Y-%m-%d %H:%M:%S")
