@@ -6,7 +6,7 @@ from datetime import datetime
 from pytz import timezone
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-
+import requests 
 import subprocess  # Add this if it's not already at the top
 
 def close_position(symbol, original_action):
@@ -138,6 +138,17 @@ def write_remaining_trades(trades):
                 'filled': t.get('filled', 'true'),
                 'entry_timestamp': t.get('entry_timestamp', '')
             })
+
+def load_open_trades():
+    # ✅ Load open trades from Firebase instead of CSV
+    firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
+    try:
+        response = requests.get(firebase_url)
+        response.raise_for_status()
+        return response.json() or []
+    except Exception as e:
+        print(f"❌ Failed to fetch open trades from Firebase: {e}")
+        return []
 
 # === MONITOR LOOP ===
 def monitor_trades():
