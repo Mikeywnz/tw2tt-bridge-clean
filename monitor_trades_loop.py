@@ -143,6 +143,7 @@ def delete_trade_from_firebase(trade_id):
 # === MONITOR LOOP ===
 def monitor_trades():
     # — Heartbeat ping every run —
+    global last_heartbeat
     current_time = time.time()
     if current_time - last_heartbeat >= 60:
         live_prices = load_live_prices()
