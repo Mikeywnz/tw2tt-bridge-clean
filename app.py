@@ -49,17 +49,16 @@ async def webhook(request: Request):
 
     log_to_file(f"Webhook received: {data}")
 
-    # === Handle Price + EMA50 Update ===
+    # === Handle Price Update ===
     if data.get("type") == "price_update":
         symbol = data.get("symbol")
         symbol = symbol.split("@")[0] if symbol else "UNKNOWN"
 
         try:
             price = float(data.get("price"))
-            ema50 = float(data.get("ema50"))
         except (ValueError, TypeError):
-            log_to_file("❌ Invalid price or ema50 value received")
-            return {"status": "error", "reason": "invalid numeric values"}
+            log_to_file("❌ Invalid price value received")
+            return {"status": "error", "reason": "invalid price"}
 
         # Save live price locally
         try:
@@ -72,23 +71,22 @@ async def webhook(request: Request):
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
 
-        # ✅ Push price + ema50 to Firebase with NZT timestamp
+        # ✅ Push price to Firebase with NZT timestamp
         nz_time = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
         payload = {
             "price": price,
-            "ema50": ema50,
             "updated_at": nz_time
         }
 
-        log_to_file(f"📤 Pushing to Firebase: {symbol} → price={price}, ema50={ema50}")
+        log_to_file(f"📤 Pushing to Firebase: {symbol} → price={price}")
 
         try:
             requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(payload))
-            log_to_file(f"✅ Pushed to Firebase: {payload}")
+            log_to_file(f"✅ Pushed to Firebase: price={price}")
         except Exception as e:
             log_to_file(f"❌ Failed to push to Firebase: {e}")
 
-        return {"status": "price + ema50 stored"}
+        return {"status": "price stored"}
 
     # === Handle Trade Signal ===
     elif data.get("action") in ("BUY", "SELL"):
@@ -116,14 +114,6 @@ async def webhook(request: Request):
                 log_to_file(f"Could not load price: {e}")
                 price = 0.0
 
-            # Load latest ema50 from Firebase
-            try:
-                resp = requests.get(f"{FIREBASE_URL}/live_prices/{symbol}/ema50.json")
-                ema50 = float(resp.json() or 0.0)
-            except Exception as e:
-                log_to_file(f"Could not load ema50 from Firebase: {e}")
-                ema50 = 0.0
-
             # Check for rejection
             if any(error in result.stderr.lower() for error in [
                 "不支持", "not support", "error", "insufficient margin"
@@ -134,8 +124,8 @@ async def webhook(request: Request):
             # ✅ Log each contract to CSV
             for _ in range(quantity):
                 with open(OPEN_TRADES_FILE, "a", newline="") as f:
-                     writer = csv.writer(f)
-                     writer.writerow([
+                    writer = csv.writer(f)
+                    writer.writerow([
                         trade_id,
                         symbol,
                         price,
@@ -143,9 +133,9 @@ async def webhook(request: Request):
                         1,
                         0.4,
                         0.2,
-                        ema50,
+                        "",           # Placeholder for removed ema50
                         True,
-                        "true",
+                        False,         # ✅ trail_hit = False
                         entry_timestamp
                     ])
 
@@ -161,9 +151,9 @@ async def webhook(request: Request):
                         1,
                         0.4,
                         0.2,
-                        ema50,
+                        "",           # Placeholder for removed ema50
                         True,
-                        "true",
+                        "false",       # ✅ trail_hit = false in Sheets
                         entry_timestamp
                     ])
                     log_to_file(f"📋 Trade also logged to Google Sheets: {trade_id}")
@@ -172,17 +162,16 @@ async def webhook(request: Request):
 
             # ✅ Also log to Firebase
             try:
-                firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
                 firebase_key = f"/open_trades/{symbol}.json"
-                firebase_endpoint = firebase_url + firebase_key
+                firebase_endpoint = FIREBASE_URL + firebase_key
 
                 response = requests.get(firebase_endpoint)
                 existing = response.json() or []
 
                 new_trade = {
-                    "trade_id": trade_id, 
+                    "trade_id": trade_id,
                     "symbol": symbol,
-                    "entry_price": price,   
+                    "entry_price": price,
                     "action": action,
                     "contracts_remaining": 1,
                     "trail_trigger": 0.004,
@@ -190,13 +179,12 @@ async def webhook(request: Request):
                     "tp_trail_price": None,
                     "trail_hit": False,
                     "trail_peak": price,
-                    "ema50_live": ema50,
                     "filled": True,
                     "entry_timestamp": entry_timestamp
                 }
 
                 existing.append(new_trade)
-                log_to_file(f"📦 Pushing to Firebase:\n{json.dumps(existing, indent=2)}")
+                log_to_file("📦 Pushing trade to Firebase")
                 put_response = requests.put(firebase_endpoint, json=existing)
 
                 if put_response.status_code == 200:
