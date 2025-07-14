@@ -186,14 +186,15 @@ def monitor_trades():
 
         trade['ema50_live'] = ema50
 
-        # === 50EMA Emergency Exit ===
-        if (trade['action'] == 'BUY' and current_price < ema50) or \
-        (trade['action'] == 'SELL' and current_price > ema50):
-            print(f"🔴 EMA50 exit: {symbol} at {current_price}")
-            close_position(symbol, trade["action"])
-            write_closed_trade(trade, "ema50_exit", current_price)
-            delete_trade_from_firebase(trade.get("trade_id", ""))
-            continue
+        # === 50EMA Emergency Exit === FUCKED Up and broken
+       # if (trade['action'] == 'BUY' and current_price < ema50) or \
+       # (trade['action'] == 'SELL' and current_price > ema50):
+         #   print(f"🔴 EMA50 exit: {symbol} at {current_price}")
+          #  close_position(symbol, trade["action"])
+           # write_closed_trade(trade, "ema50_exit", current_price)
+            #delete_trade_from_firebase(trade.get("trade_id", ""))
+             
+              #continue
 
         # === Trailing TP logic ===
         entry = trade['entry_price']
