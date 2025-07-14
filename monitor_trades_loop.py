@@ -140,10 +140,9 @@ def delete_trade_from_firebase(trade_id):
 
 # === MONITOR LOOP ===
 def monitor_trades():
-    # — Heartbeat ping every run —
+    # --- Heartbeat ping every 1 minute ---
+    import time
     current_time = time.time()
-
-    # Use function attribute to persist heartbeat timestamp
     if not hasattr(monitor_trades, "last_heartbeat"):
         monitor_trades.last_heartbeat = 0
 
