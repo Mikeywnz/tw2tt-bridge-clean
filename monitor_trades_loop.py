@@ -145,7 +145,7 @@ def monitor_trades():
         if t.get("contracts_remaining", 0) > 0 and t.get("filled", False)
     ]
     if not trades:
-        return
+        print("⚠️ No active trades found — worker is still awake.")
 
     updated_trades = []
     prices = load_live_prices()
