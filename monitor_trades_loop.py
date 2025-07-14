@@ -7,7 +7,7 @@ from pytz import timezone
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import requests 
-import subprocess  # Add this if it's not already at the top
+import subprocess
 import time
 
 def close_position(symbol, original_action):
@@ -49,15 +49,6 @@ def write_closed_trade(trade, reason, exit_price):
         "entry_timestamp",
         datetime.now(timezone("Pacific/Auckland")).strftime("%Y-%m-%d %H:%M:%S")
     )
-    
-    exit_color = {
-        "trade_id": trade.get("trade_id", ""),
-        "trailing_tp_exit": "Green",
-        "ema50_exit": "Red",
-        "manual_exit": "Orange",
-        "liquidated": "Purple",
-        "ghost_trade_exit": "Grey"
-    }.get(reason, "")
 
     row = {
         "symbol": trade["symbol"],
@@ -68,8 +59,7 @@ def write_closed_trade(trade, reason, exit_price):
         "reason_for_exit": reason,
         "entry_time": trade["entry_timestamp"],
         "exit_time": datetime.now(timezone('Pacific/Auckland')).isoformat(),
-        "trail_triggered": "YES" if trade.get("trail_hit") else "NO",
-        "ema50_exit": "YES" if reason == "ema50_exit" else "NO"
+        "trail_triggered": "YES" if trade.get("trail_hit") else "NO"
     }
 
     try:
@@ -92,8 +82,7 @@ def write_closed_trade(trade, reason, exit_price):
         sheet.append_row(list(row.values()))
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
     except Exception as e:
-        log_line = f"❌ Google Sheets error for {trade['symbol']}: {e}"
-        print(log_line)
+        print(f"❌ Google Sheets error for {trade['symbol']}: {e}")
 
 # === Load open trades from Firebase instead of CSV ===
 def load_open_trades():
@@ -104,12 +93,10 @@ def load_open_trades():
         data = resp.json() or {}
         trades = []
         if isinstance(data, dict):
-            # Firebase returns { trade_id: trade_data, … }
             for tid, td in data.items():
                 td["trade_id"] = tid
                 trades.append(td)
         else:
-            # in case it's already a list
             trades = data
         return trades
     except Exception as e:
@@ -128,7 +115,7 @@ def save_open_trades(trades):
 
 # === Delete trade from Firebase ===
 def delete_trade_from_firebase(trade_id):
-    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
+    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508/{trade_id}.json"
     try:
         response = requests.delete(firebase_url)
         if response.status_code == 200:
@@ -140,7 +127,6 @@ def delete_trade_from_firebase(trade_id):
 
 # === MONITOR LOOP ===
 def monitor_trades():
-    # --- Heartbeat ping every 1 minute ---
     import time
     current_time = time.time()
     if not hasattr(monitor_trades, "last_heartbeat"):
@@ -153,16 +139,14 @@ def monitor_trades():
         print(f"🛰️ System working – MGC2508 price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
 
-    # – Load and filter only active trades –
     all_trades = load_open_trades()
     trades = [
         t for t in all_trades
         if t.get("contracts_remaining", 0) > 0 and t.get("filled", False)
     ]
     if not trades:
-        return  # nothing to do
+        return
 
-    # — Now process each trade exactly once —
     updated_trades = []
     prices = load_live_prices()
     for trade in trades:
@@ -170,32 +154,13 @@ def monitor_trades():
         direction = 1 if trade['action'] == 'BUY' else -1
         symbol_data = prices.get(symbol, {})
 
-        # Use consistent variable names for price and ema50
-        if isinstance(symbol_data, dict):
-            current_price = symbol_data.get('price')
-            ema50 = symbol_data.get('ema50')
-        else:
-            current_price = symbol_data
-            ema50 = None
+        current_price = symbol_data.get('price') if isinstance(symbol_data, dict) else symbol_data
 
-        # Skip if missing data
-        if current_price is None or ema50 is None:
+        if current_price is None:
+            print(f"⚠️ No price for {symbol} — skipping")
             updated_trades.append(trade)
             continue
 
-        trade['ema50_live'] = ema50
-
-        # === 50EMA Emergency Exit === FUCKED Up and broken
-       # if (trade['action'] == 'BUY' and current_price < ema50) or \
-       # (trade['action'] == 'SELL' and current_price > ema50):
-         #   print(f"🔴 EMA50 exit: {symbol} at {current_price}")
-          #  close_position(symbol, trade["action"])
-           # write_closed_trade(trade, "ema50_exit", current_price)
-            #delete_trade_from_firebase(trade.get("trade_id", ""))
-             
-              #continue
-
-        # === Trailing TP logic ===
         entry = trade['entry_price']
         tp_trigger_pct = trade['trail_trigger']
         trail_buffer_pct = trade['trail_offset']
@@ -213,6 +178,9 @@ def monitor_trades():
                 print(f"🎯 TP trigger hit for {symbol} → trailing activated at {current_price}")
 
         if trade.get('trail_hit'):
+            if trade.get('trail_peak') is None:
+                trade['trail_peak'] = current_price
+
             if direction == 1 and current_price > trade.get('trail_peak', entry):
                 trade['trail_peak'] = current_price
             elif direction == -1 and current_price < trade.get('trail_peak', entry):
@@ -227,17 +195,16 @@ def monitor_trades():
                 print(f"🚨 Trailing TP exit: {symbol} at {current_price} (peak was {trade['trail_peak']})")
                 close_position(symbol, trade["action"])
                 write_closed_trade(trade, "trailing_tp_exit", current_price)
+                delete_trade_from_firebase(trade.get("trade_id", ""))
                 continue
 
-        # === Ghost trade detection ===
         if current_price == -1:
             write_closed_trade(trade, "ghost_trade_exit", trade['entry_price'])
+            delete_trade_from_firebase(trade.get("trade_id", ""))
             continue
 
-        # If still open, keep it
         updated_trades.append(trade)
 
-    # — Save any remaining open trades back to Firebase —
     if updated_trades:
         save_open_trades(updated_trades)
 
