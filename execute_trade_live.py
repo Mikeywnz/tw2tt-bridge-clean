@@ -20,7 +20,7 @@ quantity = int(sys.argv[3])
 print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
 
 # ✅ Step 2: Load config and client
-config = TigerOpenClientConfig()
+config = TigerOpenClientConfig('/etc/secrets/tiger_openapi_config.properties')
 client = TradeClient(config)
 
 # ✅ Step 3: Build futures contract
