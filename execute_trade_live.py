@@ -40,24 +40,27 @@ try:
     # === STEP 5B: Check fill status ===
     order_status = getattr(response, "status", "UNKNOWN")
     filled_qty = getattr(response, "filled", 0)
-    is_filled = order_status in ["Submitted", "Filled"] or filled_qty > 0
+    is_filled = order_status == "Filled" or filled_qty > 0  # ✅ STRICT check
+
     filled_str = "true" if is_filled else "false"
 
     # === STEP 6: Get current price from live_prices.json ===
     live_price = 0.0
-    ema50 = ""
     try:
         with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
             live_data = json.load(f)
-            live_price = float(live_data.get(symbol, 0.0))
-            ema50 = live_data.get("ema50", "")
+            # 🔍 Check if the file has nested "price" dict or flat
+            if isinstance(live_data.get(symbol), dict):
+                live_price = float(live_data.get(symbol, {}).get("price", 0.0))
+            else:
+                live_price = float(live_data.get(symbol, 0.0))
     except Exception as e:
         print("⚠️ Could not read live_prices.json:", e)
 
     # === STEP 7: Create timestamp ===
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    # === STEP 8: Append to open_trades.csv ===
+    # === STEP 8: Append to open_trades.csv ONLY if filled ===
     row = [
         symbol,
         live_price,
@@ -66,7 +69,7 @@ try:
         0.4,      # trail_trigger
         0.2,      # trail_offset
         '',       # tp_trail_price
-        ema50,
+        '',       # removed ema50 placeholder
         filled_str,
         timestamp
     ]
@@ -74,8 +77,12 @@ try:
         csv_path = os.path.join(os.path.dirname(__file__), 'open_trades.csv')
         with open(csv_path, 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(row)
-        print("📌 Trade logged to open_trades.csv:", row)
+            if is_filled:
+                writer.writerow(row)
+        if is_filled:
+            print("📌 Trade logged to open_trades.csv:", row)
+        else:
+            print("⚠️ Order not filled — skipping log entry.")
     except Exception as e:
         print("❌ Error writing to open_trades.csv:", e)
 
