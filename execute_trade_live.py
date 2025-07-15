@@ -1,7 +1,6 @@
 import sys
 import os
 import json
-import csv
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
@@ -20,8 +19,15 @@ quantity = int(sys.argv[3])
 print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
 
 # ✅ Step 2: Load config and client
-config = TigerOpenClientConfig('/etc/secrets/tiger_openapi_config.properties')
-client = TradeClient(config)
+try:
+    config_path = '/etc/secrets/tiger_openapi_config.properties'
+    config = TigerOpenClientConfig(config_path)
+    if not config.account:
+        raise ValueError("Tiger config loaded but account is missing or blank.")
+    client = TradeClient(config)
+except Exception as e:
+    print(f"❌ Failed to load Tiger API config or initialize client: {e}")
+    sys.exit(1)
 
 # ✅ Step 3: Build futures contract
 contract = future_contract(symbol=symbol, currency='USD')
@@ -40,8 +46,7 @@ try:
     # === STEP 5B: Check fill status ===
     order_status = getattr(response, "status", "UNKNOWN")
     filled_qty = getattr(response, "filled", 0)
-    is_filled = order_status == "Filled" or filled_qty > 0  # ✅ STRICT check
-
+    is_filled = order_status == "Filled" or filled_qty > 0
     filled_str = "true" if is_filled else "false"
 
     # === STEP 6: Get current price from live_prices.json ===
@@ -49,7 +54,6 @@ try:
     try:
         with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
             live_data = json.load(f)
-            # 🔍 Check if the file has nested "price" dict or flat
             if isinstance(live_data.get(symbol), dict):
                 live_price = float(live_data.get(symbol, {}).get("price", 0.0))
             else:
@@ -60,31 +64,11 @@ try:
     # === STEP 7: Create timestamp ===
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    # === STEP 8: Append to open_trades.csv ONLY if filled ===
-    row = [
-        symbol,
-        live_price,
-        action,
-        1,        # contracts_remaining
-        0.4,      # trail_trigger
-        0.2,      # trail_offset
-        '',       # tp_trail_price
-        '',       # removed ema50 placeholder
-        filled_str,
-        timestamp
-    ]
-    try:
-        csv_path = os.path.join(os.path.dirname(__file__), 'open_trades.csv')
-        with open(csv_path, 'a', newline='') as f:
-            writer = csv.writer(f)
-            if is_filled:
-                writer.writerow(row)
-        if is_filled:
-            print("📌 Trade logged to open_trades.csv:", row)
-        else:
-            print("⚠️ Order not filled — skipping log entry.")
-    except Exception as e:
-        print("❌ Error writing to open_trades.csv:", e)
+    if is_filled:
+        print(f"✅ Trade confirmed filled at approx. ${live_price} – timestamp {timestamp}")
+    else:
+        print("⚠️ Order not filled – no further logging will occur.")
 
 except Exception as e:
     print("❌ Error placing order:", e)
+    sys.exit(1)

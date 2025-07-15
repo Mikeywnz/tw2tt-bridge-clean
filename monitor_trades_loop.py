@@ -58,7 +58,6 @@ def write_closed_trade(trade, reason, exit_price):
         "exit_time": exit_time,
         "trail_triggered": "YES" if trade.get("trail_hit") else "NO"
     }
-    # Append to closed_trades.csv
     try:
         file_exists = False
         with open(CLOSED_TRADES_FILE, 'r') as f:
@@ -70,7 +69,6 @@ def write_closed_trade(trade, reason, exit_price):
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
-    # Append to Google Sheets
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
@@ -108,7 +106,6 @@ def save_open_trades(trades):
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
-# === Delete trade from Firebase ===
 def delete_trade_from_firebase(trade_id):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508/{trade_id}.json"
     try:
@@ -120,30 +117,41 @@ def delete_trade_from_firebase(trade_id):
         print(f"❌ Failed to delete trade {trade_id} from Firebase: {e}")
         return False
 
+def load_trailing_tp_settings():
+    try:
+        fb_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/trailing_tp_settings.json"
+        res = requests.get(fb_url)
+        cfg = res.json() if res.ok else {}
+        if cfg.get("enabled", False):
+            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
+    except Exception as e:
+        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
+    return 14.0, 5.0
+
 # === MONITOR LOOP ===
+exit_in_progress = set()
+
 def monitor_trades():
+    trigger_points, offset_points = load_trailing_tp_settings()
     current_time = time.time()
     if not hasattr(monitor_trades, 'last_heartbeat'):
         monitor_trades.last_heartbeat = 0
-    # Heartbeat log every 60s
     if current_time - monitor_trades.last_heartbeat >= 60:
         mgc_price = load_live_prices().get("MGC2508", {}).get('price')
         print(f"🛰️ System working – MGC2508 price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
 
     all_trades = load_open_trades()
-    # Filter active, filled trades and skip any with invalid trailing values
     active_trades = []
     for t in all_trades:
         tid = t.get('trade_id', 'unknown')
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
-        tp_pct = t.get('trail_trigger', 0)
-        buf_pct = t.get('trail_offset', 0)
-        if tp_pct < 0.01 or buf_pct < 0.01:
-            print(f"⚠️ Skipping trade {tid} due to invalid TP settings: trigger={tp_pct}, buffer={buf_pct}")
+        if trigger_points < 0.01 or offset_points < 0.01:
+            print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
             continue
         active_trades.append(t)
+
     if not active_trades:
         print("⚠️ No active trades found — worker is still awake.")
 
@@ -153,10 +161,13 @@ def monitor_trades():
     for trade in active_trades:
         trade_id = trade.get('trade_id', 'unknown')
         print(f"🔄 Processing trade {trade_id}")
-        # Skip if already marked exited in-memory
         if trade.get('exited'):
             print(f"⏭️ Skipping already exited trade {trade_id}")
             continue
+        if trade_id in exit_in_progress:
+            print(f"⏳ Exit already in progress for {trade_id}, skipping...")
+            continue
+
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
         current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
@@ -166,8 +177,12 @@ def monitor_trades():
             continue
 
         entry = trade['entry_price']
-        tp_trigger = entry * trade['trail_trigger'] / 100
-        # === TP Trigger Activation ===
+        if entry <= 0:
+            print(f"❌ Invalid entry price for {trade_id} — skipping.")
+            continue
+
+        tp_trigger = trigger_points
+
         if not trade.get('trail_hit'):
             trade['trail_peak'] = entry
             if (direction == 1 and current_price >= entry + tp_trigger) or (direction == -1 and current_price <= entry - tp_trigger):
@@ -175,34 +190,26 @@ def monitor_trades():
                 trade['trail_peak'] = current_price
                 print(f"🎯 TP trigger hit for {trade_id} → trail activated at {current_price}")
 
-        # === Trailing TP Exit ===
         if trade.get('trail_hit'):
-            # Update peak
             if (direction == 1 and current_price > trade['trail_peak']) or (direction == -1 and current_price < trade['trail_peak']):
                 trade['trail_peak'] = current_price
-            buffer_amt = trade['trail_peak'] * trade['trail_offset'] / 100
-            # Check exit condition
+            buffer_amt = offset_points
             if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
                 print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
+                exit_in_progress.add(trade_id)
                 close_position(symbol, trade['action'])
                 write_closed_trade(trade, 'trailing_tp_exit', current_price)
-                # Attempt deletion
                 success = delete_trade_from_firebase(trade_id)
-                # Mark exited in-memory to prevent any retry this run
                 trade['exited'] = True
-                # If deletion failed, do not re-add to updated_trades; if succeeded, it's already removed
                 continue
 
-        # === Ghost trade guard ===
         if current_price == -1:
             write_closed_trade(trade, 'ghost_trade_exit', trade['entry_price'])
             delete_trade_from_firebase(trade_id)
             continue
 
-        # Keep trade if still active
         updated_trades.append(trade)
 
-    # === Always persist current open trades list back to Firebase ===
     save_open_trades(updated_trades)
 
 if __name__ == '__main__':
