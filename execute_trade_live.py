@@ -36,6 +36,7 @@ contract = future_contract(symbol=symbol, currency='USD')
 # ✅ Step 4: Create Market Order
 order = Order(config.account, contract, action)
 order.order_type = "MKT"
+order.limit_price = 0  # ✅ Forces MKT to be treated as open/marketable
 order.quantity = quantity
 order.outside_rth = False
 
