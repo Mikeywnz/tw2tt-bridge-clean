@@ -83,6 +83,17 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
+    # === ✅ Submit trade to Tiger ===
+        result = subprocess.run([
+            "python3", "execute_trade_live.py",
+            symbol,
+            action,
+            str(quantity)
+        ], capture_output=True, text=True)
+
+        log_to_file(f"[🟡] Subprocess STDOUT: {result.stdout}")
+        log_to_file(f"[🔴] Subprocess STDERR: {result.stderr}")
+ 
         entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
         trade_id = generate_trade_id(symbol, action, quantity)
         log_to_file(f"Trade signal received: {data}")
