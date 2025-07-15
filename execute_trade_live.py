@@ -1,3 +1,7 @@
+print("🚨 EXECUTE_TRADE_LIVE.PY STARTED")
+import sys
+sys.stdout.flush()
+
 import sys
 import os
 import json
