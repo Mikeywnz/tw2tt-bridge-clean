@@ -51,6 +51,7 @@ try:
 
     response = client.place_order(order)
     print("✅ Order submitted. Raw Response:", response)
+    print("🐯 Full Tiger Response Dict:", response.__dict__)
     sys.stdout.flush()
 
     error_msg = getattr(response, "error_msg", "No error_msg")
