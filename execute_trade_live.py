@@ -42,7 +42,9 @@ order.outside_rth = False
 
 # ✅ Step 5: Submit Order and detect fill
 try:
+    import sys
     print("🧾 Contract Details:", contract.__dict__)
+    sys.stdout.flush()
     response = client.place_order(order)
     print("✅ Order submitted. Response:", response)
 
