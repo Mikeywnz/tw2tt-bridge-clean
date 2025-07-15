@@ -65,6 +65,7 @@ try:
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     if is_filled:
+        print("✅ ORDER PLACED")  # 👈 Required for webhook to continue
         print(f"✅ Trade confirmed filled at approx. ${live_price} – timestamp {timestamp}")
     else:
         print("⚠️ Order not filled – no further logging will occur.")
