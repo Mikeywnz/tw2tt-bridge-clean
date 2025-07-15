@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.util.contract_utils import future_contract
+from tigeropen.common.contract.futures import FuturesContract
 from tigeropen.trade.domain.order import Order
 
 # ✅ Step 1: Parse args
@@ -30,21 +30,25 @@ except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
 
-# ✅ Step 3: Build futures contract
-contract = future_contract(symbol=symbol, currency='USD')
+# ✅ Step 3: Manually Build Futures Contract
+contract = FuturesContract()
+contract.symbol = symbol
+contract.currency = "USD"
+contract.exchange = "CME"
+contract.contract_type = "FUT"
 
 # ✅ Step 4: Create Market Order
 order = Order(config.account, contract, action)
 order.order_type = "MKT"
-order.limit_price = 0  # ✅ Forces MKT to be treated as open/marketable
+order.limit_price = None
 order.quantity = quantity
 order.outside_rth = False
 
 # ✅ Step 5: Submit Order and detect fill
 try:
-    import sys
     print("🧾 Contract Details:", contract.__dict__)
     sys.stdout.flush()
+
     response = client.place_order(order)
     print("✅ Order submitted. Response:", response)
 
