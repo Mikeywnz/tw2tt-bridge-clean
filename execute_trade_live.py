@@ -50,7 +50,11 @@ try:
     sys.stdout.flush()
 
     response = client.place_order(order)
-    print("✅ Order submitted. Response:", response)
+    response = client.place_order(order)
+
+    print("✅ Order submitted. Raw Response:", response.__dict__)
+    if hasattr(response, 'message'):
+        print("❗Tiger response message:", response.message)
 
     # === STEP 5B: Check fill status ===
     order_status = getattr(response, "status", "UNKNOWN")
