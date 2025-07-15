@@ -46,15 +46,20 @@ order.outside_rth = False
 
 # ✅ Step 5: Submit Order and detect fill
 try:
-    print("🧾 Contract Details:", contract.__dict__)
+    print("📄 Contract Details:", contract.__dict__)
     sys.stdout.flush()
 
     response = client.place_order(order)
-    response = client.place_order(order)
+    print("✅ Order submitted. Raw Response:", response)
+    sys.stdout.flush()
 
-    print("✅ Order submitted. Raw Response:", response.__dict__)
-    if hasattr(response, 'message'):
-        print("❗Tiger response message:", response.message)
+    error_msg = getattr(response, "error_msg", "No error_msg")
+    print("❗Tiger response message:", error_msg)
+    sys.stdout.flush()
+
+except Exception as e:
+    print("❌ Exception while submitting order:", str(e))
+    sys.stdout.flush()
 
     # === STEP 5B: Check fill status ===
     order_status = getattr(response, "status", "UNKNOWN")
