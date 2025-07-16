@@ -27,6 +27,7 @@ try:
     config_path = '/etc/secrets/tiger_openapi_config.properties'
     config = TigerOpenClientConfig(config_path)
     config.use_sandbox = False
+    config.env = 'PROD'  # ✅ single quotes
     config.language = "en_US"
     if not config.account:
         raise ValueError("Tiger config loaded but account is missing or blank.")
