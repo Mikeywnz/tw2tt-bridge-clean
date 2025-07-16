@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.contract.futures import FuturesContract
+from tigeropen.common.util.contract_utils import future_contract
 from tigeropen.trade.domain.order import Order
 
 # ✅ Step 1: Parse args
@@ -34,12 +34,8 @@ except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
 
-# ✅ Step 3: Manually Build Futures Contract
-contract = FuturesContract()
-contract.symbol = symbol
-contract.currency = "USD"
-contract.exchange = "CME"
-contract.contract_type = "FUT"
+# ✅ Step 3: Build futures contract
+contract = future_contract(symbol=symbol, currency='USD')
 
 # ✅ Step 4: Create Market Order
 order = Order(config.account, contract, action)
