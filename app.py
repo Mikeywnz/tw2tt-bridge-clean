@@ -83,20 +83,28 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
-    # === ✅ Submit trade to Tiger ===
-        result = subprocess.run([
-            "python3", "execute_trade_live.py",
-            symbol,
-            action,
-            str(quantity)
-        ], capture_output=True, text=True)
+    
+        # === ✅ Submit trade to Tiger ===
+        try:
+            result = subprocess.run([
+                "python3", "execute_trade_live.py",
+                symbol,
+                action,
+                str(quantity)
+            ], capture_output=True, text=True, check=False)
 
-        log_to_file(f"[🟡] Subprocess STDOUT: {result.stdout}")
-        log_to_file(f"[🔴] Subprocess STDERR: {result.stderr}")
- 
-        entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
-        trade_id = generate_trade_id(symbol, action, quantity)
-        log_to_file(f"Trade signal received: {data}")
+            log_to_file(f"[🟡] Subprocess STDOUT: {result.stdout}")
+            log_to_file(f"[🔴] Subprocess STDERR: {result.stderr}")
+
+            if "✅ ORDER PLACED" in result.stdout:
+                log_to_file("[✅] Trade confirmed by execute_trade_live.py — logging to Firebase and Sheets.")
+            else:
+                log_to_file("[❌] Subprocess did NOT confirm trade — skipping logging.")
+                return {"status": "error", "message": "Trade execution failed (subprocess did not confirm)"}, 500
+
+        except Exception as e:
+            log_to_file(f"[🔥] Exception while running subprocess: {e}")
+            return {"status": "error", "message": f"Subprocess exception: {e}"}, 500
 
         # === Fetch trailing settings from Firebase ===
         try:
