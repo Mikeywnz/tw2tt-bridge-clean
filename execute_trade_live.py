@@ -59,6 +59,7 @@ try:
     sys.stdout.flush()
 
     response = client.place_order(order)
+    print("✅ ORDER PLACED")  # ✅ Required for webhook to detect success
     print("✅ Order submitted. Raw Response:", response)
     print("🐯 Full Tiger Response Dict:", response.__dict__)
     sys.stdout.flush()
