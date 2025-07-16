@@ -26,16 +26,21 @@ print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {
 try:
     config_path = '/etc/secrets/tiger_openapi_config.properties'
     config = TigerOpenClientConfig(config_path)
+    config.use_sandbox = False
+    config.language = "en_US"
     if not config.account:
         raise ValueError("Tiger config loaded but account is missing or blank.")
     client = TradeClient(config)
-    config.language = "en_US"
+    
 except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
 
 # ✅ Step 3: Build futures contract
 contract = future_contract(symbol=symbol, currency='USD')
+contract.exchange = "CME"
+contract.market = "US"
+contract.sec_type = "FUT"
 
 # ✅ Step 4: Create Market Order
 order = Order(config.account, contract, action)
@@ -65,9 +70,9 @@ except Exception as e:
 
 # === STEP 5B: Check fill status (only if response exists) ===
 if response:
-    order_status = getattr(response, "status", "UNKNOWN")
+    order_status = getattr(response, "status", "").upper()
     filled_qty = getattr(response, "filled", 0)
-    is_filled = order_status == "Filled" or filled_qty > 0
+    is_filled = order_status == "FILLED" or filled_qty > 0
     filled_str = "true" if is_filled else "false"
 
     # === STEP 6: Get current price from live_prices.json ===
