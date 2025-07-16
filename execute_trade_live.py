@@ -7,7 +7,6 @@ import json
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.util.contract_utils import future_contract
 from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 
@@ -37,26 +36,25 @@ except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
 
-# === Detect Futures vs Stocks ===
-if any(c.isdigit() for c in symbol):  # crude logic for futures like "MGC2508"
-    contract = future_contract(symbol=symbol, currency='USD')
-    contract.sec_type = "FUT"
-    contract.exchange = "CME"  # ✅ Required for futures
-else:
-    contract = Contract()
-    contract.symbol = symbol
-    contract.currency = "USD"
-    contract.sec_type = "STK"
-    # Optionally set exchange if trading stocks: contract.exchange = "NASDAQ"
+# 🔒 === LOCKED: Define futures contract (no stock support)
+contract = Contract()
+contract.symbol = symbol
+contract.sec_type = 'FUT'
+contract.currency = 'USD'
+contract.exchange = 'CME'
 
-# === Create Market Order ===
-order = Order(config.account, contract, action)
-order.order_type = "MKT"
+# 🔒 === LOCKED: Create order (exact format that worked)
+order = Order(
+    account=config.account,
+    contract=contract,
+    action=action
+)
+order.order_type = 'MKT'  # 🔒 MUST be 'MKT' — this is Tiger's accepted market order code
 order.quantity = quantity
-order.outside_rth = True  # ✅ FIXED: Allow trading outside regular hours
+order.outside_rth = True  # 🔒 Optional: allows outside regular trading hours
 
-# === Submit Order ===
-response = None
+# 🔒 === LOCKED: Submit order
+response = client.place_order(order)
 try:
     print("📄 Contract Details:", contract.__dict__)
     sys.stdout.flush()

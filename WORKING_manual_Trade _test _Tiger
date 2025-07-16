@@ -1,0 +1,30 @@
+# manual_trade_test.py
+# 🔒 LOCKED — This is your known working direct test to Tiger from Render
+
+from tigeropen.tiger_open_config import TigerOpenClientConfig
+from tigeropen.trade.trade_client import TradeClient
+from tigeropen.trade.domain.contract import Contract
+from tigeropen.trade.domain.order import Order
+
+config = TigerOpenClientConfig()
+client = TradeClient(config)
+
+# Define contract
+contract = Contract()
+contract.symbol = 'MGC2508'
+contract.sec_type = 'FUT'
+contract.currency = 'USD'
+contract.exchange = 'CME'
+
+# Create BUY Order — change 'BUY' to 'SELL' to test opposite direction
+order = Order(
+    account=config.account,
+    contract=contract,
+    action='BUY'  # ← Change to 'SELL' if needed
+)
+order.order_type = 'MKT'  # MUST use 'MKT', not 'MARKET'
+order.quantity = 1
+
+# Place order
+order_id = client.place_order(order)
+print("✅ Order placed — ID:", order_id)
