@@ -38,14 +38,14 @@ except Exception as e:
 if any(c.isdigit() for c in symbol):  # crude logic for futures like "MGC2508"
     contract = future_contract(symbol=symbol, currency='USD')
     contract.sec_type = "FUT"
+    contract.exchange = "CME"  # ✅ Required for futures
 else:
     contract = Contract()
     contract.symbol = symbol
-    contract.exchange = "NASDAQ"
     contract.currency = "USD"
     contract.sec_type = "STK"
+    # Optionally set exchange if trading stocks: contract.exchange = "NASDAQ"
 
-# === Create Market Order ===
 # === Create Market Order ===
 order = Order(config.account, contract, action)
 order.order_type = "MKT"
