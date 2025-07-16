@@ -29,6 +29,7 @@ try:
     if not config.account:
         raise ValueError("Tiger config loaded but account is missing or blank.")
     client = TradeClient(config)
+    config.language = "en_US"
 except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
