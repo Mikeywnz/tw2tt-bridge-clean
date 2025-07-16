@@ -1,7 +1,3 @@
-print("🚨 EXECUTE_TRADE_LIVE.PY STARTED")
-import sys
-sys.stdout.flush()
-
 import sys
 import os
 import json
@@ -9,48 +5,54 @@ from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.util.contract_utils import future_contract
+from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 
-# ✅ Step 1: Parse args
+# === Parse CLI Args ===
 if len(sys.argv) != 4:
     print("Usage: python3 execute_trade_live.py <symbol> <buy/sell> <quantity>")
     sys.exit(1)
 
-symbol = sys.argv[1]
+symbol = sys.argv[1].upper()
 action = sys.argv[2].upper()
 quantity = int(sys.argv[3])
-
 print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
 
-# ✅ Step 2: Load config and client
+# === Load Tiger Config ===
 try:
-    config_path = '/etc/secrets/tiger_openapi_config.properties'
-    config = TigerOpenClientConfig(config_path)
+    config = TigerOpenClientConfig('/etc/secrets/tiger_openapi_config.properties')
     config.use_sandbox = False
-    config.env = 'PROD'  # ✅ single quotes
-    config.language = "en_US"
+    config.env = 'PROD'
+    config.language = 'en_US'
+
     if not config.account:
         raise ValueError("Tiger config loaded but account is missing or blank.")
+
     client = TradeClient(config)
-    
+
 except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
 
-# ✅ Step 3: Build futures contract
-contract = future_contract(symbol=symbol, currency='USD')
-contract.exchange = "CME"
-contract.market = "US"
-contract.sec_type = "FUT"
+# === Detect Futures vs Stocks ===
+if any(c.isdigit() for c in symbol):  # crude logic for futures like "MGC2508"
+    contract = future_contract(symbol=symbol, currency='USD')
+    contract.sec_type = "FUT"
+else:
+    contract = Contract()
+    contract.symbol = symbol
+    contract.exchange = "NASDAQ"
+    contract.currency = "USD"
+    contract.sec_type = "STK"
 
-# ✅ Step 4: Create Market Order
+# === Create Market Order ===
+# === Create Market Order ===
 order = Order(config.account, contract, action)
 order.order_type = "MKT"
-order.limit_price = None
 order.quantity = quantity
-order.outside_rth = False
+order.outside_rth = True  # ✅ FIXED: Allow trading outside regular hours
 
-# ✅ Step 5: Submit Order and detect fill
+# === Submit Order ===
 response = None
 try:
     print("📄 Contract Details:", contract.__dict__)
@@ -67,28 +69,29 @@ try:
 
 except Exception as e:
     print("❌ Exception while submitting order:", str(e))
-    sys.stdout.flush()
+    sys.exit(1)
 
-# === STEP 5B: Check fill status (only if response exists) ===
+# === Check Fill Status ===
 if response:
     order_status = getattr(response, "status", "").upper()
     filled_qty = getattr(response, "filled", 0)
     is_filled = order_status == "FILLED" or filled_qty > 0
     filled_str = "true" if is_filled else "false"
 
-    # === STEP 6: Get current price from live_prices.json ===
+    # === Get Live Price from JSON ===
     live_price = 0.0
     try:
         with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
             live_data = json.load(f)
-            if isinstance(live_data.get(symbol), dict):
-                live_price = float(live_data.get(symbol, {}).get("price", 0.0))
-            else:
-                live_price = float(live_data.get(symbol, 0.0))
+            data = live_data.get(symbol)
+            if isinstance(data, dict):
+                live_price = float(data.get("price", 0.0))
+            elif isinstance(data, (float, int)):
+                live_price = float(data)
     except Exception as e:
         print("⚠️ Could not read live_prices.json:", e)
 
-    # === STEP 7: Create timestamp ===
+    # === Timestamp ===
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     if is_filled:
