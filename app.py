@@ -85,6 +85,8 @@ async def webhook(request: Request):
         quantity = int(data.get("quantity", 1))
     
         # === ✅ Submit trade to Tiger ===
+        log_to_file("[🧩] Entered trade execution block")
+        
         try:
             result = subprocess.run([
                 "python3", "execute_trade_live.py",
