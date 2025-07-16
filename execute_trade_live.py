@@ -44,6 +44,7 @@ order.quantity = quantity
 order.outside_rth = False
 
 # ✅ Step 5: Submit Order and detect fill
+response = None
 try:
     print("📄 Contract Details:", contract.__dict__)
     sys.stdout.flush()
@@ -61,7 +62,8 @@ except Exception as e:
     print("❌ Exception while submitting order:", str(e))
     sys.stdout.flush()
 
-    # === STEP 5B: Check fill status ===
+# === STEP 5B: Check fill status (only if response exists) ===
+if response:
     order_status = getattr(response, "status", "UNKNOWN")
     filled_qty = getattr(response, "filled", 0)
     is_filled = order_status == "Filled" or filled_qty > 0
@@ -86,7 +88,6 @@ except Exception as e:
         print(f"✅ Trade confirmed filled at approx. ${live_price} – timestamp {timestamp}")
     else:
         print("⚠️ Order not filled – no further logging will occur.")
-
-except Exception as e:
-    print("❌ Error placing order:", e)
+else:
+    print("❌ No valid response received from TigerTrade. Cannot confirm trade status.")
     sys.exit(1)
