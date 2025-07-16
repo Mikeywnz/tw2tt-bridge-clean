@@ -1,3 +1,6 @@
+import pkg_resources
+print("🐯 TigerOpen SDK version:", pkg_resources.get_distribution("tigeropen").version)
+
 import sys
 import os
 import json
