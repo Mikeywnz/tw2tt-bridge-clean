@@ -50,7 +50,7 @@ order = Order(
     action=action
 )
 order.order_type = 'MKT'  # 🔒 Must be 'MKT' — Tiger's required market order code
-order.quantity = quantity
+order.total_quantity = quantity
 
 # === Submit Order ===
 try:
