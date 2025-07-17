@@ -18,8 +18,7 @@ print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}")
 
 # === Load Tiger Config ===
 try:
-    config = TigerOpenClientConfig('/etc/secrets/tiger_openapi_config.properties')
-    config.use_sandbox = False
+    config = TigerOpenClientConfig()
     config.env = 'PROD'
     config.language = 'en_US'
 
