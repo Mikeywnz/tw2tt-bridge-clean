@@ -91,6 +91,8 @@ if response:
     if is_filled:
         print(f"✅ Trade confirmed filled at approx. ${live_price} 🕒 timestamp {timestamp}", flush=True)
         print("SUCCESS", flush=True)
+        print("=== DEBUG: SUCCESS line printed and flushed ===", flush=True)
+        
     else:
         print("⚠️ Order not filled – no further logging will occur.")
 else:
