@@ -1,4 +1,5 @@
 tigeropen==3.3.2
+setuptools
 flask
 gunicorn
 fastapi
