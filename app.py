@@ -109,15 +109,15 @@ async def webhook(request: Request):
             log_to_file(f"[🟡] Subprocess STDOUT: {result.stdout}")
             log_to_file(f"[🔴] Subprocess STDERR: {result.stderr}")
 
-            if "✅ ORDER PLACED" in result.stdout:
+            if "✅ ORDER PLACED — ID:" in result.stdout:
                 log_to_file("[✅] Trade confirmed by execute_trade_live.py — logging to Firebase and Sheets.")
             else:
                 log_to_file("[❌] Subprocess did NOT confirm trade — skipping logging.")
-                return {"status": "error", "message": "Trade execution failed (subprocess did not confirm)"}, 500
+                return {"status": "error", "message": "Trade execution failed (subprocess did not confirm)"}, 555
 
         except Exception as e:
             log_to_file(f"[🔥] Exception while running subprocess: {e}")
-            return {"status": "error", "message": f"Subprocess exception: {e}"}, 500
+            return {"status": "error", "message": f"Subprocess exception: {e}"}, 555
 
         # === Fetch trailing settings from Firebase
         try:
