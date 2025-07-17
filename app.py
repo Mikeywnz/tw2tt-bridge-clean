@@ -100,11 +100,11 @@ async def webhook(request: Request):
             ], capture_output=True, text=True, check=False)
 
             # === 🛠 PATCH: Log subprocess output to file (REMOVE AFTER DEBUGGING) ===
-        with open("subprocess_exec.log", "a") as f:
-            f.write(f"[STDOUT]\n{result.stdout}\n")
-            f.write(f"[STDERR]\n{result.stderr}\n")
-            f.write("-" * 40 + "\n")
-        # === END PATCH BLOCK ===
+            with open("subprocess_exec.log", "a") as f:
+                f.write(f"[STDOUT]\n{result.stdout}\n")
+                f.write(f"[STDERR]\n{result.stderr}\n")
+                f.write("-" * 40 + "\n")
+            # === END PATCH BLOCK ===
 
             log_to_file(f"[🟡] Subprocess STDOUT: {result.stdout}")
             log_to_file(f"[🔴] Subprocess STDERR: {result.stderr}")
