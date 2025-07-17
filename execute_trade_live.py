@@ -14,7 +14,7 @@ def place_trade(symbol, action, quantity):
 
     # === Load Tiger Config ===
     try:
-        config = TigerOpenClientConfig()
+        config = TigerOpenClientConfig()  #This is critical do not change this on this version if tiger SDK
         config.env = 'PROD'
         config.language = 'en_US'
 
@@ -48,7 +48,7 @@ def place_trade(symbol, action, quantity):
         response = client.place_order(order)
         print("✅ ORDER PLACED")
         print("✅ Order submitted. Raw Response:", response)
-        print("🐯 Full Tiger Response Dict:", response.__dict__)
+        print("🐯 Tiger response (raw):", response)
 
         error_msg = getattr(response, "error_msg", "No error_msg")
         print("❗Tiger response message:", error_msg)
