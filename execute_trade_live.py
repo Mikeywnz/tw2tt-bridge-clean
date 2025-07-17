@@ -1,6 +1,3 @@
-import pkg_resources
-print("🐯 TigerOpen SDK version:", pkg_resources.get_distribution("tigeropen").version)
-
 import sys
 import os
 import json
@@ -11,13 +8,12 @@ from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 
 # === Parse CLI Args ===
-if len(sys.argv) != 4:
-    print("Usage: python3 execute_trade_live.py <symbol> <buy/sell> <quantity>")
+if len(sys.argv) < 3:
+    print("Usage: python3 execute_trade_live.py <symbol> <buy/sell>")
     sys.exit(1)
 
 symbol = sys.argv[1].upper()
 action = sys.argv[2].upper()
-quantity = int(sys.argv[3])
 print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
 
 # === Load Tiger Config ===
