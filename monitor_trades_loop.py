@@ -38,6 +38,8 @@ CLOSED_TRADES_FILE = "closed_trades.csv"
 GOOGLE_CREDS_FILE = "service_account.json"
 SHEET_NAME = "Closed Trades Journal"
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
+
 
 # === Load live prices from Firebase ===
 def load_live_prices():
@@ -72,8 +74,19 @@ def write_closed_trade(trade, reason, exit_price):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
-        sheet = gc.open(SHEET_NAME).sheet1
-        sheet.append_row(list(row.values()))
+        sheet = gc.open_by_key(SHEET_ID).worksheet("Sheet1")
+        sheet.append_row([
+            row["symbol"],
+            row["direction"],
+            row["entry_price"],
+            row["exit_price"],
+            row["pnl_dollars"],
+            row["reason_for_exit"],
+            row["entry_time"],
+            row["exit_time"],
+            row["trail_triggered"]
+        ])
+    
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
     except Exception as e:
         print(f"❌ Google Sheets error for {trade['symbol']}: {e}")
