@@ -10,14 +10,6 @@ from tigeropen.trade.trade_client import TradeClient
 from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 
-# === 🔧 PATCH: EXEC LOGGING FOR RENDER DEBUGGING (REMOVE AFTER DEBUGGING) ===
-LOG_FILE = 'exec.log'
-
-def log_exec(message):
-    with open(LOG_FILE, 'a') as f:
-        f.write(f"[{datetime.utcnow().isoformat()}] {message}\n")
-# === 🔧 END PATCH BLOCK ===
-
 # === Parse CLI Args ===
 if len(sys.argv) != 4:
     print("Usage: python3 execute_trade_live.py <symbol> <buy/sell> <quantity>")
@@ -27,7 +19,6 @@ symbol = sys.argv[1].upper()
 action = sys.argv[2].upper()
 quantity = int(sys.argv[3])
 print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
-log_exec(f'🟢 CLI ARGS → Symbol: {symbol}, Action: {action}, Quantity: {quantity}')  # 🧪 REMOVE AFTER TEST
 
 # === Load Tiger Config ===
 try:
@@ -45,46 +36,41 @@ except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
 
-# 🔒 === LOCKED: Define futures contract (no stock support)
+# 🔒 === LOCKED: Define Futures Contract (do not modify this block) ===
 contract = Contract()
 contract.symbol = symbol
 contract.sec_type = 'FUT'
 contract.currency = 'USD'
 contract.exchange = 'CME'
 
-# 🔒 === LOCKED: Create order (exact format that worked)
+# 🔒 === LOCKED: Create Order (exact format TigerTrade requires) ===
 order = Order(
     account=config.account,
     contract=contract,
     action=action
 )
-order.order_type = 'MKT'  # 🔒 MUST be 'MKT' — this is Tiger's accepted market order code
+order.order_type = 'MKT'  # 🔒 Must be 'MKT' — Tiger's required market order code
 order.quantity = quantity
-order.outside_rth = True  # 🔒 Optional: allows outside regular trading hours
 
-log_exec('🟡 Attempting to place order...')  # 🧪 REMOVE AFTER TEST
-
-# 🔒 === LOCKED: Submit order
-response = client.place_order(order)
+# === Submit Order ===
 try:
-    print("📄 Contract Details:", contract.__dict__)
-    sys.stdout.flush()
-
-    log_exec(f'✅ ORDER PLACED — Response: {response}')  # 🧪 REMOVE AFTER TEST
-
     response = client.place_order(order)
-    print("✅ ORDER PLACED")  # ✅ Required for webhook to detect success
+    print("✅ ORDER PLACED")
     print("✅ Order submitted. Raw Response:", response)
     print("🐯 Full Tiger Response Dict:", response.__dict__)
-    sys.stdout.flush()
 
     error_msg = getattr(response, "error_msg", "No error_msg")
     print("❗Tiger response message:", error_msg)
-    sys.stdout.flush()
 
 except Exception as e:
-    log_exec(f'❌ ERROR during order placement: {e}')  # 🧪 REMOVE AFTER TEST
-    print("❌ Exception while submitting order:", str(e))
+    print("❌ Tiger API Exception raised:")
+    print(e)
+
+    if hasattr(e, 'args') and len(e.args) > 0:
+        print("🧪 Tiger error details:", e.args[0])
+
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 
 # === Check Fill Status ===
@@ -92,9 +78,8 @@ if response:
     order_status = getattr(response, "status", "").upper()
     filled_qty = getattr(response, "filled", 0)
     is_filled = order_status == "FILLED" or filled_qty > 0
-    filled_str = "true" if is_filled else "false"
 
-    # === Get Live Price from JSON ===
+    # Get Live Price from local file
     live_price = 0.0
     try:
         with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
@@ -107,9 +92,7 @@ if response:
     except Exception as e:
         print("⚠️ Could not read live_prices.json:", e)
 
-    # === Timestamp ===
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-
     if is_filled:
         print(f"✅ Trade confirmed filled at approx. ${live_price} – timestamp {timestamp}")
     else:
