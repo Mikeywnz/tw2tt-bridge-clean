@@ -109,7 +109,7 @@ async def webhook(request: Request):
             log_to_file(f"[🟡] Subprocess STDOUT: {result.stdout}")
             log_to_file(f"[🔴] Subprocess STDERR: {result.stderr}")
 
-            if "✅ ORDER PLACED — ID:" in result.stdout:
+            if "SUCCESS" in result.stdout:
                 log_to_file("[✅] Trade confirmed by execute_trade_live.py — logging to Firebase and Sheets.")
             else:
                 log_to_file("[❌] Subprocess did NOT confirm trade — skipping logging.")

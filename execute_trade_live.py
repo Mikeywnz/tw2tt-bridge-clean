@@ -90,6 +90,7 @@ if response:
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     if is_filled:
         print(f"✅ Trade confirmed filled at approx. ${live_price} – timestamp {timestamp}")
+        print("SUCCESS")
     else:
         print("⚠️ Order not filled – no further logging will occur.")
 else:
