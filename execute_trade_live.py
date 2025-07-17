@@ -14,7 +14,7 @@ if len(sys.argv) < 3:
 
 symbol = sys.argv[1].upper()
 action = sys.argv[2].upper()
-print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
+print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}")
 
 # === Load Tiger Config ===
 try:
