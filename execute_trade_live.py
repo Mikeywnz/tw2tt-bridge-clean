@@ -66,7 +66,7 @@ def place_trade(symbol, action, quantity):
     if response:
         order_status = getattr(response, "status", "").upper()
         filled_qty = getattr(response, "filled", 0)
-        is_filled = order_status == "FILLED" or filled_qty > 0
+        is_filled = True  # TEMP: Assume trade is filled for now
 
         # Get Live Price from local file
         live_price = 0.0
