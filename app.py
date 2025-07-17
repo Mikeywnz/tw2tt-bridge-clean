@@ -83,10 +83,14 @@ async def webhook(request: Request):
         symbol = data["symbol"]
         action = data["action"]
         quantity = int(data.get("quantity", 1))
-    
-        # === ✅ Submit trade to Tiger ===
+
+        # ✅ Added trade_id and timestamp (Fix #2)
+        trade_id = generate_trade_id(symbol, action, quantity)
+        entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
+
+        # ✅ Submit trade to Tiger (Fix #1)
         log_to_file("[🧩] Entered trade execution block")
-        
+
         try:
             result = subprocess.run([
                 "python3", "execute_trade_live.py",
@@ -108,7 +112,7 @@ async def webhook(request: Request):
             log_to_file(f"[🔥] Exception while running subprocess: {e}")
             return {"status": "error", "message": f"Subprocess exception: {e}"}, 500
 
-        # === Fetch trailing settings from Firebase ===
+        # === Fetch trailing settings from Firebase
         try:
             fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
             res = requests.get(fb_url)
@@ -124,103 +128,91 @@ async def webhook(request: Request):
             trigger_points = 14.0
             offset_points = 5.0
 
+        # === Load latest price
         try:
-            # Execute trade
-            result = subprocess.run([
-                "python3", "execute_trade_live.py",
-                symbol, action, str(quantity)
-            ], capture_output=True, text=True)
-            log_to_file(f"Executed trade: stdout={result.stdout.strip()} stderr={result.stderr.strip()}")
-
-            # Load latest price
-            try:
-                with open(PRICE_FILE, "r") as f:
-                    prices = json.load(f)
-                    price = float(prices.get(symbol, 0.0))
-            except Exception as e:
-                log_to_file(f"Price load error: {e}")
-                price = 0.0
-            # === Price validation ===
-            if price <= 0:
-                log_to_file("❌ Invalid entry price (0.0) – aborting log.")
-                return {"status": "invalid entry price"}
-
-            # === Handle rejections ===
-            if any(err in result.stderr.lower() for err in ["不支持","not support","error","insufficient margin"]):
-                log_to_file("⚠️ Trade rejected — logging ghost entry.")
-                try:
-                    sheet = get_google_sheet()
-                    sheet.append_row([
-                        trade_id, symbol, "REJECTED", action, 0,
-                        trigger_points, offset_points,
-                        False, "ghost_trade", entry_timestamp
-                    ])
-                    log_to_file("Ghost trade logged to Sheets.")
-                except Exception as e:
-                    log_to_file(f"❌ Ghost sheet log failed: {e}")
-                return {"status": "trade not filled"}
-
-            # === Log to Google Sheets & Firebase ===
-            # Sheets
-            for _ in range(quantity):
-                try:
-                    sheet = get_google_sheet()
-                    sheet.append_row([
-                        trade_id, symbol, price, action, 1,
-                        trigger_points, offset_points,
-                        True, "false", entry_timestamp
-                    ])
-                    log_to_file(f"Logged to Google Sheets: {trade_id}")
-                except Exception as e:
-                    log_to_file(f"❌ Sheets log failed: {e}")
-            # Firebase
-            try:
-                endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
-                resp = requests.get(endpoint)
-                existing = resp.json() or []
-                new_trade = {
-                    "trade_id": trade_id,
-                    "symbol": symbol,
-                    "entry_price": price,
-                    "action": action,
-                    "contracts_remaining": 1,
-                    "trail_trigger": trigger_points,
-                    "trail_offset": offset_points,
-                    "trail_hit": False,
-                    "trail_peak": price,
-                    "filled": True,
-                    "entry_timestamp": entry_timestamp
-                }
-                existing.append(new_trade)
-                put = requests.put(endpoint, json=existing)
-                if put.status_code == 200:
-                    log_to_file("Firebase open_trades updated.")
-                else:
-                    log_to_file(f"❌ Firebase update failed: {put.text}")
-            except Exception as e:
-                log_to_file(f"❌ Firebase push error: {e}")
-
-            # === Log JSON trade log ===
-            try:
-                entry = {"timestamp": entry_timestamp,
-                         "trade_id": trade_id,
-                         "symbol": symbol,
-                         "action": action,
-                         "price": price,
-                         "quantity": quantity}
-                logs = []
-                if os.path.exists(TRADE_LOG):
-                    with open(TRADE_LOG, "r") as f:
-                        logs = json.load(f)
-                logs.append(entry)
-                with open(TRADE_LOG, "w") as f:
-                    json.dump(logs, f, indent=2)
-                log_to_file("Logged to trade_log.json.")
-            except Exception as e:
-                log_to_file(f"❌ trade_log.json failed: {e}")
-
+            with open(PRICE_FILE, "r") as f:
+                prices = json.load(f)
+                price = float(prices.get(symbol, 0.0))
         except Exception as e:
-            log_to_file(f"Trade execution error: {e}")
-            return {"status": "trade failed", "error": str(e)}
+            log_to_file(f"Price load error: {e}")
+            price = 0.0
+
+        if price <= 0:
+            log_to_file("❌ Invalid entry price (0.0) – aborting log.")
+            return {"status": "invalid entry price"}
+
+        # === Handle rejections
+        if any(err in result.stderr.lower() for err in ["不支持", "not support", "error", "insufficient margin"]):
+            log_to_file("⚠️ Trade rejected — logging ghost entry.")
+            try:
+                sheet = get_google_sheet()
+                sheet.append_row([
+                    trade_id, symbol, "REJECTED", action, 0,
+                    trigger_points, offset_points,
+                    False, "ghost_trade", entry_timestamp
+                ])
+                log_to_file("Ghost trade logged to Sheets.")
+            except Exception as e:
+                log_to_file(f"❌ Ghost sheet log failed: {e}")
+            return {"status": "trade not filled"}
+
+        # === Log to Google Sheets & Firebase
+        for _ in range(quantity):
+            try:
+                sheet = get_google_sheet()
+                sheet.append_row([
+                    trade_id, symbol, price, action, 1,
+                    trigger_points, offset_points,
+                    True, "false", entry_timestamp
+                ])
+                log_to_file(f"Logged to Google Sheets: {trade_id}")
+            except Exception as e:
+                log_to_file(f"❌ Sheets log failed: {e}")
+
+        try:
+            endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
+            resp = requests.get(endpoint)
+            existing = resp.json() or []
+            new_trade = {
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "entry_price": price,
+                "action": action,
+                "contracts_remaining": 1,
+                "trail_trigger": trigger_points,
+                "trail_offset": offset_points,
+                "trail_hit": False,
+                "trail_peak": price,
+                "filled": True,
+                "entry_timestamp": entry_timestamp
+            }
+            existing.append(new_trade)
+            put = requests.put(endpoint, json=existing)
+            if put.status_code == 200:
+                log_to_file("Firebase open_trades updated.")
+            else:
+                log_to_file(f"❌ Firebase update failed: {put.text}")
+        except Exception as e:
+            log_to_file(f"❌ Firebase push error: {e}")
+
+        try:
+            entry = {
+                "timestamp": entry_timestamp,
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "action": action,
+                "price": price,
+                "quantity": quantity
+            }
+            logs = []
+            if os.path.exists(TRADE_LOG):
+                with open(TRADE_LOG, "r") as f:
+                    logs = json.load(f)
+            logs.append(entry)
+            with open(TRADE_LOG, "w") as f:
+                json.dump(logs, f, indent=2)
+            log_to_file("Logged to trade_log.json.")
+        except Exception as e:
+            log_to_file(f"❌ trade_log.json failed: {e}")
 
     return {"status": "ok"}
