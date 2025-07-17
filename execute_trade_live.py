@@ -10,6 +10,14 @@ from tigeropen.trade.trade_client import TradeClient
 from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 
+# === 🔧 PATCH: EXEC LOGGING FOR RENDER DEBUGGING (REMOVE AFTER DEBUGGING) ===
+LOG_FILE = 'exec.log'
+
+def log_exec(message):
+    with open(LOG_FILE, 'a') as f:
+        f.write(f"[{datetime.utcnow().isoformat()}] {message}\n")
+# === 🔧 END PATCH BLOCK ===
+
 # === Parse CLI Args ===
 if len(sys.argv) != 4:
     print("Usage: python3 execute_trade_live.py <symbol> <buy/sell> <quantity>")
@@ -19,6 +27,7 @@ symbol = sys.argv[1].upper()
 action = sys.argv[2].upper()
 quantity = int(sys.argv[3])
 print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}, Quantity: {quantity}")
+log_exec(f'🟢 CLI ARGS → Symbol: {symbol}, Action: {action}, Quantity: {quantity}')  # 🧪 REMOVE AFTER TEST
 
 # === Load Tiger Config ===
 try:
@@ -53,11 +62,15 @@ order.order_type = 'MKT'  # 🔒 MUST be 'MKT' — this is Tiger's accepted mark
 order.quantity = quantity
 order.outside_rth = True  # 🔒 Optional: allows outside regular trading hours
 
+log_exec('🟡 Attempting to place order...')  # 🧪 REMOVE AFTER TEST
+
 # 🔒 === LOCKED: Submit order
 response = client.place_order(order)
 try:
     print("📄 Contract Details:", contract.__dict__)
     sys.stdout.flush()
+
+    log_exec(f'✅ ORDER PLACED — Response: {response}')  # 🧪 REMOVE AFTER TEST
 
     response = client.place_order(order)
     print("✅ ORDER PLACED")  # ✅ Required for webhook to detect success
@@ -70,6 +83,7 @@ try:
     sys.stdout.flush()
 
 except Exception as e:
+    log_exec(f'❌ ERROR during order placement: {e}')  # 🧪 REMOVE AFTER TEST
     print("❌ Exception while submitting order:", str(e))
     sys.exit(1)
 
