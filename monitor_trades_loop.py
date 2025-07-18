@@ -229,8 +229,8 @@ def monitor_trades():
                 write_closed_trade(trade, 'trailing_tp_exit', current_price)
                 try:
                     success = delete_trade_from_firebase(trade_id)
-                    if not success:
-                      # ✅ DEBUG: TEMP - Confirm Firebase deletion result (REMOVE AFTER TESTING)
+                    
+                      # ✅ DEBUG: TEMP – Confirm Firebase deletion result (REMOVE AFTER TESTING)
                     if success:
                         print(f"✅ Trade {trade_id} successfully deleted.")
                     else:
