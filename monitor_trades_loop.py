@@ -230,11 +230,17 @@ def monitor_trades():
                 try:
                     success = delete_trade_from_firebase(trade_id)
                     if not success:
-                        print(f"⚠️ Failed to delete trade from Firebase: {trade_id}")
+                      # ✅ DEBUG: TEMP - Confirm Firebase deletion result (REMOVE AFTER TESTING)
+                    if success:
+                        print(f"✅ Trade {trade_id} successfully deleted.")
+                    else:
+                        print(f"❌ Trade {trade_id} still exists in Firebase after attempted delete.")
+
                 except Exception as e:
                     import traceback
                     print(f"❌ Error while deleting trade {trade_id} from Firebase: {e}")
                     traceback.print_exc()
+                    
                 trade['exited'] = True
                 continue
 
