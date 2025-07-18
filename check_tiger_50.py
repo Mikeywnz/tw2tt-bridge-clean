@@ -1,7 +1,6 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType
-from tigeropen.common.consts import SecType
 from datetime import datetime, timedelta
 
 config = TigerOpenClientConfig()
