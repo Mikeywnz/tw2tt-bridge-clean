@@ -6,15 +6,14 @@ from datetime import datetime, timedelta
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
-# 🕒 Create 50-minute window ending now
+# 🕒 Create 50-minute rolling window
 end_time = datetime.utcnow()
 start_time = end_time - timedelta(minutes=50)
 
-# Format with time string (must be exact!)
 start_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
 end_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
 
-# 🔍 Query recent orders using time-stamped window
+# 🔍 Get Filled + Cancelled Orders
 orders = client.get_orders(
     account="21807597867063647",
     seg_type=SegmentType.FUT,
@@ -24,7 +23,7 @@ orders = client.get_orders(
     limit=100
 )
 
-print(f"\n⏱️ Window: {start_str} to {end_str}")
+print(f"\n⏱️ Order Window: {start_str} to {end_str}")
 print("📄 Orders Returned:")
 
 if not orders:
@@ -32,3 +31,13 @@ if not orders:
 else:
     for o in orders:
         print(o)
+
+# 🔍 Also check current open positions
+positions = client.get_positions(account="21807597867063647", seg_type=SegmentType.FUT)
+
+print("\n📊 Open Positions:")
+if not positions:
+    print("⚠️ No open futures positions.")
+else:
+    for p in positions:
+        print(p)
