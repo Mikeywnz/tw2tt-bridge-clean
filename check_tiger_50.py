@@ -1,6 +1,7 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType
+from tigeropen.common.consts import SecType
 from datetime import datetime, timedelta
 
 config = TigerOpenClientConfig()
@@ -33,7 +34,7 @@ else:
         print(o)
 
 # 🔍 Also check current open positions
-positions = client.get_positions(account="21807597867063647", seg_type=SegmentType.FUT)
+positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
 
 print("\n📊 Open Positions:")
 if not positions:
