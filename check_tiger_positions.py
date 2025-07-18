@@ -8,8 +8,8 @@ client = TradeClient(config)
 orders = client.get_orders(
     account="21807597867063647",
     seg_type=SegmentType.FUT,
-    start_time="2025-07-17",
-    end_time="2025-07-18",
+    start_time="2025-07-14",
+    end_time="2025-07-19",
     states=["Cancelled"],    #states=["Filled", "Cancelled"],
     limit=100
 )
