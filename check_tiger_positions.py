@@ -1,9 +1,10 @@
-from tigeropen.trade.trade_client import TradeClient
 from tigeropen.tiger_open_config import TigerOpenClientConfig
+from tigeropen.trade.trade_client import TradeClient
 
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
-positions = client.get_positions()
-print("📊 Raw TigerTrade positions dict:")
-print(positions)
+orders = client.get_orders()
+print("📋 Recent TigerTrade orders:")
+for o in orders:
+    print(o)
