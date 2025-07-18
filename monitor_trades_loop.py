@@ -1,4 +1,3 @@
-# === MONITOR_TRADES_LOOP.PY (Updated) ===
 import firebase_admin
 from firebase_admin import credentials, db
 import csv
@@ -10,6 +9,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 import requests 
 import subprocess
 
+# === CONFIG ===
+FORCE_GHOST_TESTING = False  # ✅ TEMP: FOR TESTING ONLY – REMOVE AFTER TESTING!
+
 # === Helper to execute exit trades ===
 def close_position(symbol, original_action):
     exit_action = "SELL" if original_action == "BUY" else "BUY"
@@ -19,7 +21,7 @@ def close_position(symbol, original_action):
             capture_output=True,
             text=True
         )
-        print(f"📤 Exit order sent: {exit_action} 1 {symbol}")
+        print(f"\U0001f4e4 Exit order sent: {exit_action} 1 {symbol}")
         print("stdout:", result.stdout.strip())
         print("stderr:", result.stderr.strip())
     except Exception as e:
@@ -33,13 +35,11 @@ if not firebase_admin._apps:
     })
 
 # === File paths & Sheets config ===
-OPEN_TRADES_FILE = "open_trades.csv"
 CLOSED_TRADES_FILE = "closed_trades.csv"
 GOOGLE_CREDS_FILE = "service_account.json"
 SHEET_NAME = "Closed Trades Journal"
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
-
 
 # === Load live prices from Firebase ===
 def load_live_prices():
@@ -86,7 +86,7 @@ def write_closed_trade(trade, reason, exit_price):
             row["exit_time"],
             row["trail_triggered"]
         ])
-    
+
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
     except Exception as e:
         import traceback
@@ -116,7 +116,6 @@ def load_open_trades():
 def save_open_trades(trades):
     firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
     try:
-        # ✅ Fix: Save as a dict keyed by trade_id
         data = {t["trade_id"]: t for t in trades if "trade_id" in t}
         requests.put(firebase_url, json=data).raise_for_status()
         print(f"✅ Saved {len(data)} open trades to Firebase.")
@@ -145,19 +144,11 @@ def load_trailing_tp_settings():
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
 
-def load_trailing_tp_settings():
-    try:
-        fb_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/trailing_tp_settings.json"
-        res = requests.get(fb_url)
-        cfg = res.json() if res.ok else {}
-        if cfg.get("enabled", False):
-            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
-    except Exception as e:
-        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
-    return 14.0, 5.0
-
 # === MONITOR LOOP ===
 exit_in_progress = set()
+
+# TEMP grace period (in seconds) to allow TigerTrade sync
+GRACE_PERIOD_SECONDS = 30
 
 def monitor_trades():
     trigger_points, offset_points = load_trailing_tp_settings()
@@ -172,7 +163,11 @@ def monitor_trades():
     all_trades = load_open_trades()
     active_trades = []
     for t in all_trades:
+        if not t or not isinstance(t, dict):
+            continue
         tid = t.get('trade_id', 'unknown')
+        if t.get('exited') or t.get('status') == 'failed':
+            continue
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
         if trigger_points < 0.01 or offset_points < 0.01:
@@ -187,18 +182,23 @@ def monitor_trades():
     prices = load_live_prices()
 
     for trade in active_trades:
+        if not trade or not isinstance(trade, dict):
+            continue
         trade_id = trade.get('trade_id', 'unknown')
         print(f"🔄 Processing trade {trade_id}")
-        if trade.get('exited'):
-            print(f"⏭️ Skipping already exited trade {trade_id}")
-            continue
-        if trade_id in exit_in_progress:
-            print(f"⏳ Exit already in progress for {trade_id}, skipping...")
+        if trade.get('exited') or trade_id in exit_in_progress:
+            print(f"⏭️ Skipping already exited/in-progress trade {trade_id}")
             continue
 
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
         current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+
+        if FORCE_GHOST_TESTING and current_price == -1:
+            write_closed_trade(trade, 'ghost_trade_exit', trade['entry_price'])
+            delete_trade_from_firebase(trade_id)
+            continue
+
         if current_price is None:
             print(f"⚠️ No price for {symbol} — skipping {trade_id}")
             updated_trades.append(trade)
@@ -227,14 +227,16 @@ def monitor_trades():
                 exit_in_progress.add(trade_id)
                 close_position(symbol, trade['action'])
                 write_closed_trade(trade, 'trailing_tp_exit', current_price)
-                success = delete_trade_from_firebase(trade_id)
+                try:
+                    success = delete_trade_from_firebase(trade_id)
+                    if not success:
+                        print(f"⚠️ Failed to delete trade from Firebase: {trade_id}")
+                except Exception as e:
+                    import traceback
+                    print(f"❌ Error while deleting trade {trade_id} from Firebase: {e}")
+                    traceback.print_exc()
                 trade['exited'] = True
                 continue
-
-        if current_price == -1:
-            write_closed_trade(trade, 'ghost_trade_exit', trade['entry_price'])
-            delete_trade_from_firebase(trade_id)
-            continue
 
         updated_trades.append(trade)
 
