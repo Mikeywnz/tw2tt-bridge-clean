@@ -1,6 +1,6 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.consts.segment_type import SegmentType
+from tigeropen.common.consts import SegmentType
 
 # 🛠️ Load Tiger config and client
 config = TigerOpenClientConfig()
