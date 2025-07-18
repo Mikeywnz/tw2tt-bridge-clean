@@ -10,8 +10,8 @@ client = TradeClient(config)
 orders = client.get_orders(
     account="21807597867063647",  # << your demo account ID
     seg_type=SegmentType.FUT,
-    start_date="2025-07-18 20:00:00",
-    end_date="2025-07-18 23:59:59",
+    start_time="2025-07-18 20:00:00",
+    end_time="2025-07-18 23:59:59",
     limit=100  # ⛔ max 300 allowed — this just caps how many orders return
 )
 
