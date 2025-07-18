@@ -114,11 +114,14 @@ def load_open_trades():
         return []
 
 def save_open_trades(trades):
-    firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
     try:
-        data = {t["trade_id"]: t for t in trades if "trade_id" in t}
-        requests.put(firebase_url, json=data).raise_for_status()
-        print(f"✅ Saved {len(data)} open trades to Firebase.")
+        for t in trades:
+            if "trade_id" not in t:
+                continue
+            trade_id = t["trade_id"]
+            firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508/{trade_id}.json"
+            requests.put(firebase_url, json=t).raise_for_status()
+            print(f"✅ Saved trade {trade_id} to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
