@@ -89,7 +89,6 @@ def write_closed_trade(trade, reason, exit_price):
     
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
     except Exception as e:
-        except Exception as e:
         import traceback
         print(f"❌ Google Sheets error for {trade['symbol']}: {e}")
         traceback.print_exc()
