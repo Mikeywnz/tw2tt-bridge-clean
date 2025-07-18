@@ -1,5 +1,6 @@
-from tigeropen.common.consts.segment_type import SegmentType
-from tigeropen.common.consts.order_status import OrderStatus  # 👈 you may need this too
+from tigeropen.tiger_open_config import TigerOpenClientConfig
+from tigeropen.trade.trade_client import TradeClient
+from tigeropen.common.consts import SegmentType, OrderStatus
 
 orders = client.get_orders(
     account="21807597867063647",
