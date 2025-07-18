@@ -116,8 +116,10 @@ def load_open_trades():
 def save_open_trades(trades):
     firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
     try:
-        requests.put(firebase_url, json=trades).raise_for_status()
-        print(f"✅ Saved {len(trades)} open trades to Firebase.")
+        # ✅ Fix: Save as a dict keyed by trade_id
+        data = {t["trade_id"]: t for t in trades if "trade_id" in t}
+        requests.put(firebase_url, json=data).raise_for_status()
+        print(f"✅ Saved {len(data)} open trades to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
@@ -131,6 +133,17 @@ def delete_trade_from_firebase(trade_id):
     except Exception as e:
         print(f"❌ Failed to delete trade {trade_id} from Firebase: {e}")
         return False
+
+def load_trailing_tp_settings():
+    try:
+        fb_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/trailing_tp_settings.json"
+        res = requests.get(fb_url)
+        cfg = res.json() if res.ok else {}
+        if cfg.get("enabled", False):
+            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
+    except Exception as e:
+        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
+    return 14.0, 5.0
 
 def load_trailing_tp_settings():
     try:
