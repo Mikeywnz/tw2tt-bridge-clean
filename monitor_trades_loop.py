@@ -167,6 +167,15 @@ def monitor_trades():
         monitor_trades.last_heartbeat = current_time
 
     all_trades = load_open_trades()
+
+    # ✅ DEBUG: TEMP – check why trades are skipped (REMOVE AFTER TESTING)
+    for t in all_trades:
+        tid = t.get('trade_id', 'unknown')
+        if not t.get('filled'):
+            print(f"⏭️ Skipping {tid} – not filled")
+        if t.get('contracts_remaining', 0) <= 0:
+            print(f"⏭️ Skipping {tid} – no contracts remaining")
+
     active_trades = []
     for t in all_trades:
         if not t or not isinstance(t, dict):
