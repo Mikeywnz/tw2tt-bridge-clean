@@ -10,7 +10,7 @@ orders = client.get_orders(
     seg_type=SegmentType.FUT,
     start_time="2025-07-14",
     end_time="2025-07-19",
-    states=["Cancelled", "Rejected"],    #states=["Filled", "Cancelled"],
+    states=["Rejected"],    #states=["Filled", "Cancelled"],
     limit=100
 )
 
