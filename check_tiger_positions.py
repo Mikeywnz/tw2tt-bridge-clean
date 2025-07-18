@@ -1,24 +1,23 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from datetime import datetime, timedelta
+from tigeropen.common.consts.segment_type import SegmentType
 
-# ✅ Load config and connect to client
+# 🛠️ Load Tiger config and client
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
-# ✅ Define your account ID
-account_id = "21807597867063647"
-
-# ✅ Set time window: past 2 hours
-start_time = (datetime.utcnow() - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
-end_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-
-# ✅ Request recent orders
+# 🧾 Get recent FUTURES orders for your demo account
 orders = client.get_orders(
-    account=account_id,
-    start_date=start_time,
-    end_date=end_time
+    account="21807597867063647",  # << your demo account ID
+    seg_type=SegmentType.FUT,
+    start_date="2025-07-18 20:00:00",
+    end_date="2025-07-18 23:59:59",
+    limit=100  # ⛔ max 300 allowed — this just caps how many orders return
 )
 
-# ✅ Show result
-print(f"✅ Orders from Tiger (last 2 hrs):\n{orders}")
+print("📄 Recent TigerTrade Futures Orders:")
+if not orders:
+    print("⚠️ No orders returned – try widening the time range or verify segment/account.")
+else:
+    for o in orders:
+        print(o)
