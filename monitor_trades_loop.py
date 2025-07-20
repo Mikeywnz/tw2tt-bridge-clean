@@ -9,9 +9,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import requests 
 import subprocess
 
-# === CONFIG ===
-FORCE_GHOST_TESTING = False  # ✅ TEMP: FOR TESTING ONLY – REMOVE AFTER TESTING!
-
 # === Helper to execute exit trades ===
 def close_position(symbol, original_action):
     exit_action = "SELL" if original_action == "BUY" else "BUY"
@@ -48,46 +45,65 @@ def load_live_prices():
 # === Write closed trade to CSV + Google Sheets ===
 def write_closed_trade(trade, reason, exit_price):
     pnl = (exit_price - trade['entry_price']) * (1 if trade['action'] == 'BUY' else -1)
-    exit_time = datetime.now(timezone("Pacific/Auckland")).strftime("%Y-%m-%d %H:%M:%S")
+    now_nz = datetime.now(timezone("Pacific/Auckland"))
+    exit_time = now_nz.strftime("%Y-%m-%d %H:%M:%S")
+    day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
+
+    # 🟢 Friendly reason label mapping
+    reason_map = {
+        "trailing_tp_exit": "Trailing Take Profit",
+        "manual_close": "Manual Close",
+        "ema_flattening_exit": "EMA Flattening",
+        "liquidation": "Liquidation",
+        "LACK_OF_MARGIN": "Lack of Margin",
+        "FILLED": "FILLED",
+        "CANCELLED": "CANCELLED",
+        "EXPIRED": "Lack of Margin"
+    }
+    friendly_reason = reason_map.get(reason, reason)
+
     row = {
         "symbol": trade["symbol"],
         "direction": trade["action"],
         "entry_price": trade["entry_price"],
         "exit_price": exit_price,
         "pnl_dollars": round(pnl, 2),
-        "reason_for_exit": reason,
+        "reason_for_exit": friendly_reason,
         "entry_time": trade.get("entry_timestamp"),
         "exit_time": exit_time,
         "trail_triggered": "YES" if trade.get("trail_hit") else "NO"
     }
+
     try:
         file_exists = False
         with open(CLOSED_TRADES_FILE, 'r') as f:
             file_exists = True
     except FileNotFoundError:
         pass
+
     with open(CLOSED_TRADES_FILE, 'a', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=row.keys())
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
+
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
         sheet = gc.open_by_key(SHEET_ID).worksheet("Sheet1")
         sheet.append_row([
+            day_date,
             row["symbol"],
             row["direction"],
             row["entry_price"],
             row["exit_price"],
             row["pnl_dollars"],
-            row["reason_for_exit"],
+            friendly_reason,
             row["entry_time"],
             row["exit_time"],
             row["trail_triggered"]
         ])
-
-        print(f"✅ Logged to Google Sheet: {row['symbol']} – {reason}")
+        print(f"✅ Logged to Google Sheet: {row['symbol']} – {friendly_reason}")
     except Exception as e:
         import traceback
         print(f"❌ Google Sheets error for {trade['symbol']}: {e}")
@@ -115,8 +131,7 @@ def load_open_trades():
 
 def save_open_trades(trades):
     try:
-        seen_ids = set()  # ✅ Deduplication tracker – only once per trade_id
-
+        seen_ids = set()
         for t in trades:
             if "trade_id" not in t:
                 continue
@@ -152,8 +167,6 @@ def load_trailing_tp_settings():
 
 # === MONITOR LOOP ===
 exit_in_progress = set()
-
-# TEMP grace period (in seconds) to allow TigerTrade sync
 GRACE_PERIOD_SECONDS = 30
 
 def monitor_trades():
@@ -168,7 +181,6 @@ def monitor_trades():
 
     all_trades = load_open_trades()
 
-    # ✅ DEBUG: TEMP – check why trades are skipped (REMOVE AFTER TESTING)
     for t in all_trades:
         tid = t.get('trade_id', 'unknown')
         if not t.get('filled'):
@@ -209,11 +221,6 @@ def monitor_trades():
         direction = 1 if trade['action'] == 'BUY' else -1
         current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
 
-        if FORCE_GHOST_TESTING and current_price == -1:
-            write_closed_trade(trade, 'ghost_trade_exit', trade['entry_price'])
-            delete_trade_from_firebase(trade_id)
-            continue
-
         if current_price is None:
             print(f"⚠️ No price for {symbol} — skipping {trade_id}")
             updated_trades.append(trade)
@@ -244,18 +251,14 @@ def monitor_trades():
                 write_closed_trade(trade, 'trailing_tp_exit', current_price)
                 try:
                     success = delete_trade_from_firebase(trade_id)
-                    
-                      # ✅ DEBUG: TEMP – Confirm Firebase deletion result (REMOVE AFTER TESTING)
                     if success:
                         print(f"✅ Trade {trade_id} successfully deleted.")
                     else:
                         print(f"❌ Trade {trade_id} still exists in Firebase after attempted delete.")
-
                 except Exception as e:
                     import traceback
                     print(f"❌ Error while deleting trade {trade_id} from Firebase: {e}")
                     traceback.print_exc()
-                    
                 trade['exited'] = True
                 continue
 

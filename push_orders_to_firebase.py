@@ -6,6 +6,8 @@ from firebase_admin import credentials, db
 import random
 import string
 from datetime import datetime, timedelta
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # === Firebase Init ===
 cred = credentials.Certificate("firebase_key.json")
@@ -123,6 +125,12 @@ def push_orders_main():
         except Exception as e:
             print(f"❌ Firebase push failed for {firebase_key}: {e}")
 
+        # === Google Sheets Setup ===
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("firebase_key.json", scope)
+        gs_client = gspread.authorize(creds)
+        sheet = gs_client.open("Closed Trades Journal").sheet1
+
     # === FIFO Cleanup: Keep only N open trades ===
     try:
         # Rebuild FIFO stack of open orders
@@ -154,6 +162,39 @@ def push_orders_main():
             if firebase_oid not in open_order_ids:
                 print(f"🧹 Deleting old trade from Firebase: {key}")
                 open_ref.child(key).delete()
+
+                # === Friendly exit reason map ===
+                reason_map = {
+                    "trailing_tp_exit": "Trailing Take Profit",
+                    "manual_close": "Manual Close",
+                    "ema_flattening_exit": "EMA Flattening",
+                    "liquidation": "Liquidation",
+                    "LACK_OF_MARGIN": "Lack of Margin",
+                    "FILLED": "FILLED",
+                    "CANCELLED": "CANCELLED",
+                    "EXPIRED": "Lack of Margin"
+                }
+
+                # === Log deleted ghost trade to Google Sheets ===
+                try:
+                    now = datetime.now()
+                    day_date = now.strftime("%A %d %B %Y")
+
+                    sheet.append_row([
+                        day_date,
+                        value.get("symbol", ""),
+                        value.get("action", ""),
+                        value.get("avg_fill_price", 0.0),
+                        0.0,  # Exit price unknown
+                        0.0,  # PnL is 0 for ghost trades
+                        reason_map.get("LACK_OF_MARGIN", "LACK_OF_MARGIN"),
+                        "",  # Entry time unknown
+                        now.strftime("%Y-%m-%d %H:%M:%S"),
+                        False  # trail_triggered
+                    ])
+                except Exception as e:
+                    print(f"❌ Google Sheets log failed: {e}")
+
     except Exception as e:
         print(f"⚠️ FIFO cleanup failed: {e}")
 
