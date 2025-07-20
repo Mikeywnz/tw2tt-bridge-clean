@@ -129,7 +129,7 @@ def push_orders_main():
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_name("firebase_key.json", scope)
         gs_client = gspread.authorize(creds)
-        sheet = gs_client.open("Closed Trades Journal").sheet1
+        sheet = gs_client.open_by_key("1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg").sheet1
 
     # === FIFO Cleanup: Keep only N open trades ===
     try:
