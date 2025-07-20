@@ -38,98 +38,101 @@ def get_exit_reason(status, reason, filled):
         return "LACK_OF_MARGIN"
     return status
 
-# === Setup Tiger API ===
-config = TigerOpenClientConfig()
-client = TradeClient(config)
+# === MAIN FUNCTION WRAPPED HERE ===
+def push_orders_main():
+    # === Setup Tiger API ===
+    config = TigerOpenClientConfig()
+    client = TradeClient(config)
 
-# === Time Window: last 1 hour ===
-now = datetime.utcnow()
-start_time = now - timedelta(minutes=60)
-end_time = now
+    # === Time Window: last 1 hour ===
+    now = datetime.utcnow()
+    start_time = now - timedelta(minutes=60)
+    end_time = now
 
-orders = client.get_orders(                                               
-    account="21807597867063647",
-    seg_type=SegmentType.FUT,
-    start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
-    end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
-    limit=100
-)
+    orders = client.get_orders(                                               
+        account="21807597867063647",
+        seg_type=SegmentType.FUT,
+        start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
+        limit=100
+    )
 
-print(f"\n📦 Total orders returned: {len(orders)}")
+    print(f"\n📦 Total orders returned: {len(orders)}")
 
-# === Tally exit reasons ===
-filled_count = 0
-cancelled_count = 0
-lack_margin_count = 0
-unknown_count = 0
+    # === Tally exit reasons ===
+    filled_count = 0
+    cancelled_count = 0
+    lack_margin_count = 0
+    unknown_count = 0
 
-for order in orders:
-    status = str(getattr(order, "status", "")).split('.')[-1].upper()
-    reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
-    filled = getattr(order, "filled", 0)
+    for order in orders:
+        status = str(getattr(order, "status", "")).split('.')[-1].upper()
+        reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
+        filled = getattr(order, "filled", 0)
 
-    exit_reason = get_exit_reason(status, reason, filled)
+        exit_reason = get_exit_reason(status, reason, filled)
 
-    if exit_reason == "FILLED":
-        filled_count += 1
-    elif exit_reason == "CANCELLED":
-        cancelled_count += 1
-    elif exit_reason == "LACK_OF_MARGIN":
-        lack_margin_count += 1
-    else:
-        unknown_count += 1
+        if exit_reason == "FILLED":
+            filled_count += 1
+        elif exit_reason == "CANCELLED":
+            cancelled_count += 1
+        elif exit_reason == "LACK_OF_MARGIN":
+            lack_margin_count += 1
+        else:
+            unknown_count += 1
 
-# === Print summary to terminal ===
-print(f"✅ FILLED: {filled_count}")
-print(f"❌ CANCELLED: {cancelled_count}")
-print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
-print(f"🟡 UNKNOWN: {unknown_count}")
+    # === Print summary to terminal ===
+    print(f"✅ FILLED: {filled_count}")
+    print(f"❌ CANCELLED: {cancelled_count}")
+    print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
+    print(f"🟡 UNKNOWN: {unknown_count}")
 
-# === Loop & Push to Firebase ===
-for o in orders:
-    order_id = getattr(o, 'id', None)
-    if not order_id:
-        continue
+    # === Loop & Push to Firebase ===
+    for o in orders:
+        order_id = getattr(o, 'id', None)
+        if not order_id:
+            continue
 
-    status = str(getattr(o, "status", "")).upper()
-    reason = str(getattr(o, "reason", "")).upper()
+        status = str(getattr(o, "status", "")).upper()
+        reason = str(getattr(o, "reason", "")).upper()
 
-    # === Terminal Summary ===
-    if "EXPIRED" in status and "资金" in reason:
-        print("🚫 Rejected order (margin failure):")
-        #print(o)
-    elif "CANCELLED" in status:
-        print("❌ Manually cancelled order:")
-        #print(o)
-    else:
-        print(f"📄 Order: status={status} | reason={reason}")
-        #print(o)
+        # === Terminal Summary ===
+        if "EXPIRED" in status and "资金" in reason:
+            print("🚫 Rejected order (margin failure):")
+        elif "CANCELLED" in status:
+            print("❌ Manually cancelled order:")
+        else:
+            print(f"📄 Order: status={status} | reason={reason}")
 
-    # === Firebase Push ===
-    suffix = random_suffix()
-    firebase_key = f"{order_id}-{suffix}"
-    raw_contract = str(getattr(o, 'contract', ''))
-    symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
+        # === Firebase Push ===
+        suffix = random_suffix()
+        firebase_key = f"{order_id}-{suffix}"
+        raw_contract = str(getattr(o, 'contract', ''))
+        symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
 
-    payload = {
-        "order_id": order_id,
-        "symbol": symbol,
-        "action": str(getattr(o, 'action', '')).upper(),
-        "quantity": getattr(o, 'quantity', 0),
-        "filled": getattr(o, 'filled', 0),
-        "avg_fill_price": getattr(o, 'avg_fill_price', 0.0),
-        "status": status,
-        "reason": str(getattr(o, 'reason', '')) or '',
-        "liquidation": getattr(o, 'liquidation', False),
-        "timestamp": getattr(o, 'order_time', 0),
-        "source": map_source(getattr(o, 'source', None)),
-        "is_open": getattr(o, 'is_open', False),
-        "exit_reason": get_exit_reason(status, reason, getattr(o, 'filled', 0))
-    }
+        payload = {
+            "order_id": order_id,
+            "symbol": symbol,
+            "action": str(getattr(o, 'action', '')).upper(),
+            "quantity": getattr(o, 'quantity', 0),
+            "filled": getattr(o, 'filled', 0),
+            "avg_fill_price": getattr(o, 'avg_fill_price', 0.0),
+            "status": status,
+            "reason": str(getattr(o, 'reason', '')) or '',
+            "liquidation": getattr(o, 'liquidation', False),
+            "timestamp": getattr(o, 'order_time', 0),
+            "source": map_source(getattr(o, 'source', None)),
+            "is_open": getattr(o, 'is_open', False),
+            "exit_reason": get_exit_reason(status, reason, getattr(o, 'filled', 0))
+        }
 
-    try:
-        ref = db.reference(f"/tiger_orders/{firebase_key}")
-        ref.set(payload)
-        print(f"✅ Pushed to Firebase: {firebase_key}\n")
-    except Exception as e:
-        print(f"❌ Firebase push failed for {firebase_key}: {e}")
+        try:
+            ref = db.reference(f"/tiger_orders/{firebase_key}")
+            ref.set(payload)
+            print(f"✅ Pushed to Firebase: {firebase_key}\n")
+        except Exception as e:
+            print(f"❌ Firebase push failed for {firebase_key}: {e}")
+
+# === SAFE ENTRY POINT ===
+if __name__ == "__main__":
+    push_orders_main()
