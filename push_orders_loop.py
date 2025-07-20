@@ -7,6 +7,6 @@ while True:
     push_orders_main()
     heartbeat_counter += 1
     if heartbeat_counter >= 6:  # Every 1 minute
-        print("🫀 Worker Happy: Still Running...")
+        print("🫀 Order Worker Happy: Still Running...")
         heartbeat_counter = 0
     time.sleep(30)

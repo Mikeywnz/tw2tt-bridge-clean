@@ -191,7 +191,7 @@ def monitor_trades():
         active_trades.append(t)
 
     if not active_trades:
-        print("⚠️ No active trades found — worker is still awake.")
+        print("⚠️ No active trades found — Trade Worker happy & awake.")
 
     updated_trades = []
     prices = load_live_prices()
