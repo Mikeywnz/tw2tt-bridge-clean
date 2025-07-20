@@ -15,6 +15,17 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
 })
 
+# === Google Sheets Setup (Global) ===
+from google.oauth2.service_account import Credentials
+
+GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+GOOGLE_CREDS_FILE = "firebase_key.json"
+SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
+
+creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
+gs_client = gspread.authorize(creds)
+sheet = gs_client.open_by_key(SHEET_ID).sheet1
+
 # === Helpers ===
 def random_suffix(length=2):
     return ''.join(random.choices(string.ascii_lowercase, k=length))
@@ -125,12 +136,6 @@ def push_orders_main():
         except Exception as e:
             print(f"❌ Firebase push failed for {firebase_key}: {e}")
 
-        # === Google Sheets Setup ===
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("firebase_key.json", scope)
-        gs_client = gspread.authorize(creds)
-        sheet = gs_client.open_by_key("1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg").sheet1
-
     # === FIFO Cleanup: Keep only N open trades ===
     try:
         # Rebuild FIFO stack of open orders
@@ -198,66 +203,98 @@ def push_orders_main():
     except Exception as e:
         print(f"⚠️ FIFO cleanup failed: {e}")
 
-# === Reconcile /open_trades/ against Tiger open orders ===
-try:
-    print("🔍 Reconciling /open_trades/ against TigerTrade open orders...")
+        # === Patch in missing open trades from /live_positions/ ===
+        live_positions_ref = db.reference("/live_positions")
+        live_positions = live_positions_ref.get() or {}
 
-    open_trades_ref = db.reference("/open_trades/MGC2508")
-    open_trades_snapshot = open_trades_ref.get() or {}
+        patched_count = 0
 
-    deleted_count = 0
-    tiger_order_map = {str(getattr(o, "id", "")): o for o in orders if getattr(o, "id", "")}
+        for symbol, pos_data in live_positions.items():
+            quantity = int(pos_data.get("quantity", 0))
+            avg_cost = float(pos_data.get("average_cost", 0))
+            action = "BUY" if quantity > 0 else "SELL"
+            abs_qty = abs(quantity)
 
-    for trade_id, trade_data in open_trades_snapshot.items():
-        trade_order_id = str(trade_data.get("order_id", ""))
+            open_ref = db.reference(f"/open_trades/{symbol}")
+            current_trades = open_ref.get() or {}
+            current_count = len(current_trades)
 
-        if trade_order_id not in open_order_ids:
-            print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
-            open_trades_ref.child(trade_id).delete()
-            deleted_count += 1
+            if current_count < abs_qty:
+                for _ in range(abs_qty - current_count):
+                    patch_id = f"tigerpatch_{int(time.time()*1000)}_{random_suffix()}"
+                    open_ref.child(patch_id).set({
+                        "symbol": symbol,
+                        "action": action,
+                        "entry_price": avg_cost,
+                        "order_id": "",  # ghost patch, no order ID
+                        "source": "tigerpatch",
+                        "trail_triggered": False
+                    })
+                    print(f"🐅 Patched open trade from /live_positions/: {patch_id}")
+                    patched_count += 1
 
-            tiger_order = tiger_order_map.get(trade_order_id)
-            if tiger_order:
-                status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
-                reason = str(getattr(tiger_order, "reason", ""))
-                filled = getattr(tiger_order, "filled", 0)
-                exit_reason = get_exit_reason(status, reason, filled)
-            else:
-                exit_reason = "manual_close"
+        print(f"✅ Finished patching {patched_count} ghost trades from live_positions.\n")
 
-            reason_map = {
-                "trailing_tp_exit": "Trailing Take Profit",
-                "manual_close": "Manual Close",
-                "ema_flattening_exit": "EMA Flattening",
-                "liquidation": "Liquidation",
-                "LACK_OF_MARGIN": "Lack of Margin",
-                "FILLED": "FILLED",
-                "CANCELLED": "CANCELLED",
-                "EXPIRED": "Lack of Margin"
-            }
-            friendly_reason = reason_map.get(exit_reason, exit_reason)
+    # === Reconcile /open_trades/ against Tiger open orders ===
+    try:
+        print("🔍 Reconciling /open_trades/ against TigerTrade open orders...")
 
-            now = datetime.now()
-            day_date = now.strftime("%A %d %B %Y")
+        open_trades_ref = db.reference("/open_trades/MGC2508")
+        open_trades_snapshot = open_trades_ref.get() or {}
 
-            sheet.append_row([
-                day_date,
-                trade_data.get("symbol", ""),
-                trade_data.get("action", ""),
-                trade_data.get("entry_price", 0.0),
-                0.0,
-                0.0,
-                friendly_reason,
-                trade_data.get("entry_timestamp", ""),
-                now.strftime("%Y-%m-%d %H:%M:%S"),
-                trade_data.get("trail_hit", False)
-            ])
+        deleted_count = 0
+        tiger_order_map = {str(getattr(o, "id", "")): o for o in orders if getattr(o, "id", "")}
 
-    print(f"✅ Open trades cleanup complete — {deleted_count} entries removed.")
+        for trade_id, trade_data in open_trades_snapshot.items():
+            trade_order_id = str(trade_data.get("order_id", ""))
 
-except Exception as e:
-    print(f"❌ Error during /open_trades/ pruning: {e}")
+            if trade_order_id not in open_order_ids:
+                print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
+                open_trades_ref.child(trade_id).delete()
+                deleted_count += 1
+
+                tiger_order = tiger_order_map.get(trade_order_id)
+                if tiger_order:
+                    status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
+                    reason = str(getattr(tiger_order, "reason", ""))
+                    filled = getattr(tiger_order, "filled", 0)
+                    exit_reason = get_exit_reason(status, reason, filled)
+                else:
+                    exit_reason = "manual_close"
+
+                reason_map = {
+                    "trailing_tp_exit": "Trailing Take Profit",
+                    "manual_close": "Manual Close",
+                    "ema_flattening_exit": "EMA Flattening",
+                    "liquidation": "Liquidation",
+                    "LACK_OF_MARGIN": "Lack of Margin",
+                    "FILLED": "FILLED",
+                    "CANCELLED": "CANCELLED",
+                    "EXPIRED": "Lack of Margin"
+                }
+                friendly_reason = reason_map.get(exit_reason, exit_reason)
+
+                now = datetime.now()
+                day_date = now.strftime("%A %d %B %Y")
+
+                sheet.append_row([
+                    day_date,
+                    trade_data.get("symbol", ""),
+                    trade_data.get("action", ""),
+                    trade_data.get("entry_price", 0.0),
+                    0.0,
+                    0.0,
+                    friendly_reason,
+                    trade_data.get("entry_timestamp", ""),
+                    now.strftime("%Y-%m-%d %H:%M:%S"),
+                    trade_data.get("trail_hit", False)
+                ])
+
+        print(f"✅ Open trades cleanup complete — {deleted_count} entries removed.")
+
+    except Exception as e:
+        print(f"❌ Error during /open_trades/ pruning: {e}")
 
 # === SAFE ENTRY POINT ===
 if __name__ == "__main__":
-    push_orders_main()
+    push_orders_main()      
