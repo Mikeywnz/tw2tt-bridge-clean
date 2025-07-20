@@ -57,12 +57,13 @@ def write_closed_trade(trade, reason, exit_price):
         "liquidation": "Liquidation",
         "LACK_OF_MARGIN": "Lack of Margin",
         "FILLED": "FILLED",
-        "CANCELLED": "CANCELLED",
+        "CANCELLED": "Cancelled",
         "EXPIRED": "Lack of Margin"
     }
     friendly_reason = reason_map.get(reason, reason)
 
     row = {
+        "day_date": day_date,  
         "symbol": trade["symbol"],
         "direction": trade["action"],
         "entry_price": trade["entry_price"],
@@ -91,6 +92,7 @@ def write_closed_trade(trade, reason, exit_price):
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
         sheet = gc.open_by_key(SHEET_ID).worksheet("Sheet1")
+        day_date = now_nz.strftime("%A %d %B %Y")  # e.g., Monday 21 July 2025
         sheet.append_row([
             day_date,
             row["symbol"],

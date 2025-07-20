@@ -182,8 +182,9 @@ def push_orders_main():
 
                 # === Log deleted ghost trade to Google Sheets ===
                 try:
-                    now = datetime.now()
-                    day_date = now.strftime("%A %d %B %Y")
+                    from pytz import timezone
+                    now_nz = datetime.now(timezone("Pacific/Auckland"))
+                    day_date = now_nz.strftime("%A %d %B %Y")
 
                     sheet.append_row([
                         day_date,
@@ -197,6 +198,33 @@ def push_orders_main():
                         now.strftime("%Y-%m-%d %H:%M:%S"),
                         False  # trail_triggered
                     ])
+                            # Also write ghost trade to CSV
+                    row = {
+                        "day_date": day_date,
+                        "symbol": value.get("symbol", ""),
+                        "direction": value.get("action", ""),
+                        "entry_price": value.get("avg_fill_price", 0.0),
+                        "exit_price": 0.0,
+                        "pnl_dollars": 0.0,
+                        "reason_for_exit": reason_map.get("LACK_OF_MARGIN", "LACK_OF_MARGIN"),
+                        "entry_time": "",
+                        "exit_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+                        "trail_triggered": "NO"
+                    }
+
+                    # Write to CSV
+                    file_exists = False
+                    try:
+                        with open(CLOSED_TRADES_FILE, 'r') as f:
+                            file_exists = True
+                    except FileNotFoundError:
+                        pass
+
+                    with open(CLOSED_TRADES_FILE, 'a', newline='') as file:
+                        writer = csv.DictWriter(file, fieldnames=row.keys())
+                        if not file_exists:
+                            writer.writeheader()
+                        writer.writerow(row)
                 except Exception as e:
                     print(f"❌ Google Sheets log failed: {e}")
 
