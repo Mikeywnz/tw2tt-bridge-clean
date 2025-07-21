@@ -106,12 +106,15 @@ def push_orders_main():
         print(f"📦 positions = {len(positions)}")
 
         live_ref = db.reference("/live_positions")
+        seen_symbols = set()
 
         for pos in positions:
             raw_contract = str(getattr(pos, "contract", ""))
             symbol = raw_contract.split("/")[0] if "/" in raw_contract else raw_contract
             quantity = getattr(pos, "quantity", 0)
             avg_cost = getattr(pos, "average_cost", 0.0)
+
+            seen_symbols.add(symbol)
 
             if symbol and quantity != 0:
                 print(f"🔄 Writing to Firebase: {symbol} | qty={quantity} | avg_cost={avg_cost}")
@@ -121,6 +124,13 @@ def push_orders_main():
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 print(f"🟢 Updated /live_positions/: {symbol} = {quantity} @ {avg_cost}")
+
+        # Cleanup: remove any stale symbols no longer in Tiger positions
+        firebase_snapshot = live_ref.get() or {}
+        for symbol in firebase_snapshot:
+            if symbol not in seen_symbols:
+                print(f"🧹 Deleting stale /live_positions/{symbol}")
+                live_ref.child(symbol).delete()
 
     except Exception as e:
         print(f"❌ Failed to update live positions: {e}")
