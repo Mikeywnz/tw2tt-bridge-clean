@@ -129,6 +129,50 @@ def push_orders_main():
                 })
                 print(f"🟢 Updated /live_positions/: {symbol} = {quantity} @ {avg_cost}")
 
+                # === No Position Flattening: Auto-close if no Tiger positions exist ===
+    try:
+        if len(positions) == 0:
+            print("⚠️ No TigerTrade positions detected. Checking open_trades...")
+
+            open_trades_ref = db.reference("/open_trades")
+            trades = open_trades_ref.get() or {}
+
+            now = datetime.utcnow()
+            for key, trade in trades.items():
+                # Skip if already closed or missing fields
+                if not isinstance(trade, dict):
+                    continue
+
+                entry_time = trade.get("entry_timestamp")
+                if not entry_time:
+                    continue
+
+                # Check age > 60 seconds
+                entry_dt = datetime.fromisoformat(entry_time)
+                if (now - entry_dt).total_seconds() < 60:
+                    continue
+
+                print(f"🛑 Flattening ghost trade: {key}")
+                # Push to Google Sheets (assumes log_to_google_sheets() already exists)
+                log_to_google_sheets({
+                    "symbol": trade.get("symbol", ""),
+                    "action": trade.get("action", ""),
+                    "entry_price": trade.get("entry_price", 0.0),
+                    "exit_price": 0.0,
+                    "pnl_dollars": 0.0,
+                    "reason_for_exit": "no_position_detected",
+                    "entry_time": entry_time,
+                    "exit_time": now.strftime("%Y-%m-%d %H:%M:%S"),
+                    "trail_triggered": trade.get("trail_hit", False)
+                })
+
+                # Remove from Firebase
+                open_trades_ref.child(key).delete()
+                print(f"✅ Removed ghost trade: {key}")
+
+    except Exception as e:
+        print(f"🔥 ERROR during no-position flattening: {e}")
+
         # Cleanup: remove any stale symbols no longer in Tiger positions
         firebase_snapshot = live_ref.get() or {}
         for symbol in firebase_snapshot:
