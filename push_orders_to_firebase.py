@@ -28,10 +28,6 @@ creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_S
 gs_client = gspread.authorize(creds)
 sheet = gs_client.open_by_key(SHEET_ID).worksheet("journal")
 
-# === Helpers ===
-def random_suffix(length=2):
-    return ''.join(random.choices(string.ascii_lowercase, k=length))
-
 def map_source(raw_source):
     if raw_source is None:
         return "unknown"
@@ -200,8 +196,8 @@ def push_orders_main():
             continue
         seen_order_ids.add(order_id)
 
-        suffix = random_suffix()
-        firebase_key = f"{order_id}-{suffix}"
+        
+        firebase_key = order_id
         raw_contract = str(getattr(o, 'contract', ''))
         symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
         status = str(getattr(o, 'status', '')).upper()
@@ -352,7 +348,7 @@ def push_orders_main():
 
             if current_count < abs_qty:
                 for _ in range(abs_qty - current_count):
-                    patch_id = f"tigerpatch_{int(time.time()*1000)}_{random_suffix()}"
+                    patch_id = f"tigerpatch_{int(time.time()*1000)}"
                     open_ref.child(patch_id).set({
                         "symbol": symbol,
                         "action": action,
@@ -433,6 +429,12 @@ def push_orders_main():
 
             now = datetime.now()
             day_date = now.strftime("%A %d %B %Y")
+
+            trade_order_id = trade_data.get("order_id", "")
+            if trade_order_id in logged_ghost_order_ids:
+                print(f"⚠️ Skipping re-log of ghost order: {trade_order_id}")
+                continue
+            logged_ghost_order_ids.add(trade_order_id)
 
             sheet.append_row([
                 day_date,
