@@ -162,7 +162,7 @@ def push_orders_main():
                 log_to_google_sheets({
                     "symbol": trade.get("symbol", ""),
                     "action": trade.get("action", ""),
-                    "entry_price": trade.get("entry_price", 0.0),
+                    "entry_price": safe_float(trade.get("entry_price")),
                     "exit_price": 0.0,
                     "pnl_dollars": 0.0,
                     "reason_for_exit": "no_position_detected",
@@ -199,9 +199,14 @@ def push_orders_main():
         # ✅ Skip if blank or already processed
         if not order_id or order_id in seen_order_ids:
             continue
+
+        # ✅ Skip ghost trade if already logged
+        if logged_ghost_ids_ref.child(order_id).get() == True:
+            print(f"⛔ Skipping ghost re-push: {order_id} already in logged_ghost_ids")
+            continue
+
         seen_order_ids.add(order_id)
 
-        
         firebase_key = order_id
         raw_contract = str(getattr(o, 'contract', ''))
         symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
@@ -279,13 +284,15 @@ def push_orders_main():
                 entry_ts = value.get("filled_time") or value.get("timestamp") or ""
 
                 try:
-                    entry_time = datetime.utcfromtimestamp(int(entry_ts))
+                    entry_ts = int(str(entry_ts).strip())
+                    if entry_ts > 9999999999:  # likely ms
+                        entry_ts = entry_ts // 1000
+                    entry_time = datetime.utcfromtimestamp(entry_ts)
                     now_utc = datetime.utcnow()
                     age_seconds = (now_utc - entry_time).total_seconds()
-
                 except Exception as e:
                     print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
-                    continue  # Skip trade entirely if bad timestamp
+                    entry_time = None
                 try:
                     from pytz import timezone
                     now_nz = datetime.now(timezone("Pacific/Auckland"))
@@ -318,7 +325,7 @@ def push_orders_main():
                         "day_date": day_date,
                         "symbol": value.get("symbol", ""),
                         "direction": value.get("action", ""),
-                        "entry_price": value.get("avg_fill_price", 0.0),
+                        "entry_price": safe_float(value.get("avg_fill_price")),
                         "exit_price": 0.0,
                         "pnl_dollars": 0.0,
                         "reason_for_exit": reason_map.get("LACK_OF_MARGIN", "LACK_OF_MARGIN"),
@@ -341,7 +348,7 @@ def push_orders_main():
                             writer.writeheader()
                         writer.writerow(row)
                     # ✅ Save updated ghost order IDs to Firebase so they're not logged again
-                    logged_ids_ref.set(list(logged_ghost_order_ids))
+                    logged_ghost_ids_ref.set(list(logged_ghost_order_ids))
 
                 except Exception as e:
                     print(f"❌ Google Sheets log failed: {e}")
@@ -402,12 +409,8 @@ def push_orders_main():
             trade_order_id = str(trade_data.get("order_id", ""))
             entry_ts = trade_data.get("entry_timestamp", 0)
 
-            # 🟡 Protect real ghost trades for 60s
             if not trade_order_id:
-                age = time() - float(entry_ts) if entry_ts else 0
-                if age < 60:
-                    print(f"⏱️ Skipping ghost (not aged enough): {trade_id}")
-                    continue
+                print(f"🛑 Detected ghost trade with no order ID: {trade_id}")
 
             if trade_order_id not in open_order_ids:
 
@@ -421,18 +424,18 @@ def push_orders_main():
                 open_trades_ref.child(trade_id).delete()
                 deleted_count += 1
 
-            # ✅ Mark as pruned
-            pruned_ref.child(trade_id).set(True)
+                # ✅ Mark as pruned AFTER deletion
+                pruned_ref.child(trade_id).set(True)
 
-            tiger_order = tiger_order_map.get(trade_order_id)
-            if tiger_order:
-                is_liquidation = getattr(tiger_order, "liquidation", False)
-                status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
-                reason = str(getattr(tiger_order, "reason", ""))
-                filled = getattr(tiger_order, "filled", 0)
-                exit_reason = "liquidation" if is_liquidation else get_exit_reason(status, reason, filled)
-            else:
-                exit_reason = "manual_close"
+                tiger_order = tiger_order_map.get(trade_order_id)
+                if tiger_order:
+                    is_liquidation = getattr(tiger_order, "liquidation", False)
+                    status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
+                    reason = str(getattr(tiger_order, "reason", ""))
+                    filled = getattr(tiger_order, "filled", 0)
+                    exit_reason = "liquidation" if is_liquidation else get_exit_reason(status, reason, filled)
+                else:
+                    exit_reason = "manual_close"
 
             reason_map = {
                 "trailing_tp_exit": "Trailing Take Profit",
@@ -459,7 +462,7 @@ def push_orders_main():
                 day_date,
                 trade_data.get("symbol", ""),
                 trade_data.get("action", ""),
-                trade_data.get("entry_price", 0.0),
+                safe_float(trade_data.get("entry_price")),
                 0.0,
                 0.0,
                 friendly_reason,
@@ -470,8 +473,7 @@ def push_orders_main():
 
         print(f"✅ Open trades cleanup complete — {deleted_count} entries removed.")
 
-            # === Detect manual flattening of positions ===
-    
+        # === Detect manual flattening of positions ===
         print("🔍 Checking for manual flattens based on Tiger positions...")
 
         tiger_live_positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
@@ -495,17 +497,23 @@ def push_orders_main():
 
             for trade_id, trade_data in trades.items():
                 print(f"🧹 Closing manually flattened trade: {trade_id} on {symbol}")
+
                 open_trades_ref.child(symbol).child(trade_id).delete()
 
                 reason_map = {
                     "manual_flattened": "Manual Flatten",
                 }
 
+                print("✏️ Debug manual flatten entry_price =", trade_data.get("entry_price"))
+
+                entry_price_raw = trade_data.get("entry_price", 0.0)
+                entry_price_clean = safe_float(entry_price_raw) if isinstance(entry_price_raw, (int, float, str)) else 0.0
+
                 sheet.append_row([
                     day_date,
                     symbol,
                     trade_data.get("action", ""),
-                    safe_float(trade_data.get("entry_price")),
+                    entry_price_clean,
                     0.0,
                     0.0,
                     reason_map["manual_flattened"],
@@ -522,4 +530,4 @@ def push_orders_main():
 
 # === SAFE ENTRY POINT ===
 if __name__ == "__main__":
-    push_orders_main()      
+    push_orders_main()
