@@ -298,7 +298,7 @@ def push_orders_main():
                         "",  # Entry time unknown
                         now.strftime("%Y-%m-%d %H:%M:%S"),
                         False,  # trail_triggered
-                        of"{order_id} ({suffix_key})"
+                        f"{order_id} ({suffix_key})"
                     ])
 
                     # Also write ghost trade to CSV
