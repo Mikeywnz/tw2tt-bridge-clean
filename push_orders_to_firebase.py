@@ -278,7 +278,9 @@ def push_orders_main():
                     from pytz import timezone
                     now_nz = datetime.now(timezone("Pacific/Auckland"))
                     day_date = now_nz.strftime("%A %d %B %Y")
-                    order_id = value.get("order_id", "") # This is the Firebase key (Auto ID)
+                    # Use true TigerTrade order ID for deduplication
+                    order_id = value.get("order_id", "")
+                    suffix_key = key  # Firebase key with suffix, for display only
 
                     if order_id in logged_ghost_order_ids:
                         print(f"⚠️ Already logged ghost trade: {order_id}, skipping duplicate log")
@@ -296,7 +298,7 @@ def push_orders_main():
                         "",  # Entry time unknown
                         now.strftime("%Y-%m-%d %H:%M:%S"),
                         False,  # trail_triggered
-                        order_id
+                        of"{order_id} ({suffix_key})"
                     ])
 
                     # Also write ghost trade to CSV
