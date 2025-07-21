@@ -175,6 +175,7 @@ def push_orders_main():
             "exit_reason": get_exit_reason(status, reason, filled)
         }
 
+    try:
         tiger_orders_ref.child(firebase_key).set(payload)
         print(f"✅ Pushed to Firebase: {firebase_key}")
     except Exception as e:
