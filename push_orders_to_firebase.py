@@ -31,6 +31,13 @@ creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_S
 gs_client = gspread.authorize(creds)
 sheet = gs_client.open_by_key(SHEET_ID).worksheet("journal")
 
+# === Manual Flatten Block Helper ===
+def safe_float(val):
+    try:
+        return float(val)
+    except:
+        return 0.0
+
 def map_source(raw_source):
     if raw_source is None:
         return "unknown"
@@ -150,11 +157,6 @@ def push_orders_main():
                 if not entry_time:
                     continue
 
-                # Check age > 60 seconds
-                entry_dt = datetime.fromisoformat(entry_time)
-                if (now - entry_dt).total_seconds() < 60:
-                    continue
-
                 print(f"🛑 Flattening ghost trade: {key}")
                 # Push to Google Sheets (assumes log_to_google_sheets() already exists)
                 log_to_google_sheets({
@@ -256,29 +258,6 @@ def push_orders_main():
 
         for key, value in snapshot.items():
 
-            # === Skip ghost trade if it's less than 60s old (to prevent premature re-push) ===
-            filled = value.get("filled_time")
-            ts = value.get("timestamp")
-
-            try:
-                if filled:
-                    entry_ts = int(filled)
-                elif ts:
-                    entry_ts = int(str(ts).strip()) // 1000
-                else:
-                    entry_ts = 0
-
-                if entry_ts:
-                    entry_time = datetime.utcfromtimestamp(entry_ts)
-                    now_utc = datetime.utcnow()
-                    age_seconds = (now_utc - entry_time).total_seconds()
-                    if age_seconds < 60:
-                        print(f"⏳ Skipping ghost trade {key} ⏱ only {int(age_seconds)}s old")
-                        continue
-            except Exception as e:
-                print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
-                continue  # Skip this trade entirely if there's a bad timestamp
-
             firebase_oid = str(value.get("order_id", ""))
             if firebase_oid not in open_order_ids:
                 print(f"🧹 Deleting old trade from Firebase: {key}")
@@ -297,17 +276,12 @@ def push_orders_main():
                 }
 
                 # === Log deleted ghost trade to Google Sheets ===
-                # Skip ghost trade if it's less than 60s old (to prevent premature re-push)
                 entry_ts = value.get("filled_time") or value.get("timestamp") or ""
 
                 try:
                     entry_time = datetime.utcfromtimestamp(int(entry_ts))
                     now_utc = datetime.utcnow()
                     age_seconds = (now_utc - entry_time).total_seconds()
-
-                    if age_seconds < 60:
-                        print(f"⏳ Skipping ghost trade {key} – only {int(age_seconds)}s old")
-                        continue
 
                 except Exception as e:
                     print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
@@ -531,7 +505,7 @@ def push_orders_main():
                     day_date,
                     symbol,
                     trade_data.get("action", ""),
-                    trade_data.get("entry_price", 0.0),
+                    safe_float(trade_data.get("entry_price")),
                     0.0,
                     0.0,
                     reason_map["manual_flattened"],
