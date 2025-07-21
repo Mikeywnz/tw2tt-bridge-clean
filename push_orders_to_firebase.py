@@ -260,7 +260,7 @@ def push_orders_main():
             entry_ts = value.get("filled_time") or value.get("timestamp") or ""
             if entry_ts:
                 try:
-                    entry_time = datetime.utcfromtimestamp(int(entry_ts))
+                    entry_time = datetime.utcfromtimestamp(int(entry_ts) // 1000)
                     now_utc = datetime.utcnow()
                     age_seconds = (now_utc - entry_time).total_seconds()
                     if age_seconds < 60:
