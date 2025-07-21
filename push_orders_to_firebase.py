@@ -103,7 +103,7 @@ def push_orders_main():
         # === Push live positions to Firebase ===
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-        print(f"📦 positions = {positions}")
+        print(f"📦 positions = {len(positions)}")
 
         live_ref = db.reference("/live_positions")
 
