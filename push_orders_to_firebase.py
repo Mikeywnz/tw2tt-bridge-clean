@@ -49,6 +49,8 @@ def get_exit_reason(status, reason, filled):
         return "CANCELLED"
     elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
         return "LACK_OF_MARGIN"
+    elif "liquidation" in reason.lower():
+        return "liquidation"
     return status
 
 # === MAIN FUNCTION WRAPPED HERE ===
@@ -328,10 +330,11 @@ def push_orders_main():
 
                 tiger_order = tiger_order_map.get(trade_order_id)
                 if tiger_order:
+                    is_liquidation = getattr(tiger_order, "liquidation", False)
                     status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
                     reason = str(getattr(tiger_order, "reason", ""))
                     filled = getattr(tiger_order, "filled", 0)
-                    exit_reason = get_exit_reason(status, reason, filled)
+                    exit_reason = "liquidation" if is_liquidation else get_exit_reason(status, reason, filled)
                 else:
                     exit_reason = "manual_close"
 
