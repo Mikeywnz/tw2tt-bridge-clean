@@ -256,19 +256,28 @@ def push_orders_main():
 
         for key, value in snapshot.items():
 
-            # Skip ghost trade if it's less than 60s old (to prevent premature re-push)
-            entry_ts = value.get("filled_time") or value.get("timestamp") or ""
-            if entry_ts:
-                try:
-                    entry_time = datetime.utcfromtimestamp(int(entry_ts) // 1000)
+            # === Skip ghost trade if it's less than 60s old (to prevent premature re-push) ===
+            filled = value.get("filled_time")
+            ts = value.get("timestamp")
+
+            try:
+                if filled:
+                    entry_ts = int(filled)
+                elif ts:
+                    entry_ts = int(str(ts).strip()) // 1000
+                else:
+                    entry_ts = 0
+
+                if entry_ts:
+                    entry_time = datetime.utcfromtimestamp(entry_ts)
                     now_utc = datetime.utcnow()
                     age_seconds = (now_utc - entry_time).total_seconds()
                     if age_seconds < 60:
-                        print(f"⏳ Skipping ghost trade {key} – only {int(age_seconds)}s old")
+                        print(f"⏳ Skipping ghost trade {key} ⏱ only {int(age_seconds)}s old")
                         continue
-                except Exception as e:
-                    print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
-                    continue  # Skip trade entirely if bad timestamp
+            except Exception as e:
+                print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
+                continue  # Skip this trade entirely if there's a bad timestamp
 
             firebase_oid = str(value.get("order_id", ""))
             if firebase_oid not in open_order_ids:
