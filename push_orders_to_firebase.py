@@ -365,6 +365,53 @@ def push_orders_main():
 
         print(f"✅ Open trades cleanup complete — {deleted_count} entries removed.")
 
+            # === Detect manual flattening of positions ===
+    try:
+        print("🔍 Checking for manual flattens based on Tiger positions...")
+
+        tiger_live_positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
+        tiger_symbols = set()
+        for pos in tiger_live_positions:
+            raw = str(getattr(pos, "contract", ""))
+            sym = raw.split("/")[0] if "/" in raw else raw
+            tiger_symbols.add(sym)
+
+        open_trades_ref = db.reference("/open_trades")
+        open_trades = open_trades_ref.get() or {}
+
+        now = datetime.now()
+        from pytz import timezone
+        now_nz = now.astimezone(timezone("Pacific/Auckland"))
+        day_date = now_nz.strftime("%A %d %B %Y")
+
+        for symbol, trades in open_trades.items():
+            if symbol in tiger_symbols:
+                continue  # still an open Tiger position — skip
+
+            for trade_id, trade_data in trades.items():
+                print(f"🧹 Closing manually flattened trade: {trade_id} on {symbol}")
+                open_trades_ref.child(symbol).child(trade_id).delete()
+
+                reason_map = {
+                    "manual_flattened": "Manual Flatten",
+                }
+
+                sheet.append_row([
+                    day_date,
+                    symbol,
+                    trade_data.get("action", ""),
+                    trade_data.get("entry_price", 0.0),
+                    0.0,
+                    0.0,
+                    reason_map["manual_flattened"],
+                    trade_data.get("entry_timestamp", ""),
+                    now.strftime("%Y-%m-%d %H:%M:%S"),
+                    trade_data.get("trail_hit", False)
+                ])
+
+    except Exception as e:
+        print(f"❌ Manual flatten detection failed: {e}")
+
     except Exception as e:
         print(f"❌ Error during /open_trades/ pruning: {e}")
 
