@@ -129,6 +129,9 @@ def push_orders_main():
                 })
                 print(f"🟢 Updated /live_positions/: {symbol} = {quantity} @ {avg_cost}")
 
+    except Exception as e:
+        print(f"🔥 ERROR pushing live positions to Firebase: {e}")
+
                 # === No Position Flattening: Auto-close if no Tiger positions exist ===
     try:
         if len(positions) == 0:
@@ -381,56 +384,56 @@ def push_orders_main():
 
             if trade_order_id not in open_order_ids:
 
-            # ✅ Skip if already pruned
-            if trade_id in pruned_log:
-                continue
+                # ✅ Skip if already pruned
+                if trade_id in pruned_log:
+                    continue
 
-            print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
+                print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
 
-            # 🔥 Delete from Firebase
-            open_trades_ref.child(trade_id).delete()
-            deleted_count += 1
+                # 🔥 Delete from Firebase
+                open_trades_ref.child(trade_id).delete()
+                deleted_count += 1
 
             # ✅ Mark as pruned
             pruned_ref.child(trade_id).set(True)
 
-                tiger_order = tiger_order_map.get(trade_order_id)
-                if tiger_order:
-                    is_liquidation = getattr(tiger_order, "liquidation", False)
-                    status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
-                    reason = str(getattr(tiger_order, "reason", ""))
-                    filled = getattr(tiger_order, "filled", 0)
-                    exit_reason = "liquidation" if is_liquidation else get_exit_reason(status, reason, filled)
-                else:
-                    exit_reason = "manual_close"
+            tiger_order = tiger_order_map.get(trade_order_id)
+            if tiger_order:
+                is_liquidation = getattr(tiger_order, "liquidation", False)
+                status = str(getattr(tiger_order, "status", "")).split(".")[-1].upper()
+                reason = str(getattr(tiger_order, "reason", ""))
+                filled = getattr(tiger_order, "filled", 0)
+                exit_reason = "liquidation" if is_liquidation else get_exit_reason(status, reason, filled)
+            else:
+                exit_reason = "manual_close"
 
-                reason_map = {
-                    "trailing_tp_exit": "Trailing Take Profit",
-                    "manual_close": "Manual Close",
-                    "ema_flattening_exit": "EMA Flattening",
-                    "liquidation": "Liquidation",
-                    "LACK_OF_MARGIN": "Lack of Margin",
-                    "FILLED": "FILLED",
-                    "CANCELLED": "CANCELLED",
-                    "EXPIRED": "Lack of Margin"
-                }
-                friendly_reason = reason_map.get(exit_reason, exit_reason)
+            reason_map = {
+                "trailing_tp_exit": "Trailing Take Profit",
+                "manual_close": "Manual Close",
+                "ema_flattening_exit": "EMA Flattening",
+                "liquidation": "Liquidation",
+                "LACK_OF_MARGIN": "Lack of Margin",
+                "FILLED": "FILLED",
+                "CANCELLED": "CANCELLED",
+                "EXPIRED": "Lack of Margin"
+            }
+            friendly_reason = reason_map.get(exit_reason, exit_reason)
 
-                now = datetime.now()
-                day_date = now.strftime("%A %d %B %Y")
+            now = datetime.now()
+            day_date = now.strftime("%A %d %B %Y")
 
-                sheet.append_row([
-                    day_date,
-                    trade_data.get("symbol", ""),
-                    trade_data.get("action", ""),
-                    trade_data.get("entry_price", 0.0),
-                    0.0,
-                    0.0,
-                    friendly_reason,
-                    trade_data.get("entry_timestamp", ""),
-                    now.strftime("%Y-%m-%d %H:%M:%S"),
-                    trade_data.get("trail_hit", False)
-                ])
+            sheet.append_row([
+                day_date,
+                trade_data.get("symbol", ""),
+                trade_data.get("action", ""),
+                trade_data.get("entry_price", 0.0),
+                0.0,
+                0.0,
+                friendly_reason,
+                trade_data.get("entry_timestamp", ""),
+                now.strftime("%Y-%m-%d %H:%M:%S"),
+                trade_data.get("trail_hit", False)
+            ])
 
         print(f"✅ Open trades cleanup complete — {deleted_count} entries removed.")
 
