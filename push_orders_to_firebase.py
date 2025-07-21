@@ -278,7 +278,7 @@ def push_orders_main():
                     from pytz import timezone
                     now_nz = datetime.now(timezone("Pacific/Auckland"))
                     day_date = now_nz.strftime("%A %d %B %Y")
-                    order_id = key  # This is the Firebase key (Auto ID)
+                    order_id = value.get("order_id", "") # This is the Firebase key (Auto ID)
 
                     if order_id in logged_ghost_order_ids:
                         print(f"⚠️ Already logged ghost trade: {order_id}, skipping duplicate log")
