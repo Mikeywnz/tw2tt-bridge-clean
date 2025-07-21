@@ -17,6 +17,7 @@ firebase_admin.initialize_app(cred, {
 })
 
 logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
+logged_ghost_order_ids = set(logged_ids_ref.get() or [])
 
 # === Google Sheets Setup (Global) ===
 from google.oauth2.service_account import Credentials
@@ -55,7 +56,7 @@ def get_exit_reason(status, reason, filled):
 
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
-    logged_ghost_order_ids = set()
+    
     # === Setup Tiger API ===
     config = TigerOpenClientConfig()
     client = TradeClient(config)
@@ -326,6 +327,9 @@ def push_orders_main():
                         if not file_exists:
                             writer.writeheader()
                         writer.writerow(row)
+                    # ✅ Save updated ghost order IDs to Firebase so they're not logged again
+                    logged_ids_ref.set(list(logged_ghost_order_ids))
+                    
                 except Exception as e:
                     print(f"❌ Google Sheets log failed: {e}")
 
