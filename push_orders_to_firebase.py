@@ -16,6 +16,8 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
 })
 
+logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
+
 # === Google Sheets Setup (Global) ===
 from google.oauth2.service_account import Credentials
 
@@ -278,10 +280,10 @@ def push_orders_main():
                     order_id = value.get("order_id", "")
                     
 
-                    if order_id in logged_ghost_order_ids:
-                        print(f"⚠️ Already logged ghost trade: {order_id}, skipping duplicate log")
+                    if logged_ghost_ids_ref.child(order_id).get() == True:
+                        print(f"⚠️ Already logged ghost trade (via Firebase): {order_id}, skipping duplicate log")
                         continue
-                    logged_ghost_order_ids.add(order_id)
+                    logged_ghost_ids_ref.child(order_id).set(True)
 
                     sheet.append_row([
                         day_date,
