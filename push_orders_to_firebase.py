@@ -100,6 +100,26 @@ def push_orders_main():
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
 
+        # === Push live positions to Firebase ===
+    try:
+        positions = client.get_positions()
+        live_ref = db.reference("/live_positions")
+
+        for pos in positions:
+            symbol = getattr(pos, "symbol", "")
+            quantity = getattr(pos, "quantity", 0)
+            avg_cost = getattr(pos, "average_cost", 0.0)
+
+            if symbol and quantity != 0:
+                live_ref.child(symbol).set({
+                    "quantity": quantity,
+                    "average_cost": avg_cost,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                print(f"🟢 Updated /live_positions/: {symbol} = {quantity} @ {avg_cost}")
+    except Exception as e:
+        print(f"❌ Failed to update live positions: {e}")
+
     # === Push to Firebase ===
     for o in orders:
         order_id = str(getattr(o, 'id', ''))
