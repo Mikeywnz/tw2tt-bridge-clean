@@ -177,8 +177,8 @@ def push_orders_main():
 
         tiger_orders_ref.child(firebase_key).set(payload)
         print(f"✅ Pushed to Firebase: {firebase_key}")
-        except Exception as e:
-            print(f"❌ Firebase push failed for {firebase_key}: {e}")
+    except Exception as e:
+        print(f"❌ Firebase push failed for {firebase_key}: {e}")
 
     # === FIFO Cleanup: Keep only N open trades ===
     try:
