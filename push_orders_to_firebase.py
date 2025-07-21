@@ -8,6 +8,7 @@ import string
 from datetime import datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import csv
 
 # === Firebase Init ===
 cred = credentials.Certificate("firebase_key.json")
@@ -21,10 +22,11 @@ from google.oauth2.service_account import Credentials
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 GOOGLE_CREDS_FILE = "firebase_key.json"
 SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
+CLOSED_TRADES_FILE = "closed_trades.csv"
 
 creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
 gs_client = gspread.authorize(creds)
-sheet = gs_client.open_by_key(SHEET_ID).sheet1
+sheet = gs_client.open_by_key(SHEET_ID).worksheet("journal")
 
 # === Helpers ===
 def random_suffix(length=2):
@@ -369,7 +371,7 @@ def push_orders_main():
         print(f"✅ Open trades cleanup complete — {deleted_count} entries removed.")
 
             # === Detect manual flattening of positions ===
-    try:
+    
         print("🔍 Checking for manual flattens based on Tiger positions...")
 
         tiger_live_positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
