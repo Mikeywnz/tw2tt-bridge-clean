@@ -103,20 +103,25 @@ def push_orders_main():
         # === Push live positions to Firebase ===
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
+        print(f"📦 positions = {positions}")
+
         live_ref = db.reference("/live_positions")
 
         for pos in positions:
-            symbol = getattr(pos, "symbol", "")
+            raw_contract = str(getattr(pos, "contract", ""))
+            symbol = raw_contract.split("/")[0] if "/" in raw_contract else raw_contract
             quantity = getattr(pos, "quantity", 0)
             avg_cost = getattr(pos, "average_cost", 0.0)
 
             if symbol and quantity != 0:
+                print(f"🔄 Writing to Firebase: {symbol} | qty={quantity} | avg_cost={avg_cost}")
                 live_ref.child(symbol).set({
                     "quantity": quantity,
                     "average_cost": avg_cost,
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 print(f"🟢 Updated /live_positions/: {symbol} = {quantity} @ {avg_cost}")
+
     except Exception as e:
         print(f"❌ Failed to update live positions: {e}")
 
