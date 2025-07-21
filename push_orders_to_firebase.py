@@ -140,10 +140,16 @@ def push_orders_main():
         print(f"❌ Failed to update live positions: {e}")
 
     # === Push to Firebase ===
+    # === Deduplicate Tiger orders by order_id ===
+    seen_order_ids = set()
+
     for o in orders:
-        order_id = str(getattr(o, 'id', ''))
-        if not order_id:
+        order_id = str(getattr(o, 'id', '')).strip()
+
+        # ✅ Skip if blank or already processed
+        if not order_id or order_id in seen_order_ids:
             continue
+        seen_order_ids.add(order_id)
 
         suffix = random_suffix()
         firebase_key = f"{order_id}-{suffix}"
@@ -169,9 +175,8 @@ def push_orders_main():
             "exit_reason": get_exit_reason(status, reason, filled)
         }
 
-        try:
-            db.reference(f"/tiger_orders/{firebase_key}").set(payload)
-            print(f"✅ Pushed to Firebase: {firebase_key}")
+        tiger_orders_ref.child(firebase_key).set(payload)
+        print(f"✅ Pushed to Firebase: {firebase_key}")
         except Exception as e:
             print(f"❌ Firebase push failed for {firebase_key}: {e}")
 
@@ -314,6 +319,10 @@ def push_orders_main():
 
         from time import time
 
+        # === Load pruned_log from Firebase ===
+        pruned_ref = db.reference("/pruned_log")
+        pruned_log = pruned_ref.get() or {}
+
         for trade_id, trade_data in open_trades_snapshot.items():
             trade_order_id = str(trade_data.get("order_id", ""))
             entry_ts = trade_data.get("entry_timestamp", 0)
@@ -326,9 +335,19 @@ def push_orders_main():
                     continue
 
             if trade_order_id not in open_order_ids:
-                print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
-                open_trades_ref.child(trade_id).delete()
-                deleted_count += 1
+
+            # ✅ Skip if already pruned
+            if trade_id in pruned_log:
+                continue
+
+            print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
+
+            # 🔥 Delete from Firebase
+            open_trades_ref.child(trade_id).delete()
+            deleted_count += 1
+
+            # ✅ Mark as pruned
+            pruned_ref.child(trade_id).set(True)
 
                 tiger_order = tiger_order_map.get(trade_order_id)
                 if tiger_order:
