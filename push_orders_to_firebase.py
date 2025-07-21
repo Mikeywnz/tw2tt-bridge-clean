@@ -17,7 +17,7 @@ firebase_admin.initialize_app(cred, {
 })
 
 logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
-logged_ghost_order_ids = set(logged_ids_ref.get() or [])
+logged_ghost_order_ids = set(logged_ghost_ids_ref.get() or [])
 
 # === Google Sheets Setup (Global) ===
 from google.oauth2.service_account import Credentials
@@ -255,6 +255,21 @@ def push_orders_main():
         snapshot = open_ref.get() or {}
 
         for key, value in snapshot.items():
+
+            # Skip ghost trade if it's less than 60s old (to prevent premature re-push)
+            entry_ts = value.get("filled_time") or value.get("timestamp") or ""
+            if entry_ts:
+                try:
+                    entry_time = datetime.utcfromtimestamp(int(entry_ts))
+                    now_utc = datetime.utcnow()
+                    age_seconds = (now_utc - entry_time).total_seconds()
+                    if age_seconds < 60:
+                        print(f"⏳ Skipping ghost trade {key} – only {int(age_seconds)}s old")
+                        continue
+                except Exception as e:
+                    print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
+                    continue  # Skip trade entirely if bad timestamp
+
             firebase_oid = str(value.get("order_id", ""))
             if firebase_oid not in open_order_ids:
                 print(f"🧹 Deleting old trade from Firebase: {key}")
@@ -273,6 +288,21 @@ def push_orders_main():
                 }
 
                 # === Log deleted ghost trade to Google Sheets ===
+                # Skip ghost trade if it's less than 60s old (to prevent premature re-push)
+                entry_ts = value.get("filled_time") or value.get("timestamp") or ""
+
+                try:
+                    entry_time = datetime.utcfromtimestamp(int(entry_ts))
+                    now_utc = datetime.utcnow()
+                    age_seconds = (now_utc - entry_time).total_seconds()
+
+                    if age_seconds < 60:
+                        print(f"⏳ Skipping ghost trade {key} – only {int(age_seconds)}s old")
+                        continue
+
+                except Exception as e:
+                    print(f"⚠️ Failed to parse ghost trade time for {key}: {e}")
+                    continue  # Skip trade entirely if bad timestamp
                 try:
                     from pytz import timezone
                     now_nz = datetime.now(timezone("Pacific/Auckland"))
@@ -329,7 +359,7 @@ def push_orders_main():
                         writer.writerow(row)
                     # ✅ Save updated ghost order IDs to Firebase so they're not logged again
                     logged_ids_ref.set(list(logged_ghost_order_ids))
-                    
+
                 except Exception as e:
                     print(f"❌ Google Sheets log failed: {e}")
 
