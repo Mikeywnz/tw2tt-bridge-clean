@@ -57,6 +57,7 @@ def get_exit_reason(status, reason, filled):
 
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
+    logged_ghost_order_ids = set()
     # === Setup Tiger API ===
     config = TigerOpenClientConfig()
     client = TradeClient(config)
@@ -188,6 +189,7 @@ def push_orders_main():
 
     # === Push to Firebase ===
     # === Deduplicate Tiger orders by order_id ===
+    tiger_orders_ref = db.reference("/tiger_orders")
     seen_order_ids = set()
 
     for o in orders:
@@ -221,7 +223,6 @@ def push_orders_main():
             "is_open": getattr(o, 'is_open', False),
             "exit_reason": get_exit_reason(status, reason, filled)
         }
-    tiger_orders_ref = db.reference("/tiger_orders")
     try:
         tiger_orders_ref.child(firebase_key).set(payload)
         print(f"✅ Pushed to Firebase: {firebase_key}")
@@ -278,6 +279,11 @@ def push_orders_main():
                     now_nz = datetime.now(timezone("Pacific/Auckland"))
                     day_date = now_nz.strftime("%A %d %B %Y")
                     order_id = key  # This is the Firebase key (Auto ID)
+
+                    if order_id in logged_ghost_order_ids:
+                        print(f"⚠️ Already logged ghost trade: {order_id}, skipping duplicate log")
+                        continue
+                    logged_ghost_order_ids.add(order_id)
 
                     sheet.append_row([
                         day_date,
