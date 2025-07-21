@@ -104,7 +104,7 @@ def write_closed_trade(trade, reason, exit_price):
             friendly_reason,
             row["entry_time"],
             row["exit_time"],
-            row["trail_triggered"]
+            row["trail_triggered"],
             row["order_id"]
         ])
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {friendly_reason}")
