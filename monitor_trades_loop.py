@@ -48,6 +48,7 @@ def write_closed_trade(trade, reason, exit_price):
     now_nz = datetime.now(timezone("Pacific/Auckland"))
     exit_time = now_nz.strftime("%Y-%m-%d %H:%M:%S")
     day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
+    order_id = trade.get("order_id", "")
 
     # 🟢 Friendly reason label mapping
     reason_map = {
@@ -104,6 +105,7 @@ def write_closed_trade(trade, reason, exit_price):
             row["entry_time"],
             row["exit_time"],
             row["trail_triggered"]
+            row["order_id"]
         ])
         print(f"✅ Logged to Google Sheet: {row['symbol']} – {friendly_reason}")
     except Exception as e:

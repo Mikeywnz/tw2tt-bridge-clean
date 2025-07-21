@@ -277,6 +277,7 @@ def push_orders_main():
                     from pytz import timezone
                     now_nz = datetime.now(timezone("Pacific/Auckland"))
                     day_date = now_nz.strftime("%A %d %B %Y")
+                    order_id = key  # This is the Firebase key (Auto ID)
 
                     sheet.append_row([
                         day_date,
@@ -288,9 +289,11 @@ def push_orders_main():
                         reason_map.get("LACK_OF_MARGIN", "LACK_OF_MARGIN"),
                         "",  # Entry time unknown
                         now.strftime("%Y-%m-%d %H:%M:%S"),
-                        False  # trail_triggered
+                        False,  # trail_triggered
+                        order_id
                     ])
-                            # Also write ghost trade to CSV
+
+                    # Also write ghost trade to CSV
                     row = {
                         "day_date": day_date,
                         "symbol": value.get("symbol", ""),
@@ -301,10 +304,10 @@ def push_orders_main():
                         "reason_for_exit": reason_map.get("LACK_OF_MARGIN", "LACK_OF_MARGIN"),
                         "entry_time": "",
                         "exit_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-                        "trail_triggered": "NO"
+                        "trail_triggered": "NO",
+                        "order_id": order_id
                     }
 
-                    # Write to CSV
                     file_exists = False
                     try:
                         with open(CLOSED_TRADES_FILE, 'r') as f:
