@@ -308,8 +308,18 @@ def push_orders_main():
         deleted_count = 0
         tiger_order_map = {str(getattr(o, "id", "")): o for o in orders if getattr(o, "id", "")}
 
+        from time import time
+
         for trade_id, trade_data in open_trades_snapshot.items():
             trade_order_id = str(trade_data.get("order_id", ""))
+            entry_ts = trade_data.get("entry_timestamp", 0)
+
+            # 🟡 Protect real ghost trades for 60s
+            if not trade_order_id:
+                age = time() - float(entry_ts) if entry_ts else 0
+                if age < 60:
+                    print(f"⏱️ Skipping ghost (not aged enough): {trade_id}")
+                    continue
 
             if trade_order_id not in open_order_ids:
                 print(f"🧹 Pruning stale /open_trades/ entry: {trade_id} (order_id={trade_order_id})")
