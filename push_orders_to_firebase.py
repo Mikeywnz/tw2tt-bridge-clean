@@ -221,7 +221,7 @@ def push_orders_main():
             "is_open": getattr(o, 'is_open', False),
             "exit_reason": get_exit_reason(status, reason, filled)
         }
-
+    tiger_orders_ref = db.reference("/tiger_orders")
     try:
         tiger_orders_ref.child(firebase_key).set(payload)
         print(f"✅ Pushed to Firebase: {firebase_key}")
@@ -370,6 +370,7 @@ def push_orders_main():
         # === Load pruned_log from Firebase ===
         pruned_ref = db.reference("/pruned_log")
         pruned_log = pruned_ref.get() or {}
+        
 
         for trade_id, trade_data in open_trades_snapshot.items():
             trade_order_id = str(trade_data.get("order_id", ""))
