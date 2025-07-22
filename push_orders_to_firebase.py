@@ -108,23 +108,15 @@ def push_orders_main():
     for order in orders:
         oid = str(getattr(order, 'id', '')).strip()
         if not oid:
+            print("⚠️ Skipping order with empty or missing ID")
             continue
-        tiger_ids.add(oid)
+        else:
+            tiger_ids.add(oid)
 
         status = str(getattr(order, "status", "")).split('.')[-1].upper()
         reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
         filled = getattr(order, "filled", 0)
         exit_reason_raw = get_exit_reason(status, reason, filled)
-
-        # Tally increments here:
-        if exit_reason_raw == "FILLED":
-            filled_count += 1
-        elif exit_reason_raw == "CANCELLED":
-            cancelled_count += 1
-        elif exit_reason_raw == "LACK_OF_MARGIN":
-            lack_margin_count += 1
-        else:
-            unknown_count += 1
 
         # Normalize timestamp
         raw_ts = getattr(order, 'order_time', 0)
@@ -221,6 +213,8 @@ def handle_position_flattening():
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
 
+        live_ref = db.reference("/live_positions")  # Added this line to fix live_ref undefined
+
         print("📊 Open Positions:")
         for pos in positions:
             contract = getattr(pos, "contract", "")
@@ -241,8 +235,8 @@ def handle_position_flattening():
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 print(f"✅ Updated live_positions for {symbol}")
-    except Exception as e:
-        print(f"❌ Failed to update live_positions for {symbol}: {e}")
+            except Exception as e:
+                print(f"❌ Failed to update live_positions for {symbol}: {e}")
 
         if len(positions) == 0:
             print("⚠️ No TigerTrade positions detected. Checking open_trades...")
