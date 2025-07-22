@@ -1,6 +1,6 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.consts import SegmentType
+from tigeropen.common.consts import SegmentType, OrderStatus  # ✅ correct on Render!
 import firebase_admin
 from firebase_admin import credentials, db
 import random
@@ -172,6 +172,9 @@ def push_orders_main():
     print(f"❌ CANCELLED: {cancelled_count}")
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
+
+    # Prune stale open trades to keep Firebase clean
+    prune_stale_open_trades()
 
     # === Prune stale /open_trades/ entries not backed by active Tiger orders ===
 def prune_stale_open_trades():
