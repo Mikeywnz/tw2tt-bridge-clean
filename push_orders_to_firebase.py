@@ -187,13 +187,14 @@ def prune_stale_open_trades():
         open_trades_snapshot = open_trades_ref.get() or {}
         tiger_orders_snapshot = tiger_orders_ref.get() or {}
 
-        # Build set of active order_ids from tiger_orders with status indicating open or filled but not cancelled
+        # Add "EXPIRED" to active statuses here
+        active_order_statuses = {"FILLED", "OPEN", "PARTIALLY_FILLED", "EXPIRED"}
+
         active_order_ids = set()
         for key, order in tiger_orders_snapshot.items():
             order_id = order.get("order_id")
             status = order.get("status", "").upper()
-            # Consider these statuses as active orders (adjust as needed)
-            if order_id and status in {"FILLED", "OPEN", "PARTIALLY_FILLED"}:
+            if order_id and status in active_order_statuses:
                 active_order_ids.add(order_id)
 
         deleted_count = 0
@@ -203,15 +204,32 @@ def prune_stale_open_trades():
             if trade_order_id not in active_order_ids:
                 print(f"🧹 Pruning stale open_trade: {trade_id} with order_id {trade_order_id}")
 
-                # Delete from open_trades
+                # Log to Google Sheets before deleting
+                try:
+                    # Build your row dictionary for logging (adjust fields as needed)
+                    row = {
+                        "symbol": trade_data.get("symbol", ""),
+                        "direction": trade_data.get("action", ""),
+                        "entry_price": safe_float(trade_data.get("entry_price")),
+                        "exit_price": 0.0,
+                        "pnl_dollars": 0.0,
+                        "reason_for_exit": "pruned_stale_open_trade",
+                        "entry_time": trade_data.get("entry_timestamp", ""),
+                        "exit_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "trail_triggered": trade_data.get("trail_hit", False),
+                        "order_id": trade_order_id
+                    }
+                    sheet.append_row(list(row.values()))
+                    print(f"✅ Logged stale trade to Google Sheets: {trade_id}")
+                except Exception as e:
+                    print(f"❌ Failed to log stale trade {trade_id} to Google Sheets: {e}")
+
+                # Delete from Firebase open_trades
                 open_trades_ref.child(trade_id).delete()
                 deleted_count += 1
 
-                # Mark in pruned_log
+                # Mark in pruned log
                 pruned_log_ref.child(trade_id).set(True)
-
-                # Optional: log to Google Sheets if desired
-                # Add your Google Sheets logging function call here if available
 
         print(f"✅ Pruned {deleted_count} stale open_trades entries.")
     except Exception as e:
