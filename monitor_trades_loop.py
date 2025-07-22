@@ -51,7 +51,7 @@ def write_closed_trade(trade, reason, exit_price):
     order_id = trade.get("order_id", "")
 
     # 🟢 Friendly reason label mapping
-    reason_map = {
+    REASON_MAP = {
         "trailing_tp_exit": "Trailing Take Profit",
         "manual_close": "Manual Close",
         "ema_flattening_exit": "EMA Flattening",
@@ -59,7 +59,9 @@ def write_closed_trade(trade, reason, exit_price):
         "LACK_OF_MARGIN": "Lack of Margin",
         "FILLED": "FILLED",
         "CANCELLED": "Cancelled",
-        "EXPIRED": "Lack of Margin"
+        "EXPIRED": "Lack of Margin",
+        # Add any raw Tiger reason strings here mapped to these friendly labels as needed
+        "资金不足": "Lack of Margin",  # example Chinese text for insufficient funds
     }
     friendly_reason = reason_map.get(reason, reason)
 
@@ -201,6 +203,8 @@ def monitor_trades():
             continue
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
+        if t.get("is_ghost", False):
+            continue   
         if trigger_points < 0.01 or offset_points < 0.01:
             print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
             continue
@@ -218,6 +222,8 @@ def monitor_trades():
         trade_id = trade.get('trade_id', 'unknown')
         print(f"🔄 Processing trade {trade_id}")
         if trade.get('exited') or trade_id in exit_in_progress:
+            continue
+        if trade.get("is_ghost", False):
             print(f"⏭️ Skipping already exited/in-progress trade {trade_id}")
             continue
 

@@ -188,54 +188,71 @@ def push_orders_main():
     except Exception as e:
         print(f"❌ Failed to update live positions: {e}")
 
-    # === Push to Firebase ===
-    # === Deduplicate Tiger orders by order_id ===
-    tiger_orders_ref = db.reference("/tiger_orders")
-    seen_order_ids = set()
+from datetime import datetime
 
-    for o in orders:
-        order_id = str(getattr(o, 'id', '')).strip()
+# === Push to Firebase ===
+# === Deduplicate Tiger orders by order_id ===
+tiger_orders_ref = db.reference("/tiger_orders")
+seen_order_ids = set()
 
-        # ✅ Skip if blank or already processed
-        if not order_id or order_id in seen_order_ids:
-            continue
+for o in orders:
+    order_id = str(getattr(o, 'id', '')).strip()
 
-        # ✅ Skip ghost trade if already logged
-        if logged_ghost_ids_ref.child(order_id).get() == True:
-            print(f"⛔ Skipping ghost re-push: {order_id} already in logged_ghost_ids")
-            continue
+    # ✅ Skip if blank or already processed
+    if not order_id or order_id in seen_order_ids:
+        continue
 
-        seen_order_ids.add(order_id)
+    # ✅ Skip ghost trade if already logged
+    if logged_ghost_ids_ref.child(order_id).get() == True:
+        print(f"⛔ Skipping ghost re-push: {order_id} already in logged_ghost_ids")
+        continue
 
-        firebase_key = order_id
-        raw_contract = str(getattr(o, 'contract', ''))
-        symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
-        status = str(getattr(o, 'status', '')).upper()
-        reason = str(getattr(o, 'reason', '')).upper()
-        filled = getattr(o, 'filled', 0)
+    seen_order_ids.add(order_id)
 
-        payload = {
-            "order_id": order_id,
-            "symbol": symbol,
-            "action": str(getattr(o, 'action', '')).upper(),
-            "quantity": getattr(o, 'quantity', 0),
-            "filled": filled,
-            "avg_fill_price": getattr(o, 'avg_fill_price', 0.0),
-            "status": status,
-            "reason": str(getattr(o, 'reason', '')) or '',
-            "liquidation": getattr(o, 'liquidation', False),
-            "timestamp": getattr(o, 'order_time', 0),
-            "source": map_source(getattr(o, 'source', None)),
-            "is_open": getattr(o, 'is_open', False),
-            "exit_reason": get_exit_reason(status, reason, filled)
-        }
+    firebase_key = order_id
+    raw_contract = str(getattr(o, 'contract', ''))
+    symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
+    status = str(getattr(o, 'status', '')).upper()
+    reason = str(getattr(o, 'reason', '')).upper()
+    filled = getattr(o, 'filled', 0)
+
+    # Determine if order is a ghost trade (unfilled + expired/cancelled)
+    ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+    is_ghost = filled == 0 and status in ghost_statuses
+
+    # Normalize timestamp from Unix (seconds or ms) to ISO 8601 string
+    raw_ts = getattr(o, 'order_time', 0)
     try:
-        tiger_orders_ref.child(firebase_key).set(payload)
-        print(f"✅ Pushed to Firebase: {firebase_key}")
-    except Exception as e:
-        print(f"❌ Firebase push failed for {firebase_key}: {e}")
+        ts_int = int(raw_ts)
+        if ts_int > 1e12:  # likely milliseconds
+            ts_int = ts_int // 1000
+        iso_ts = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
+    except Exception:
+        iso_ts = None
 
-    # === FIFO Cleanup: Keep only N open trades ===
+    payload = {
+        "order_id": order_id,
+        "symbol": symbol,
+        "action": str(getattr(o, 'action', '')).upper(),
+        "quantity": getattr(o, 'quantity', 0),
+        "filled": filled,
+        "avg_fill_price": getattr(o, 'avg_fill_price', 0.0),
+        "status": status,
+        "reason": str(getattr(o, 'reason', '')) or '',
+        "liquidation": getattr(o, 'liquidation', False),
+        "timestamp": iso_ts,
+        "source": map_source(getattr(o, 'source', None)),
+        "is_open": getattr(o, 'is_open', False),
+        "is_ghost": is_ghost,
+        "exit_reason": get_exit_reason(status, reason, filled)
+    }
+try:
+    tiger_orders_ref.child(firebase_key).set(payload)
+    print(f"✅ Pushed to Firebase: {firebase_key}")
+except Exception as e:
+    print(f"❌ Firebase push failed for {firebase_key}: {e}")
+
+# === FIFO Cleanup: Keep only N open trades ===
     try:
         # Rebuild FIFO stack of open orders
         orders_sorted = sorted(orders, key=lambda x: getattr(x, 'order_time', 0))
@@ -269,15 +286,17 @@ def push_orders_main():
                 open_ref.child(key).delete()
 
                 # === Friendly exit reason map ===
-                reason_map = {
+                REASON_MAP = {
                     "trailing_tp_exit": "Trailing Take Profit",
                     "manual_close": "Manual Close",
                     "ema_flattening_exit": "EMA Flattening",
                     "liquidation": "Liquidation",
                     "LACK_OF_MARGIN": "Lack of Margin",
                     "FILLED": "FILLED",
-                    "CANCELLED": "CANCELLED",
-                    "EXPIRED": "Lack of Margin"
+                    "CANCELLED": "Cancelled",
+                    "EXPIRED": "Lack of Margin",
+                    # Add any raw Tiger reason strings here mapped to these friendly labels as needed
+                    "资金不足": "Lack of Margin",  # example Chinese text for insufficient funds
                 }
 
                 # === Log deleted ghost trade to Google Sheets ===
@@ -437,15 +456,17 @@ def push_orders_main():
                 else:
                     exit_reason = "manual_close"
 
-            reason_map = {
+            REASON_MAP = {
                 "trailing_tp_exit": "Trailing Take Profit",
                 "manual_close": "Manual Close",
                 "ema_flattening_exit": "EMA Flattening",
                 "liquidation": "Liquidation",
                 "LACK_OF_MARGIN": "Lack of Margin",
                 "FILLED": "FILLED",
-                "CANCELLED": "CANCELLED",
-                "EXPIRED": "Lack of Margin"
+                "CANCELLED": "Cancelled",
+                "EXPIRED": "Lack of Margin",
+                # Add any raw Tiger reason strings here mapped to these friendly labels as needed
+                "资金不足": "Lack of Margin",  # example Chinese text for insufficient funds
             }
             friendly_reason = reason_map.get(exit_reason, exit_reason)
 
