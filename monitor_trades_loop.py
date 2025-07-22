@@ -142,8 +142,11 @@ def save_open_trades(trades):
         for t in trades:
             if "trade_id" not in t:
                 continue
-            seen_ids.add(t["trade_id"])
             trade_id = t["trade_id"]
+            if trade_id == "0":  # Skip any trade with trade_id "0"
+                print(f"⚠️ Skipping trade with invalid trade_id '0'")
+                continue
+            seen_ids.add(trade_id)
             firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508/{trade_id}.json"
             requests.put(firebase_url, json=t).raise_for_status()
             print(f"✅ Saved trade {trade_id} to Firebase.")
