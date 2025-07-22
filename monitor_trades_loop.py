@@ -204,7 +204,8 @@ def monitor_trades():
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
         if t.get("is_ghost", False):
-            continue   
+            print(f"⏭️ Skipping ghost trade {tid}")
+            continue
         if trigger_points < 0.01 or offset_points < 0.01:
             print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
             continue
