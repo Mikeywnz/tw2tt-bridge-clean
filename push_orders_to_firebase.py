@@ -9,6 +9,10 @@ from datetime import datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import csv
+    
+# === Setup Tiger API ===
+config = TigerOpenClientConfig()
+client = TradeClient(config)
 
 # === Firebase Init ===
 cred = credentials.Certificate("firebase_key.json")
@@ -63,10 +67,7 @@ def get_exit_reason(status, reason, filled):
 
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
-    
-    # === Setup Tiger API ===
-    config = TigerOpenClientConfig()
-    client = TradeClient(config)
+
     tiger_orders_ref = db.reference("/tiger_orders")
 
     # Initialize counters here, BEFORE the order loop:
@@ -219,6 +220,29 @@ def prune_stale_open_trades():
     # === No Position Flattening: Auto-close if no Tiger positions exist ===
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
+
+        print("📊 Open Positions:")
+        for pos in positions:
+            contract = getattr(pos, "contract", "")
+            quantity = getattr(pos, "quantity", 0)
+            avg_cost = getattr(pos, "average_cost", 0.0)
+            market_price = getattr(pos, "market_price", 0.0)
+            print(f"contract: {contract}, quantity: {quantity}, average_cost: {avg_cost}, market_price: {market_price}")
+
+            contract_str = str(contract)
+            symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
+
+            # Push live position to Firebase
+            contract_str = str(contract)
+            symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
+            live_ref = db.reference("/live_positions")
+            live_ref.child(symbol).set({
+                "quantity": quantity,
+                "average_cost": avg_cost,
+                "market_price": market_price,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
         if len(positions) == 0:
             print("⚠️ No TigerTrade positions detected. Checking open_trades...")
 
