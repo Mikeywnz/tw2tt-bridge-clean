@@ -76,6 +76,7 @@ def write_closed_trade(trade, reason, exit_price):
         "entry_time": trade.get("entry_timestamp"),
         "exit_time": exit_time,
         "trail_triggered": "YES" if trade.get("trail_hit") else "NO"
+        "order_id"
     }
 
     try:

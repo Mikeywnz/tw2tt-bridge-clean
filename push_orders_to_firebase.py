@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import csv
+from pytz import timezone
     
 # === Setup Tiger API ===
 config = TigerOpenClientConfig()
@@ -174,10 +175,10 @@ def push_orders_main():
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
 
-    # Prune stale open trades to keep Firebase clean
+    # === Prune stale /open_trades/ entries not backed by active Tiger orders ===
     prune_stale_open_trades()
 
-    # === Prune stale /open_trades/ entries not backed by active Tiger orders ===
+# === Prune function ===
 def prune_stale_open_trades():
     try:
         open_trades_ref = db.reference("/open_trades/MGC2508")
@@ -187,14 +188,12 @@ def prune_stale_open_trades():
         open_trades_snapshot = open_trades_ref.get() or {}
         tiger_orders_snapshot = tiger_orders_ref.get() or {}
 
-        # Add "EXPIRED" to active statuses here
-        active_order_statuses = {"FILLED", "OPEN", "PARTIALLY_FILLED", "EXPIRED"}
-
+        # Build active order IDs set (status FILLED, OPEN, PARTIALLY_FILLED)
         active_order_ids = set()
         for key, order in tiger_orders_snapshot.items():
             order_id = order.get("order_id")
             status = order.get("status", "").upper()
-            if order_id and status in active_order_statuses:
+            if order_id and status in {"FILLED", "OPEN", "PARTIALLY_FILLED"}:
                 active_order_ids.add(order_id)
 
         deleted_count = 0
@@ -205,9 +204,13 @@ def prune_stale_open_trades():
                 print(f"🧹 Pruning stale open_trade: {trade_id} with order_id {trade_order_id}")
 
                 # Log to Google Sheets before deleting
+                # Inside prune_stale_open_trades(), before deleting the trade:
                 try:
-                    # Build your row dictionary for logging (adjust fields as needed)
+                    now_nz = datetime.now(timezone("Pacific/Auckland"))
+                    day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
+
                     row = {
+                        "day_date": day_date,
                         "symbol": trade_data.get("symbol", ""),
                         "direction": trade_data.get("action", ""),
                         "entry_price": safe_float(trade_data.get("entry_price")),
@@ -215,12 +218,14 @@ def prune_stale_open_trades():
                         "pnl_dollars": 0.0,
                         "reason_for_exit": "pruned_stale_open_trade",
                         "entry_time": trade_data.get("entry_timestamp", ""),
-                        "exit_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S"),
                         "trail_triggered": trade_data.get("trail_hit", False),
                         "order_id": trade_order_id
                     }
+
                     sheet.append_row(list(row.values()))
                     print(f"✅ Logged stale trade to Google Sheets: {trade_id}")
+
                 except Exception as e:
                     print(f"❌ Failed to log stale trade {trade_id} to Google Sheets: {e}")
 
@@ -228,7 +233,7 @@ def prune_stale_open_trades():
                 open_trades_ref.child(trade_id).delete()
                 deleted_count += 1
 
-                # Mark in pruned log
+                # Mark as pruned in pruned_log
                 pruned_log_ref.child(trade_id).set(True)
 
         print(f"✅ Pruned {deleted_count} stale open_trades entries.")
@@ -279,7 +284,10 @@ def prune_stale_open_trades():
 
                 print(f"🛑 Flattening ghost trade: {key}")
                 # Push to Google Sheets (assumes log_to_google_sheets() already exists)
+                now_nz = datetime.now(timezone("Pacific/Auckland"))
+                day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Tuesday 22 July 2025"
                 log_to_google_sheets({
+                    "day_date": day_date,
                     "symbol": trade.get("symbol", ""),
                     "action": trade.get("action", ""),
                     "entry_price": safe_float(trade.get("entry_price")),
@@ -287,8 +295,9 @@ def prune_stale_open_trades():
                     "pnl_dollars": 0.0,
                     "reason_for_exit": "no_position_detected",
                     "entry_time": entry_time,
-                    "exit_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-                    "trail_triggered": trade.get("trail_hit", False)
+                    "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S"),
+                    "trail_triggered": trade.get("trail_hit", False),
+                    "order_id": trade.get("order_id", "")
                 })
 
                 # Remove from Firebase
