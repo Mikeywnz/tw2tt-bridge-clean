@@ -110,8 +110,8 @@ def push_orders_main():
         if not oid:
             print("⚠️ Skipping order with empty or missing ID")
             continue
-        else:
-            tiger_ids.add(oid)
+
+        tiger_ids.add(oid)
 
         status = str(getattr(order, "status", "")).split('.')[-1].upper()
         reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
@@ -279,7 +279,17 @@ def handle_position_flattening():
         #     if symbol not in seen_symbols:
         #         print(f"🧹 Deleting stale /live_positions/{symbol}")
         #         db.reference("/live_positions").child(symbol).delete()
-
+        
+        # Cleanup: remove stale live_positions not in TigerTrade positions
+        try:
+            firebase_snapshot = db.reference("/live_positions").get() or {}
+            seen_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
+            for symbol in firebase_snapshot:
+                if symbol not in seen_symbols:
+                    print(f"🧹 Deleting stale /live_positions/{symbol}")
+                    db.reference("/live_positions").child(symbol).delete()
+        except Exception as e:
+            print(f"❌ Failed to clean stale live_positions: {e}")
     except Exception as e:
         print(f"🔥 ERROR during no-position flattening: {e}")
 
