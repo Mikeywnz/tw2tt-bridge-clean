@@ -173,6 +173,46 @@ def push_orders_main():
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
 
+    # === Prune stale /open_trades/ entries not backed by active Tiger orders ===
+def prune_stale_open_trades():
+    try:
+        open_trades_ref = db.reference("/open_trades/MGC2508")
+        tiger_orders_ref = db.reference("/tiger_orders")
+        pruned_log_ref = db.reference("/pruned_log")
+
+        open_trades_snapshot = open_trades_ref.get() or {}
+        tiger_orders_snapshot = tiger_orders_ref.get() or {}
+
+        # Build set of active order_ids from tiger_orders with status indicating open or filled but not cancelled
+        active_order_ids = set()
+        for key, order in tiger_orders_snapshot.items():
+            order_id = order.get("order_id")
+            status = order.get("status", "").upper()
+            # Consider these statuses as active orders (adjust as needed)
+            if order_id and status in {"FILLED", "OPEN", "PARTIALLY_FILLED"}:
+                active_order_ids.add(order_id)
+
+        deleted_count = 0
+
+        for trade_id, trade_data in open_trades_snapshot.items():
+            trade_order_id = trade_data.get("order_id", "")
+            if trade_order_id not in active_order_ids:
+                print(f"🧹 Pruning stale open_trade: {trade_id} with order_id {trade_order_id}")
+
+                # Delete from open_trades
+                open_trades_ref.child(trade_id).delete()
+                deleted_count += 1
+
+                # Mark in pruned_log
+                pruned_log_ref.child(trade_id).set(True)
+
+                # Optional: log to Google Sheets if desired
+                # Add your Google Sheets logging function call here if available
+
+        print(f"✅ Pruned {deleted_count} stale open_trades entries.")
+    except Exception as e:
+        print(f"❌ Failed to prune stale open_trades: {e}")
+
     # === No Position Flattening: Auto-close if no Tiger positions exist ===
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
