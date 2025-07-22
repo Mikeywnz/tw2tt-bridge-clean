@@ -213,8 +213,6 @@ def handle_position_flattening():
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
 
-        live_ref = db.reference("/live_positions")  # Added this line to fix live_ref undefined
-
         print("📊 Open Positions:")
         for pos in positions:
             contract = getattr(pos, "contract", "")
@@ -227,6 +225,7 @@ def handle_position_flattening():
             symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
 
             # Push live position to Firebase
+            live_ref = db.reference("/live_positions")  # Added this line to fix live_ref undefined
             try:
                 live_ref.child(symbol).set({
                     "quantity": quantity,
