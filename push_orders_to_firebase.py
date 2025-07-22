@@ -224,18 +224,18 @@ def handle_position_flattening():
             contract_str = str(contract)
             symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
 
-            # Push live position to Firebase
-            live_ref = db.reference("/live_positions")  # Added this line to fix live_ref undefined
-            try:
-                live_ref.child(symbol).set({
-                    "quantity": quantity,
-                    "average_cost": avg_cost,
-                    "market_price": market_price,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                print(f"✅ Updated live_positions for {symbol}")
-            except Exception as e:
-                print(f"❌ Failed to update live_positions for {symbol}: {e}")
+        # Push live position to Firebase
+        live_ref = db.reference("/live_positions")  # Added this line to fix live_ref undefined
+        try:
+            live_ref.child(symbol).set({
+                "quantity": quantity,
+                "average_cost": avg_cost,
+                "market_price": market_price,
+                "timestamp": datetime.utcnow().isoformat(),  # <-- COMMA added here
+            })
+            print(f"✅ Updated live_positions for {symbol}")
+        except Exception as e:
+            print(f"❌ Failed to update live_positions for {symbol}: {e}")
 
         if len(positions) == 0:
             print("⚠️ No TigerTrade positions detected. Checking open_trades...")
