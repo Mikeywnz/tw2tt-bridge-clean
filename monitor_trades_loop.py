@@ -75,8 +75,8 @@ def write_closed_trade(trade, reason, exit_price):
         "reason_for_exit": friendly_reason,
         "entry_time": trade.get("entry_timestamp"),
         "exit_time": exit_time,
-        "trail_triggered": "YES" if trade.get("trail_hit") else "NO"
-        "order_id"
+        "trail_triggered": "YES" if trade.get("trail_hit") else "NO",
+        "order_id": trade.get("order_id", "")
     }
 
     try:
@@ -95,7 +95,7 @@ def write_closed_trade(trade, reason, exit_price):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
         gc = gspread.authorize(creds)
-        sheet = gc.open_by_key(SHEET_ID).worksheet("Sheet1")
+        sheet = gc.open_by_key(SHEET_ID).worksheet("journal")
         day_date = now_nz.strftime("%A %d %B %Y")  # e.g., Monday 21 July 2025
         sheet.append_row([
             day_date,

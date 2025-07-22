@@ -175,72 +175,49 @@ def push_orders_main():
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
 
-    # === Prune stale /open_trades/ entries not backed by active Tiger orders ===
-    prune_stale_open_trades()
+# === Prune stale /open_trades/ entries - logging only, no deletion ===
+# prune_stale_open_trades()  # <-- keep this call commented out in main
 
-# === Prune function ===
 def prune_stale_open_trades():
     try:
         open_trades_ref = db.reference("/open_trades/MGC2508")
-        tiger_orders_ref = db.reference("/tiger_orders")
-        pruned_log_ref = db.reference("/pruned_log")
 
         open_trades_snapshot = open_trades_ref.get() or {}
-        tiger_orders_snapshot = tiger_orders_ref.get() or {}
-
-        # Build active order IDs set (status FILLED, OPEN, PARTIALLY_FILLED)
-        active_order_ids = set()
-        for key, order in tiger_orders_snapshot.items():
-            order_id = order.get("order_id")
-            status = order.get("status", "").upper()
-            if order_id and status in {"FILLED", "OPEN", "PARTIALLY_FILLED"}:
-                active_order_ids.add(order_id)
-
-        deleted_count = 0
 
         for trade_id, trade_data in open_trades_snapshot.items():
-            trade_order_id = trade_data.get("order_id", "")
-            if trade_order_id not in active_order_ids:
-                print(f"🧹 Pruning stale open_trade: {trade_id} with order_id {trade_order_id}")
+            # Just log to Google Sheets for auditing, no deletion
+            try:
+                now_nz = datetime.now(timezone("Pacific/Auckland"))
+                day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
 
-                # Log to Google Sheets before deleting
-                # Inside prune_stale_open_trades(), before deleting the trade:
-                try:
-                    now_nz = datetime.now(timezone("Pacific/Auckland"))
-                    day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
+                row = {
+                    "day_date": day_date,
+                    "symbol": trade_data.get("symbol", ""),
+                    "direction": trade_data.get("action", ""),
+                    "entry_price": safe_float(trade_data.get("entry_price")),
+                    "exit_price": 0.0,
+                    "pnl_dollars": 0.0,
+                    "reason_for_exit": "pruned_stale_open_trade (LOG ONLY)",
+                    "entry_time": trade_data.get("entry_timestamp", ""),
+                    "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S"),
+                    "trail_triggered": trade_data.get("trail_hit", False),
+                    "order_id": trade_data.get("order_id", "")
+                }
 
-                    row = {
-                        "day_date": day_date,
-                        "symbol": trade_data.get("symbol", ""),
-                        "direction": trade_data.get("action", ""),
-                        "entry_price": safe_float(trade_data.get("entry_price")),
-                        "exit_price": 0.0,
-                        "pnl_dollars": 0.0,
-                        "reason_for_exit": "pruned_stale_open_trade",
-                        "entry_time": trade_data.get("entry_timestamp", ""),
-                        "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S"),
-                        "trail_triggered": trade_data.get("trail_hit", False),
-                        "order_id": trade_order_id
-                    }
+                sheet.append_row(list(row.values()))
+                print(f"✅ Logged stale trade to Google Sheets: {trade_id}")
 
-                    sheet.append_row(list(row.values()))
-                    print(f"✅ Logged stale trade to Google Sheets: {trade_id}")
+            except Exception as e:
+                print(f"❌ Failed to log stale trade {trade_id} to Google Sheets: {e}")
 
-                except Exception as e:
-                    print(f"❌ Failed to log stale trade {trade_id} to Google Sheets: {e}")
+        print(f"✅ Logged {len(open_trades_snapshot)} open_trades entries to Google Sheets (no deletion).")
 
-                # Delete from Firebase open_trades
-                open_trades_ref.child(trade_id).delete()
-                deleted_count += 1
-
-                # Mark as pruned in pruned_log
-                pruned_log_ref.child(trade_id).set(True)
-
-        print(f"✅ Pruned {deleted_count} stale open_trades entries.")
     except Exception as e:
-        print(f"❌ Failed to prune stale open_trades: {e}")
+        print(f"❌ Failed in prune_stale_open_trades logging: {e}")
 
-    # === No Position Flattening: Auto-close if no Tiger positions exist ===
+   
+# === Flattening function ===  # === No Position Flattening: Auto-close if no Tiger positions exist ===
+def handle_position_flattening():
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
 
@@ -256,8 +233,6 @@ def prune_stale_open_trades():
             symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
 
             # Push live position to Firebase
-            contract_str = str(contract)
-            symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
             live_ref = db.reference("/live_positions")
             live_ref.child(symbol).set({
                 "quantity": quantity,
@@ -272,20 +247,17 @@ def prune_stale_open_trades():
             open_trades_ref = db.reference("/open_trades")
             trades = open_trades_ref.get() or {}
 
-            now = datetime.utcnow()
+            now_nz = datetime.now(timezone("Pacific/Auckland"))
             for key, trade in trades.items():
-                # Skip if already closed or missing fields
                 if not isinstance(trade, dict):
                     continue
-
                 entry_time = trade.get("entry_timestamp")
                 if not entry_time:
                     continue
 
                 print(f"🛑 Flattening ghost trade: {key}")
-                # Push to Google Sheets (assumes log_to_google_sheets() already exists)
-                now_nz = datetime.now(timezone("Pacific/Auckland"))
-                day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Tuesday 22 July 2025"
+                # Push to Google Sheets
+                day_date = now_nz.strftime("%A %d %B %Y")
                 log_to_google_sheets({
                     "day_date": day_date,
                     "symbol": trade.get("symbol", ""),
@@ -304,13 +276,13 @@ def prune_stale_open_trades():
                 open_trades_ref.child(key).delete()
                 print(f"✅ Removed ghost trade: {key}")
 
-        # Cleanup: remove any stale symbols no longer in Tiger positions
-        firebase_snapshot = db.reference("/live_positions").get() or {}
-        seen_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
-        for symbol in firebase_snapshot:
-            if symbol not in seen_symbols:
-                print(f"🧹 Deleting stale /live_positions/{symbol}")
-                db.reference("/live_positions").child(symbol).delete()
+        # Optional: clean stale live_positions if needed (comment if unsure)
+        # firebase_snapshot = db.reference("/live_positions").get() or {}
+        # seen_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
+        # for symbol in firebase_snapshot:
+        #     if symbol not in seen_symbols:
+        #         print(f"🧹 Deleting stale /live_positions/{symbol}")
+        #         db.reference("/live_positions").child(symbol).delete()
 
     except Exception as e:
         print(f"🔥 ERROR during no-position flattening: {e}")
@@ -318,3 +290,4 @@ def prune_stale_open_trades():
 # === SAFE ENTRY POINT ===
 if __name__ == "__main__":
     push_orders_main()
+    handle_position_flattening()
