@@ -10,6 +10,20 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import csv
 from pytz import timezone
+import requests
+FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+# === Load Trailing Take Profit Settings from Firebase ===
+def load_trailing_tp_settings():
+    try:
+        fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
+        res = requests.get(fb_url)
+        cfg = res.json() if res.ok else {}
+        if cfg.get("enabled", False):
+            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
+    except Exception as e:
+        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
+    return 14.0, 5.0
     
 # === Setup Tiger API ===
 config = TigerOpenClientConfig()
@@ -155,9 +169,37 @@ def push_orders_main():
             "exit_reason": friendly_reason
         }
 
+        price = getattr(order, "avg_fill_price", 0.0)
+        action = str(getattr(order, 'action', '')).upper()
+        entry_timestamp = getattr(order, "order_time", None)
+        trigger_points, offset_points = load_trailing_tp_settings()
+
         try:
             tiger_orders_ref.child(oid).set(payload)
             print(f"✅ Pushed to Firebase: {oid}")
+
+            endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
+            resp = requests.get(endpoint)
+            existing = resp.json() or {}
+            trade_id = payload.get("trade_id")  # use trade_id from payload to avoid undefined 't'
+
+            new_trade = {
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "entry_price": price,
+                "action": action,
+                "contracts_remaining": 1,
+                "trail_trigger": trigger_points,
+                "trail_offset": offset_points,
+                "trail_hit": False,
+                "trail_peak": price,
+                "filled": True,
+                "entry_timestamp": entry_timestamp
+            }
+
+            existing[trade_id] = new_trade  # Use dict key, not list append
+            put = requests.put(endpoint, json=existing)
+
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")
 
