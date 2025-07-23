@@ -53,7 +53,18 @@ async def webhook(request: Request):
         symbol = data.get("symbol")
         symbol = symbol.split("@")[0] if symbol else "UNKNOWN"
         try:
-            price = float(data.get("price"))
+            # === PATCH: Allow "MARKET" or "MKT" fallback price from file ===
+            raw_price = data.get("price", "")
+            if str(raw_price).upper() in ["MARKET", "MKT"]:
+                try:
+                    with open(PRICE_FILE, "r") as f:
+                        prices = json.load(f)
+                    price = float(prices.get(data.get("symbol", ""), 0.0))
+                except Exception as e:
+                    log_to_file(f"Price file fallback error: {e}")
+                    price = 0.0
+            else:
+                price = float(raw_price)
         except (ValueError, TypeError):
             log_to_file("❌ Invalid price value received")
             return {"status": "error", "reason": "invalid price"}
