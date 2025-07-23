@@ -143,7 +143,7 @@ def load_open_trades(symbol):
         print(f"❌ Failed to fetch open trades: {e}")
         return []
 
-def save_open_trades(trades):
+def save_open_trades(symbol, trades):
     try:
         for t in trades:
             trade_id = t.get("trade_id")
@@ -292,8 +292,10 @@ def monitor_trades():
         updated_trades.append(trade)
 
     save_open_trades(symbol, updated_trades)
-    delete_trade_from_firebase(symbol, trade_id)
-
+def delete_trade_from_firebase(symbol, trade_id):
+    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
+    requests.delete(firebase_url)
+    
 if __name__ == '__main__':
     while True:
         try:
