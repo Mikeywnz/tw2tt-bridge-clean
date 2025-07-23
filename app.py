@@ -8,14 +8,7 @@ import random
 import string
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-
 from execute_trade_live import place_trade  # ✅ NEW: Import the function directly
-
-def generate_trade_id(symbol: str, side: str, qty: int) -> str:
-    now = datetime.now(pytz.timezone("Pacific/Auckland"))
-    timestamp = now.strftime("%Y%m%d_%H%M%S")
-    suffix = ''.join(random.choices(string.ascii_lowercase, k=2))
-    return f"{symbol.lower()}_{timestamp}_{side.lower()}_{qty}_{suffix}"
 
 app = FastAPI()
 
@@ -29,11 +22,20 @@ def log_to_file(message: str):
     with open(LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
 
+    # ✅ GOOGLE SHEETS: Get OPEN Trades Journal Sheet ** NO LONGER USING THIS _ BUT LEAVING IN FOR NOW ***
 def get_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_credentials.json", scope)
     client = gspread.authorize(creds)
     sheet = client.open("Trade Log").worksheet("Open Trades")
+    return sheet
+
+    # ✅ GOOGLE SHEETS: Get Closed Trades Journal Sheet
+def get_closed_trades_sheet():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_credentials.json", scope)
+    client = gspread.authorize(creds)
+    sheet = client.open("Closed Trades Journal").sheet1  # Update sheet1 if needed
     return sheet
 
 @app.post("/webhook")
@@ -77,9 +79,21 @@ async def webhook(request: Request):
         action = data["action"]
         quantity = int(data.get("quantity", 1))
 
-        trade_id = generate_trade_id(symbol, action, quantity)
+        # ✅ FETCH Tiger Order ID + Timestamp from Execution
         entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
         log_to_file("[🧩] Entered trade execution block")
+
+        try:
+            result = place_trade(symbol, action, quantity)
+            if isinstance(result, dict) and result.get("status") == "SUCCESS":
+                trade_id = result.get("order_id")
+                log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
+            else:
+                log_to_file(f"[❌] Trade result: {result}")
+                return {"status": "error", "message": f"Trade result: {result}"}, 555
+        except Exception as e:
+            log_to_file(f"[🔥] Trade execution error: {e}")
+            return {"status": "error", "message": "Trade execution failed"}, 555
 
         # ✅ REPLACEMENT FOR subprocess
         try:
@@ -123,11 +137,20 @@ async def webhook(request: Request):
         if "rejected" in str(result).lower():
             log_to_file("⚠️ Trade rejected — logging ghost entry.")
             try:
-                sheet = get_google_sheet()
+                day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
+                
                 sheet.append_row([
-                    trade_id, symbol, "REJECTED", action, 0,
-                    trigger_points, offset_points,
-                    False, "ghost_trade", entry_timestamp
+                    day_date,
+                    symbol,
+                    "REJECTED",     # direction
+                    0.0,            # entry_price
+                    0.0,            # exit_price
+                    0.0,            # pnl_dollars
+                    "ghost_trade",  # reason_for_exit
+                    entry_timestamp,
+                    "",             # exit_time
+                    False,          # trail_triggered
+                    trade_id        # Tiger Order ID (even if it failed)
                 ])
                 log_to_file("Ghost trade logged to Sheets.")
             except Exception as e:
@@ -136,20 +159,27 @@ async def webhook(request: Request):
 
         for _ in range(quantity):
             try:
-                sheet = get_google_sheet()
+                day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
+
                 sheet.append_row([
-                    trade_id, symbol, price, action, 1,
-                    trigger_points, offset_points,
-                    True, "false", entry_timestamp
+                    day_date,
+                    symbol,
+                    action,
+                    price,           # entry_price
+                    0.0,             # exit_price (not filled yet)
+                    0.0,             # pnl_dollars
+                    "entry",         # reason_for_exit
+                    entry_timestamp, # entry_time
+                    "",              # exit_time
+                    False,           # trail_triggered
+                    trade_id         # Tiger order_id
                 ])
                 log_to_file(f"Logged to Google Sheets: {trade_id}")
             except Exception as e:
                 log_to_file(f"❌ Sheets log failed: {e}")
 
+        # ✅ PUSH trade to Firebase under /open_trades/{symbol}/{order_id}
         try:
-            endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
-            resp = requests.get(endpoint)
-            existing = resp.json() or []
             new_trade = {
                 "trade_id": trade_id,
                 "symbol": symbol,
@@ -163,10 +193,11 @@ async def webhook(request: Request):
                 "filled": True,
                 "entry_timestamp": entry_timestamp
             }
-            existing.append(new_trade)
-            put = requests.put(endpoint, json=existing)
+
+            endpoint = f"{FIREBASE_URL}/open_trades/{symbol}/{trade_id}.json"
+            put = requests.put(endpoint, json=new_trade)
             if put.status_code == 200:
-                log_to_file("Firebase open_trades updated.")
+                log_to_file(f"✅ Firebase open_trades updated at key: {trade_id}")
             else:
                 log_to_file(f"❌ Firebase update failed: {put.text}")
         except Exception as e:

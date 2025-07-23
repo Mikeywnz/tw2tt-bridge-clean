@@ -1,3 +1,4 @@
+#=========================  PUSH_ORDERS_TO_FIREBASE - PART 1  ================================
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType, OrderStatus  # ✅ correct on Render!
@@ -11,6 +12,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import csv
 from pytz import timezone
 import requests
+import json
+
 FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # === Load Trailing Take Profit Settings from Firebase ===
@@ -80,10 +83,14 @@ def get_exit_reason(status, reason, filled):
         return "liquidation"
     return status
 
+#=====  END OF PART 1 =====
+
+#=========================  PUSH_ORDERS_TO_FIREBASE - PART 2  ================================
+
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
 
-    tiger_orders_ref = db.reference("/tiger_orders")
+    tiger_orders_ref = db.reference("/tiger_orders_log")
 
     # Initialize counters here, BEFORE the order loop:
     filled_count = 0
@@ -120,85 +127,96 @@ def push_orders_main():
 
     tiger_ids = set()
     for order in orders:
-        oid = str(getattr(order, 'id', '')).strip()
-        if not oid:
-            print("⚠️ Skipping order with empty or missing ID")
-            continue
-
-        tiger_ids.add(oid)
-
-        status = str(getattr(order, "status", "")).split('.')[-1].upper()
-        reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
-        filled = getattr(order, "filled", 0)
-        exit_reason_raw = get_exit_reason(status, reason, filled)
-
-        # Normalize timestamp
-        raw_ts = getattr(order, 'order_time', 0)
         try:
-            ts_int = int(raw_ts)
-            if ts_int > 1e12:
-                ts_int //= 1000
-            iso_ts = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
-        except Exception:
-            iso_ts = None
+            oid = str(getattr(order, 'id', '')).strip()
+            if not oid:
+                print("⚠️ Skipping order with empty or missing ID")
+                continue
 
-        # Detect ghost
-        ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-        is_ghost = filled == 0 and status in ghost_statuses
+            tiger_ids.add(oid)
 
-        # Map friendly reason
-        friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
+            # Extract order info
+            status = str(getattr(order, "status", "")).split('.')[-1].upper()
+            reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
+            filled = getattr(order, "filled", 0)
+            exit_reason_raw = get_exit_reason(status, reason, filled)
 
-        raw_contract = str(getattr(order, 'contract', ''))
-        symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
+            # Normalize timestamp
+            raw_ts = getattr(order, 'order_time', 0)
+            try:
+                ts_int = int(raw_ts)
+                if ts_int > 1e12:
+                    ts_int //= 1000
+                iso_ts = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
+            except Exception:
+                iso_ts = None
 
-        payload = {
-            "order_id": oid,
-            "symbol": symbol,
-            "action": str(getattr(order, 'action', '')).upper(),
-            "quantity": getattr(order, 'quantity', 0),
-            "filled": filled,
-            "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),
-            "status": status,
-            "reason": friendly_reason,
-            "liquidation": getattr(order, 'liquidation', False),
-            "timestamp": iso_ts,
-            "source": map_source(getattr(order, 'source', None)),
-            "is_open": getattr(order, 'is_open', False),
-            "is_ghost": is_ghost,
-            "exit_reason": friendly_reason
-        }
+            # Detect ghost
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+            is_ghost = filled == 0 and status in ghost_statuses
 
-        price = getattr(order, "avg_fill_price", 0.0)
-        action = str(getattr(order, 'action', '')).upper()
-        entry_timestamp = getattr(order, "order_time", None)
-        trigger_points, offset_points = load_trailing_tp_settings()
+            # Map friendly reason
+            friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
 
-        try:
-            tiger_orders_ref.child(oid).set(payload)
-            print(f"✅ Pushed to Firebase: {oid}")
+            # Parse symbol
+            raw_contract = str(getattr(order, 'contract', ''))
+            symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
 
-            endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
-            resp = requests.get(endpoint)
-            existing = resp.json() or {}
-            trade_id = payload.get("trade_id")  # use trade_id from payload to avoid undefined 't'
-
-            new_trade = {
-                "trade_id": trade_id,
+            # Construct payload
+            payload = {
+                "order_id": oid,
                 "symbol": symbol,
-                "entry_price": price,
-                "action": action,
-                "contracts_remaining": 1,
-                "trail_trigger": trigger_points,
-                "trail_offset": offset_points,
-                "trail_hit": False,
-                "trail_peak": price,
-                "filled": True,
-                "entry_timestamp": entry_timestamp
+                "action": str(getattr(order, 'action', '')).upper(),
+                "quantity": getattr(order, 'quantity', 0),
+                "filled": filled,
+                "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),
+                "status": status,
+                "reason": friendly_reason,
+                "liquidation": getattr(order, 'liquidation', False),
+                "timestamp": iso_ts,
+                "source": map_source(getattr(order, 'source', None)),
+                "is_open": getattr(order, 'is_open', False),
+                "is_ghost": is_ghost,
+                "exit_reason": friendly_reason
             }
 
-            existing[trade_id] = new_trade  # Use dict key, not list append
-            put = requests.put(endpoint, json=existing)
+            # ✅ Always push raw Tiger order into tiger_orders_log
+            tiger_orders_ref.child(oid).set(payload)
+            print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
+
+            # === Only push to /open_trades/ if still open ===
+            if payload.get("is_open", False) and payload.get("status") == "FILLED" and payload.get("filled", 0) > 0:
+                price = payload["avg_fill_price"]
+                action = payload["action"]
+                entry_timestamp = getattr(order, "order_time", None)
+                trigger_points, offset_points = load_trailing_tp_settings()
+
+                endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
+                resp = requests.get(endpoint)
+                existing = resp.json() or {}
+                trade_id = oid
+
+                new_trade = {
+                    "trade_id": trade_id,
+                    "symbol": symbol,
+                    "entry_price": price,
+                    "action": action,
+                    "contracts_remaining": 1,
+                    "trail_trigger": trigger_points,
+                    "trail_offset": offset_points,
+                    "trail_hit": False,
+                    "trail_peak": price,
+                    "filled": True,
+                    "entry_timestamp": entry_timestamp
+                }
+
+                existing[trade_id] = new_trade
+                put = requests.put(endpoint, json=existing)
+
+                if put.status_code == 200:
+                    print(f"✅ /open_trades/{symbol}/{trade_id} successfully updated")
+                else:
+                    print(f"❌ Failed to update /open_trades/{symbol}/{trade_id}: {put.text}")
 
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")
@@ -208,6 +226,10 @@ def push_orders_main():
     print(f"❌ CANCELLED: {cancelled_count}")
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
+
+#=====  END OF PART 2 =====
+
+#=========================  PUSH_ORDERS_TO_FIREBASE - PART 3  ================================
 
 # === Prune stale /open_trades/ entries - logging only, no deletion ===
 # prune_stale_open_trades()  # <-- keep this call commented out in main
@@ -249,7 +271,10 @@ def prune_stale_open_trades():
     except Exception as e:
         print(f"❌ Failed in prune_stale_open_trades logging: {e}")
 
-   
+#=====  END OF PART 3 =====
+
+#=========================  PUSH_ORDERS_TO_FIREBASE - PART 4 (FINAL PART)  ================================
+ 
 # === Flattening function ===  # === No Position Flattening: Auto-close if no Tiger positions exist ===
 def handle_position_flattening():
     try:
@@ -340,3 +365,5 @@ def handle_position_flattening():
 if __name__ == "__main__":
     push_orders_main()
     handle_position_flattening()
+
+#=====  END OF PART 4 (END OF SCRIPT) =====

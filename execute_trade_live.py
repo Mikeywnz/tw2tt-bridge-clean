@@ -83,10 +83,13 @@ def place_trade(symbol, action, quantity):
 
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         if is_filled:
+            order_id = getattr(response, "order_id", None)
             print(f"✅ Trade confirmed filled at approx. ${live_price} 🕒 timestamp {timestamp}", flush=True)
-            print("SUCCESS", flush=True)
-            print("=== DEBUG: SUCCESS line printed and flushed ===", flush=True)
-            return "SUCCESS"
+            print(f"✅ Tiger Order ID: {order_id}", flush=True)
+            return {
+                "status": "SUCCESS",
+                "order_id": order_id
+            }
         else:
             print("⚠️ Order not filled – no further logging will occur.")
             return "NOT_FILLED"
