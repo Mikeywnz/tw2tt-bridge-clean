@@ -91,6 +91,7 @@ def get_exit_reason(status, reason, filled):
 def push_orders_main():
 
     tiger_orders_ref = db.reference("/tiger_orders_log")
+    open_trades_ref = db.reference("open_active_trades")
 
     # Initialize counters here, BEFORE the order loop:
     filled_count = 0
@@ -182,6 +183,37 @@ def push_orders_main():
 
             # ✅ Always push raw Tiger order into tiger_orders_log
             tiger_orders_ref.child(oid).set(payload)
+            # === STEP 2 FIFI EXIT MATCHING LOGIC: If this is a closing trade, match it to an open trade ===
+            action = payload.get("action")
+            symbol = payload.get("symbol")
+            order_time = payload.get("order_time")
+            opposite_action = "SELL" if action == "BUY" else "BUY"
+
+            # Get current open trades for this symbol
+            open_trades = open_trades_ref.child(symbol).get() or {}
+
+            # Find the oldest opposite trade (FIFO-style)
+            matched_trade_id = None
+            for tid, trade in sorted(open_trades.items(), key=lambda item: item[1].get("entry_timestamp", 0)):
+                if trade.get("action") == opposite_action and trade.get("trade_state", "open") == "open":
+                    matched_trade_id = tid
+                    break
+
+            # If we found a match, mark it as closed and remove it
+            if matched_trade_id:
+                print(f"🟡 Matched closing trade: {action} {symbol} → closes {opposite_action} {matched_trade_id}")
+
+                # Mark it as closed in Firebase
+                open_trades_ref.child(symbol).child(matched_trade_id).update({
+                    "trade_state": "closed",
+                    "exit_reason": "FIFO Close",
+                    "exit_time": order_time
+                })
+
+                # Remove from /open_trades/
+                open_trades_ref.child(symbol).child(matched_trade_id).delete()
+                print(f"✅ Removed from /open_trades/: {symbol}/{matched_trade_id}")
+         
             print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
             # === Only push to /open_trades/ if still open ===
@@ -207,7 +239,9 @@ def push_orders_main():
                     "trail_hit": False,
                     "trail_peak": price,
                     "filled": True,
-                    "entry_timestamp": entry_timestamp
+                    "entry_timestamp": entry_timestamp,
+                    "exit_reason": "",
+                    "trade_state": "open"
                 }
 
                 existing[trade_id] = new_trade
@@ -228,142 +262,102 @@ def push_orders_main():
     print(f"🟡 UNKNOWN: {unknown_count}")
 
 #=====  END OF PART 2 =====
-
-#=========================  PUSH_ORDERS_TO_FIREBASE - PART 3  ================================
-
-# === Prune stale /open_trades/ entries - logging only, no deletion ===
-# prune_stale_open_trades()  # <-- keep this call commented out in main
-
-def prune_stale_open_trades():
-    try:
-        open_trades_ref = db.reference("/open_trades/MGC2508")
-
-        open_trades_snapshot = open_trades_ref.get() or {}
-
-        for trade_id, trade_data in open_trades_snapshot.items():
-            # Just log to Google Sheets for auditing, no deletion
-            try:
-                now_nz = datetime.now(timezone("Pacific/Auckland"))
-                day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
-
-                row = {
-                    "day_date": day_date,
-                    "symbol": trade_data.get("symbol", ""),
-                    "direction": trade_data.get("action", ""),
-                    "entry_price": safe_float(trade_data.get("entry_price")),
-                    "exit_price": 0.0,
-                    "pnl_dollars": 0.0,
-                    "reason_for_exit": "pruned_stale_open_trade (LOG ONLY)",
-                    "entry_time": trade_data.get("entry_timestamp", ""),
-                    "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S"),
-                    "trail_triggered": trade_data.get("trail_hit", False),
-                    "order_id": trade_data.get("order_id", "")
-                }
-
-                sheet.append_row(list(row.values()))
-                print(f"✅ Logged stale trade to Google Sheets: {trade_id}")
-
-            except Exception as e:
-                print(f"❌ Failed to log stale trade {trade_id} to Google Sheets: {e}")
-
-        print(f"✅ Logged {len(open_trades_snapshot)} open_trades entries to Google Sheets (no deletion).")
-
-    except Exception as e:
-        print(f"❌ Failed in prune_stale_open_trades logging: {e}")
-
-#=====  END OF PART 3 =====
-
-#=========================  PUSH_ORDERS_TO_FIREBASE - PART 4 (FINAL PART)  ================================
  
-# === Flattening function ===  # === No Position Flattening: Auto-close if no Tiger positions exist ===
+#=========================  PUSH_ORDERS_TO_FIREBASE - PART 3 (FINAL PART)  ================================
+
 def handle_position_flattening():
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-        live_ref = db.reference("/live_positions")  # Added this line to fix live_ref undefined
+        live_ref = db.reference("/live_positions")
+        open_trades_ref = db.reference("/open_active_trades")
 
+        # ✅ Push live Tiger positions into Firebase
         print("📊 Open Positions:")
         for pos in positions:
-            contract = getattr(pos, "contract", "")
+            contract = str(getattr(pos, "contract", ""))
             quantity = getattr(pos, "quantity", 0)
             avg_cost = getattr(pos, "average_cost", 0.0)
             market_price = getattr(pos, "market_price", 0.0)
+
             print(f"contract: {contract}, quantity: {quantity}, average_cost: {avg_cost}, market_price: {market_price}")
+            symbol = contract.split("/")[0] if "/" in contract else contract
 
-            contract_str = str(contract)
-            symbol = contract_str.split("/")[0] if "/" in contract_str else contract_str
-
-            # Push live position to Firebase
-            
             try:
                 live_ref.child(symbol).set({
                     "quantity": quantity,
                     "average_cost": avg_cost,
                     "market_price": market_price,
-                    "timestamp": datetime.utcnow().isoformat(),  # <-- COMMA added here
+                    "timestamp": datetime.utcnow().isoformat()
                 })
                 print(f"✅ Updated live_positions for {symbol}")
             except Exception as e:
                 print(f"❌ Failed to update live_positions for {symbol}: {e}")
 
-        if len(positions) == 0:
-            print("⚠️ No TigerTrade positions detected. Checking open_trades...")
+        # ✅ Check for open trades that are no longer matched by Tiger positions
+        tiger_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
+        all_open_trades = open_trades_ref.get() or {}
 
-            open_trades_ref = db.reference("/open_trades")
-            trades = open_trades_ref.get() or {}
+        for symbol, trades_by_id in all_open_trades.items():
+            if symbol in tiger_symbols:
+                continue  # Tiger still shows this position — skip
 
-            now_nz = datetime.now(timezone("Pacific/Auckland"))
-            for key, trade in trades.items():
+            for trade_id, trade in trades_by_id.items():
                 if not isinstance(trade, dict):
                     continue
-                entry_time = trade.get("entry_timestamp")
-                if not entry_time:
-                    continue
 
-                print(f"🛑 Flattening ghost trade: {key}")
-                # Push to Google Sheets
+                now_nz = datetime.now(timezone("Pacific/Auckland"))
+                print(f"🛑 Flattening manually closed trade: {symbol} / {trade_id}")
+
                 day_date = now_nz.strftime("%A %d %B %Y")
-                log_to_google_sheets({
-                    "day_date": day_date,
-                    "symbol": trade.get("symbol", ""),
-                    "action": trade.get("action", ""),
-                    "entry_price": safe_float(trade.get("entry_price")),
-                    "exit_price": 0.0,
-                    "pnl_dollars": 0.0,
-                    "reason_for_exit": "no_position_detected",
-                    "entry_time": entry_time,
-                    "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S"),
-                    "trail_triggered": trade.get("trail_hit", False),
-                    "order_id": trade.get("order_id", "")
+                exit_time_str = now_nz.strftime("%Y-%m-%d %H:%M:%S")
+
+                exit_price = 0.0  # Optional placeholder for now
+                pnl_dollars = 0.0
+                exit_reason = "manual_flattened"
+                exit_order_id = "MANUAL"
+                fifo_close = False
+
+                # ✅ Log to Google Sheets
+                sheet.append_row([
+                    day_date,
+                    trade.get("symbol", ""),
+                    "closed",                            # NEW: status field
+                    trade.get("action", ""),
+                    safe_float(trade.get("entry_price")),
+                    exit_price,                          # From Tiger or 0.0 if unknown
+                    pnl_dollars,                         # Optional: placeholder 0.0 for now
+                    exit_reason,                         # e.g. "trailing_tp", "manual_flattened"
+                    trade.get("entry_timestamp", ""),
+                    exit_time_str,                       # e.g. datetime string
+                    trade.get("trail_hit", False),
+                    trade.get("trade_id", ""),
+                    exit_order_id,                       # Real ID or "MANUAL"
+                    fifo_close                           # True or False
+                ])
+
+                # ✅ Mark trade as closed instead of deleting
+                open_trades_ref.child(symbol).child(trade_id).update({
+                    "trade_state": "closed",
+                    "exit_reason": "manual_flattened",
+                    "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S")
                 })
 
-                # Remove from Firebase
-                open_trades_ref.child(key).delete()
-                print(f"✅ Removed ghost trade: {key}")
-
-        # Optional: clean stale live_positions if needed (comment if unsure)
-        # firebase_snapshot = db.reference("/live_positions").get() or {}
-        # seen_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
-        # for symbol in firebase_snapshot:
-        #     if symbol not in seen_symbols:
-        #         print(f"🧹 Deleting stale /live_positions/{symbol}")
-        #         db.reference("/live_positions").child(symbol).delete()
-
-        # Cleanup: remove stale live_positions not in TigerTrade positions
+        # ✅ Cleanup: remove stale live_positions not seen in Tiger positions
         try:
-            firebase_snapshot = db.reference("/live_positions").get() or {}
-            seen_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
+            firebase_snapshot = live_ref.get() or {}
             for symbol in firebase_snapshot:
-                if symbol not in seen_symbols:
+                if symbol not in tiger_symbols:
                     print(f"🧹 Deleting stale /live_positions/{symbol}")
-                    db.reference("/live_positions").child(symbol).delete()
+                    live_ref.child(symbol).delete()
         except Exception as e:
             print(f"❌ Failed to clean stale live_positions: {e}")
+
     except Exception as e:
-        print(f"🔥 ERROR during no-position flattening: {e}")
+        print(f"🔥 ERROR during manual flattening check: {e}")
 
 # === SAFE ENTRY POINT ===
 if __name__ == "__main__":
     push_orders_main()
     handle_position_flattening()
 
-#=====  END OF PART 4 (END OF SCRIPT) =====
+#=====  END OF PART 3 (END OF SCRIPT) =====

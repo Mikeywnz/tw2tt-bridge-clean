@@ -1,3 +1,4 @@
+#=========================  APP.PY - PART 1  ================================
 from fastapi import FastAPI, Request
 import json
 from datetime import datetime
@@ -79,6 +80,10 @@ async def webhook(request: Request):
         action = data["action"]
         quantity = int(data.get("quantity", 1))
 
+        #=====  END OF PART 1 =====
+
+ #=========================  APP.PY - PART 2 (FINAL PART) ================================       
+
         # ✅ FETCH Tiger Order ID + Timestamp from Execution
         entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
         log_to_file("[🧩] Entered trade execution block")
@@ -96,16 +101,16 @@ async def webhook(request: Request):
             return {"status": "error", "message": "Trade execution failed"}, 555
 
         # ✅ REPLACEMENT FOR subprocess
-        try:
-            result = place_trade(symbol, action, quantity)
-            if result == "SUCCESS":
-                log_to_file("[✅] Trade confirmed — logging to Firebase and Sheets.")
-            else:
-                log_to_file(f"[❌] Trade returned unexpected result: {result}")
-                return {"status": "error", "message": f"Trade result: {result}"}, 555
-        except Exception as e:
-            log_to_file(f"[🔥] Trade execution error: {e}")
-            return {"status": "error", "message": f"Trade execution failed"}, 555
+ #       try:
+  #          result = place_trade(symbol, action, quantity)
+   #         if result == "SUCCESS":
+    #            log_to_file("[✅] Trade confirmed — logging to Firebase and Sheets.")
+     #       else:
+      #          log_to_file(f"[❌] Trade returned unexpected result: {result}")
+       #         return {"status": "error", "message": f"Trade result: {result}"}, 555
+        #except Exception as e:
+         #   log_to_file(f"[🔥] Trade execution error: {e}")
+          #  return {"status": "error", "message": f"Trade execution failed"}, 555
 
         try:
             fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
@@ -138,7 +143,7 @@ async def webhook(request: Request):
             log_to_file("⚠️ Trade rejected — logging ghost entry.")
             try:
                 day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
-                
+
                 sheet.append_row([
                     day_date,
                     symbol,
@@ -164,6 +169,7 @@ async def webhook(request: Request):
                 sheet.append_row([
                     day_date,
                     symbol,
+                    "open",          # ✅ NEW COLUMN: status
                     action,
                     price,           # entry_price
                     0.0,             # exit_price (not filled yet)
@@ -172,8 +178,9 @@ async def webhook(request: Request):
                     entry_timestamp, # entry_time
                     "",              # exit_time
                     False,           # trail_triggered
-                    trade_id         # Tiger order_id
+                    trade_id         # Tiger order_id         
                 ])
+
                 log_to_file(f"Logged to Google Sheets: {trade_id}")
             except Exception as e:
                 log_to_file(f"❌ Sheets log failed: {e}")
@@ -191,7 +198,8 @@ async def webhook(request: Request):
                 "trail_hit": False,
                 "trail_peak": price,
                 "filled": True,
-                "entry_timestamp": entry_timestamp
+                "entry_timestamp": entry_timestamp,
+                "status": "open"  
             }
 
             endpoint = f"{FIREBASE_URL}/open_trades/{symbol}/{trade_id}.json"
@@ -224,3 +232,5 @@ async def webhook(request: Request):
             log_to_file(f"❌ trade_log.json failed: {e}")
 
     return {"status": "ok"}
+
+    #=====  END OF PART 2 (END OF SCRIPT) =====
