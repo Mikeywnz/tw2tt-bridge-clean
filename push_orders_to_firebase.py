@@ -182,7 +182,7 @@ def push_orders_main():
                 "status": status,
                 "reason": friendly_reason,
                 "liquidation": getattr(order, 'liquidation', False),
-                "timestamp": iso_ts,
+                "timestamp": exit_time_iso,
                 "source": map_source(getattr(order, 'source', None)),
                 "is_open": getattr(order, 'is_open', False),
                 "is_ghost": is_ghost,
