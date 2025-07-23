@@ -65,8 +65,8 @@ async def webhook(request: Request):
         prices[symbol] = price
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
-        nz_time = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
-        payload = {"price": price, "updated_at": nz_time}
+        utc_time = datetime.utcnow().isoformat() + "Z"
+        payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
         try:
             requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(payload))
@@ -85,7 +85,7 @@ async def webhook(request: Request):
  #=========================  APP.PY - PART 2 (FINAL PART) ================================       
 
         # ✅ FETCH Tiger Order ID + Timestamp from Execution
-        entry_timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
+        entry_timestamp = datetime.utcnow().isoformat() + "Z"
         log_to_file("[🧩] Entered trade execution block")
 
         try:
@@ -111,6 +111,9 @@ async def webhook(request: Request):
         #except Exception as e:
          #   log_to_file(f"[🔥] Trade execution error: {e}")
           #  return {"status": "error", "message": f"Trade execution failed"}, 555
+
+        # 🕒 Entry timestamp in UTC
+        entry_timestamp = datetime.utcnow().isoformat() + "Z"
 
         try:
             fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
@@ -175,7 +178,7 @@ async def webhook(request: Request):
                     0.0,             # exit_price (not filled yet)
                     0.0,             # pnl_dollars
                     "entry",         # reason_for_exit
-                    entry_timestamp, # entry_time
+                    entry_timestamp, # entry_time (UTC)
                     "",              # exit_time
                     False,           # trail_triggered
                     trade_id         # Tiger order_id         
@@ -198,7 +201,7 @@ async def webhook(request: Request):
                 "trail_hit": False,
                 "trail_peak": price,
                 "filled": True,
-                "entry_timestamp": entry_timestamp,
+                "entry_timestamp": entry_timestamp,  # UTC
                 "status": "open"  
             }
 
@@ -213,7 +216,7 @@ async def webhook(request: Request):
 
         try:
             entry = {
-                "timestamp": entry_timestamp,
+                "timestamp": entry_timestamp,  # UTC
                 "trade_id": trade_id,
                 "symbol": symbol,
                 "action": action,

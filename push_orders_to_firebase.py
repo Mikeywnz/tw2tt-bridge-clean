@@ -87,6 +87,13 @@ def get_exit_reason(status, reason, filled):
 
 #=========================  PUSH_ORDERS_TO_FIREBASE - PART 2  ================================
 
+# === Helper: Safe int cast for sorting entry_timestamps ===
+def safe_int(value):
+    try:
+        return int(value)
+    except:
+        return 0
+
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
 
@@ -142,15 +149,16 @@ def push_orders_main():
             filled = getattr(order, "filled", 0)
             exit_reason_raw = get_exit_reason(status, reason, filled)
 
-            # Normalize timestamp
+            # === Normalize TigerTrade timestamp (raw ms → ISO UTC) ===
             raw_ts = getattr(order, 'order_time', 0)
             try:
-                ts_int = int(raw_ts)
-                if ts_int > 1e12:
-                    ts_int //= 1000
-                iso_ts = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
-            except Exception:
-                iso_ts = None
+                ts_dt = datetime.utcfromtimestamp(raw_ts / 1000.0)
+                exit_time_str = ts_dt.strftime("%Y-%m-%d %H:%M:%S")  # For Google Sheets
+                exit_time_iso = ts_dt.isoformat() + "Z"              # For Firebase
+            except Exception as e:
+                print(f"⚠️ Failed to parse Tiger order_time: {raw_ts} → {e}")
+                exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                exit_time_iso = datetime.utcnow().isoformat() + "Z"
 
             # Detect ghost
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
@@ -194,7 +202,7 @@ def push_orders_main():
 
             # Find the oldest opposite trade (FIFO-style)
             matched_trade_id = None
-            for tid, trade in sorted(open_trades.items(), key=lambda item: item[1].get("entry_timestamp", 0)):
+            for tid, trade in sorted(open_trades.items(), key=lambda item: safe_int(item[1].get("entry_timestamp", 0))):
                 if trade.get("action") == opposite_action and trade.get("trade_state", "open") == "open":
                     matched_trade_id = tid
                     break
@@ -203,11 +211,19 @@ def push_orders_main():
             if matched_trade_id:
                 print(f"🟡 Matched closing trade: {action} {symbol} → closes {opposite_action} {matched_trade_id}")
 
-                # Mark it as closed in Firebase
+                # ⏱️ Convert Tiger order_time to ISO
+                try:
+                    ts_int = int(order_time)
+                    if ts_int > 1e12:
+                        ts_int //= 1000
+                    exit_time_iso = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
+                except Exception:
+                    exit_time_iso = None
+
                 open_trades_ref.child(symbol).child(matched_trade_id).update({
                     "trade_state": "closed",
                     "exit_reason": "FIFO Close",
-                    "exit_time": order_time
+                    "exit_time_iso": exit_time_iso
                 })
 
                 # Remove from /open_trades/
@@ -355,11 +371,20 @@ def handle_position_flattening():
                 ])
 
                 # ✅ Mark trade as closed instead of deleting
+                raw_ts = trade.get("order_time", 0)  # From TigerTrade or wherever you store it
+                try:
+                    ts_int = int(raw_ts)
+                    if ts_int > 1e12:  # Convert ms → s
+                        ts_int //= 1000
+                    exit_time_iso = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
+                except Exception:
+                    exit_time_iso = None
+
                 open_trades_ref.child(symbol).child(trade_id).update({
                     "trade_state": "closed",
                     "exit_reason": "manual_flattened",
-                    "exit_time": now_nz.strftime("%Y-%m-%d %H:%M:%S")
-                })
+                    "exit_time_iso": exit_time_iso
+})
 
         # ✅ Cleanup: remove stale live_positions not seen in Tiger positions
         try:
