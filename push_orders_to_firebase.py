@@ -200,7 +200,7 @@ def push_orders_main():
             # Get current open trades for this symbol
             open_trades = open_trades_ref.child(symbol).get() or {}
 
-            # Find the oldest opposite trade (FIFO-style)
+            # ✅ Skip any trade not marked as open (prevents reprocessing closed trades)
             matched_trade_id = None
             for tid, trade in sorted(open_trades.items(), key=lambda item: safe_int(item[1].get("entry_timestamp", 0))):
                 if trade.get("action") == opposite_action and trade.get("trade_state", "open") == "open":
@@ -222,7 +222,9 @@ def push_orders_main():
 
                 open_trades_ref.child(symbol).child(matched_trade_id).update({
                     "trade_state": "closed",
-                    "exit_reason": "FIFO Close",
+                    "exit_reason": friendly_reason,   # e.g. "Trailing Take Profit"
+                    "exit_method": "FIFO",            # New: how it exited
+                    "exit_order_id": oid,
                     "exit_time_iso": exit_time_iso
                 })
 
@@ -232,8 +234,13 @@ def push_orders_main():
          
             print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
-            # === Only push to /open_trades/ if still open ===
-            if payload.get("is_open", False) and payload.get("status") == "FILLED" and payload.get("filled", 0) > 0:
+            # ✅ PATCH: Prevent re-adding closed FIFO trades to open_active_trades
+            if (
+                payload.get("is_open", False) and
+                payload.get("status") == "FILLED" and
+                payload.get("filled", 0) > 0 and
+                payload.get("exit_reason") != "FIFO Close"
+            ):
                 price = payload["avg_fill_price"]
                 action = payload["action"]
                 entry_timestamp = getattr(order, "order_time", None)
