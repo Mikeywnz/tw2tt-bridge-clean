@@ -1,3 +1,4 @@
+#=========================  MONITOR_TRADES_LOOP - PART 1  ================================
 import firebase_admin
 from firebase_admin import credentials, db
 import csv
@@ -44,7 +45,9 @@ def load_live_prices():
 
 # === Write closed trade to CSV + Google Sheets ===
 def write_closed_trade(trade, reason, exit_price):
-    pnl = (exit_price - trade['entry_price']) * (1 if trade['action'] == 'BUY' else -1)
+    entry = float(trade.get("entry_price", 0.0))
+    exit_price = exit_price or entry
+    pnl = (exit_price - entry) * (1 if trade['action'] == 'BUY' else -1) 
     now_nz = datetime.now(timezone("Pacific/Auckland"))
     exit_time = now_nz.strftime("%Y-%m-%d %H:%M:%S")
     day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
@@ -63,7 +66,7 @@ def write_closed_trade(trade, reason, exit_price):
         # Add any raw Tiger reason strings here mapped to these friendly labels as needed
         "资金不足": "Lack of Margin",  # example Chinese text for insufficient funds
     }
-    friendly_reason = reason_map.get(reason, reason)
+    friendly_reason = REASON_MAP.get(reason, reason)
 
     row = {
         "day_date": day_date,  
@@ -78,6 +81,10 @@ def write_closed_trade(trade, reason, exit_price):
         "trail_triggered": "YES" if trade.get("trail_hit") else "NO",
         "order_id": trade.get("order_id", "")
     }
+
+        #=====  END OF PART 1 =====
+
+#=========================  MONITOR_TRADES_LOOP - PART 2  ================================
 
     try:
         file_exists = False
@@ -117,8 +124,8 @@ def write_closed_trade(trade, reason, exit_price):
         traceback.print_exc()
 
 # === Firebase open trades handlers ===
-def load_open_trades():
-    firebase_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508.json"
+def load_open_trades(symbol):
+    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}.json"
     try:
         resp = requests.get(firebase_url)
         resp.raise_for_status()
@@ -142,14 +149,14 @@ def save_open_trades(trades):
             trade_id = t.get("trade_id")
             if not trade_id:
                 continue
-            firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508/{trade_id}.json"
+            firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
             requests.put(firebase_url, json=t).raise_for_status()
             print(f"✅ Saved trade {trade_id} to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
 def delete_trade_from_firebase(trade_id):
-    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_trades/MGC2508/{trade_id}.json"
+    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
     try:
         resp = requests.delete(firebase_url)
         resp.raise_for_status()
@@ -165,10 +172,17 @@ def load_trailing_tp_settings():
         res = requests.get(fb_url)
         cfg = res.json() if res.ok else {}
         if cfg.get("enabled", False):
-            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
+            trigger = float(cfg.get("trigger_points", 14.0))
+            offset = float(cfg.get("offset_points", 5.0))
+            print(f"📐 Loaded trailing TP config: trigger={trigger}, offset={offset}")
+            return trigger, offset
     except Exception as e:
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
+
+    #=====  END OF PART 2 =====
+
+#=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART) ================================
 
 # === MONITOR LOOP ===
 exit_in_progress = set()
@@ -184,7 +198,8 @@ def monitor_trades():
         print(f"🛰️ System working – MGC2508 price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
 
-    all_trades = load_open_trades()
+    symbol = "MGC2508"  # or pull from a config later
+    all_trades = load_open_trades(symbol)
 
     for t in all_trades:
         tid = t.get('trade_id', 'unknown')
@@ -198,7 +213,8 @@ def monitor_trades():
         if not t or not isinstance(t, dict):
             continue
         tid = t.get('trade_id', 'unknown')
-        if t.get('exited') or t.get('status') == 'failed':
+        if t.get('exited') or t.get('status') in ['failed', 'closed']:
+            print(f"⏭️ Skipping exited/closed trade {t.get('trade_id', 'unknown')}")
             continue
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
@@ -270,11 +286,13 @@ def monitor_trades():
                     print(f"❌ Error while deleting trade {trade_id} from Firebase: {e}")
                     traceback.print_exc()
                 trade['exited'] = True
+                trade['status'] = "closed"
                 continue
 
         updated_trades.append(trade)
 
-    save_open_trades(updated_trades)
+    save_open_trades(symbol, updated_trades)
+    delete_trade_from_firebase(symbol, trade_id)
 
 if __name__ == '__main__':
     while True:
@@ -283,3 +301,5 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"❌ ERROR in monitor_trades(): {e}")
         time.sleep(10)
+
+        #=====  END OF PART 3 (END OF SCRIPT) =====
