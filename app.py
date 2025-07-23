@@ -202,10 +202,10 @@ async def webhook(request: Request):
                 "status": "open"  
             }
 
-            endpoint = f"{FIREBASE_URL}/open_trades/{symbol}/{trade_id}.json"
+            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
             put = requests.put(endpoint, json=new_trade)
             if put.status_code == 200:
-                log_to_file(f"✅ Firebase open_trades updated at key: {trade_id}")
+                log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
             else:
                 log_to_file(f"❌ Firebase update failed: {put.text}")
         except Exception as e:
