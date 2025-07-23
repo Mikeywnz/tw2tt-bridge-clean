@@ -212,7 +212,7 @@ def push_orders_main():
 
                 # Remove from /open_trades/
                 open_trades_ref.child(symbol).child(matched_trade_id).delete()
-                print(f"✅ Removed from /open_trades/: {symbol}/{matched_trade_id}")
+                print(f"✅ Removed from /open_active_trades/: {symbol}/{matched_trade_id}")
          
             print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
@@ -223,10 +223,8 @@ def push_orders_main():
                 entry_timestamp = getattr(order, "order_time", None)
                 trigger_points, offset_points = load_trailing_tp_settings()
 
-                endpoint = f"{FIREBASE_URL}/open_trades/{symbol}.json"
-                resp = requests.get(endpoint)
-                existing = resp.json() or {}
                 trade_id = oid
+                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
                 new_trade = {
                     "trade_id": trade_id,
@@ -244,13 +242,12 @@ def push_orders_main():
                     "trade_state": "open"
                 }
 
-                existing[trade_id] = new_trade
-                put = requests.put(endpoint, json=existing)
+                put = requests.put(endpoint, json=new_trade)
 
                 if put.status_code == 200:
-                    print(f"✅ /open_trades/{symbol}/{trade_id} successfully updated")
+                    print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
                 else:
-                    print(f"❌ Failed to update /open_trades/{symbol}/{trade_id}: {put.text}")
+                    print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
 
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")
@@ -260,6 +257,16 @@ def push_orders_main():
     print(f"❌ CANCELLED: {cancelled_count}")
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
+
+    # === Ensure /open_active_trades/ path stays alive, even if no trades written ===
+    try:
+        open_trades_root = db.reference("/open_active_trades")
+        snapshot = open_trades_root.get() or {}
+        if not snapshot:
+            print("🫀 Writing /open_active_trades/_heartbeat to keep path alive")
+            open_trades_root.child("_heartbeat").set("alive")
+    except Exception as e:
+        print(f"❌ Failed to write /open_active_trades/_heartbeat: {e}")
 
 #=====  END OF PART 2 =====
  
@@ -271,10 +278,20 @@ def handle_position_flattening():
         live_ref = db.reference("/live_total_positions")
         position_count = len(positions)
         live_ref.update({"position_count": position_count})
+
+        # ✅ Ensure /live_total_positions/ path stays alive
+        try:
+            snapshot = live_ref.get() or {}
+            if not snapshot:
+                print("🫀 Writing /live_total_positions/_heartbeat to keep path alive")
+                live_ref.child("_heartbeat").set("alive")
+        except Exception as e:
+            print(f"❌ Failed to write /live_total_positions/_heartbeat: {e}")
+
         open_trades_ref = db.reference("/open_active_trades")
 
         # ✅ Push live Tiger positions into Firebase
-        print("📊 Open Positions:")
+        print(f"📊 Open Positions: {position_count}")
         for pos in positions:
             contract = str(getattr(pos, "contract", ""))
             quantity = getattr(pos, "quantity", 0)
