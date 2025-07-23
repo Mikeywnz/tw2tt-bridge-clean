@@ -222,8 +222,8 @@ def push_orders_main():
 
                 open_trades_ref.child(symbol).child(matched_trade_id).update({
                     "trade_state": "closed",
-                    "exit_reason": friendly_reason,   # e.g. "Trailing Take Profit"
-                    "exit_method": "FIFO",            # New: how it exited
+                    "exit_reason": friendly_reason,
+                    "exit_method": "fifo",
                     "exit_order_id": oid,
                     "exit_time_iso": exit_time_iso
                 })
@@ -356,25 +356,25 @@ def handle_position_flattening():
                 exit_price = 0.0  # Optional placeholder for now
                 pnl_dollars = 0.0
                 exit_reason = "manual_flattened"
+                exit_method = "manual"
                 exit_order_id = "MANUAL"
-                fifo_close = False
 
                 # ✅ Log to Google Sheets
                 sheet.append_row([
-                    day_date,
-                    trade.get("symbol", ""),
-                    "closed",                            # NEW: status field
-                    trade.get("action", ""),
-                    safe_float(trade.get("entry_price")),
-                    exit_price,                          # From Tiger or 0.0 if unknown
-                    pnl_dollars,                         # Optional: placeholder 0.0 for now
-                    exit_reason,                         # e.g. "trailing_tp", "manual_flattened"
-                    trade.get("entry_timestamp", ""),
-                    exit_time_str,                       # e.g. datetime string
-                    trade.get("trail_hit", False),
-                    trade.get("trade_id", ""),
-                    exit_order_id,                       # Real ID or "MANUAL"
-                    fifo_close                           # True or False
+                    day_date,                               # 0
+                    trade.get("symbol", ""),               # 1
+                    "closed",                              # 2  Status field
+                    trade.get("action", ""),               # 3
+                    safe_float(trade.get("entry_price")),  # 4
+                    exit_price,                            # 5  From Tiger or 0.0 if unknown
+                    pnl_dollars,                           # 6
+                    exit_reason,                           # 7  e.g. "trailing_tp", "manual_flattened"
+                    trade.get("entry_timestamp", ""),      # 8
+                    exit_time_str,                         # 9  e.g. datetime string
+                    trade.get("trail_hit", False),         # 10
+                    trade.get("trade_id", ""),             # 11
+                    exit_order_id,                         # 12
+                    exit_method                            # 13 ✅ At the end
                 ])
 
                 # ✅ Mark trade as closed instead of deleting
