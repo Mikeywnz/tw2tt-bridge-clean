@@ -1,3 +1,4 @@
+#=========================  EXECUTE_TRADE_LIVE  ================================
 import sys
 import os
 import json
@@ -106,3 +107,5 @@ if __name__ == "__main__":
     action = sys.argv[2]
     quantity = 1
     place_trade(symbol, action, quantity)
+
+      #=====  END OF SCRIPT =====

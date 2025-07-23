@@ -155,8 +155,9 @@ def save_open_trades(symbol, trades):
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
-def delete_trade_from_firebase(trade_id):
+def delete_trade_from_firebase(symbol, trade_id):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
+    requests.delete(firebase_url)
     try:
         resp = requests.delete(firebase_url)
         resp.raise_for_status()
@@ -288,14 +289,12 @@ def monitor_trades():
                 trade['exited'] = True
                 trade['status'] = "closed"
                 continue
-
+                
+        print(f"📌 Keeping trade {trade.get('trade_id')} OPEN – trail_hit={trade.get('trail_hit')}, exited={trade.get('exited')}, status={trade.get('status')}")
         updated_trades.append(trade)
-
     save_open_trades(symbol, updated_trades)
-def delete_trade_from_firebase(symbol, trade_id):
-    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
-    requests.delete(firebase_url)
-    
+
+
 if __name__ == '__main__':
     while True:
         try:
