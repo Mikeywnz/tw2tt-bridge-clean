@@ -268,7 +268,9 @@ def push_orders_main():
 def handle_position_flattening():
     try:
         positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-        live_ref = db.reference("/live_positions")
+        live_ref = db.reference("/live_total_positions")
+        position_count = len(positions)
+        live_ref.update({"position_count": position_count})
         open_trades_ref = db.reference("/open_active_trades")
 
         # ✅ Push live Tiger positions into Firebase
