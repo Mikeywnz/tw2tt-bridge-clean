@@ -239,7 +239,7 @@ def push_orders_main():
                 payload.get("is_open", False) and
                 payload.get("status") == "FILLED" and
                 payload.get("filled", 0) > 0 and
-                payload.get("exit_reason") != "FIFO Close"
+                payload.get("exit_reason") not in ["FIFO Close", "manual_flattened"]
             ):
                 price = payload["avg_fill_price"]
                 action = payload["action"]
