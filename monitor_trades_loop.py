@@ -1,12 +1,9 @@
 #=========================  MONITOR_TRADES_LOOP - PART 1  ================================
 import firebase_admin
 from firebase_admin import credentials, db
-import csv
 import time
 from datetime import datetime
 from pytz import timezone
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 import requests 
 import subprocess
 
@@ -32,96 +29,13 @@ if not firebase_admin._apps:
         "databaseURL": "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/"
     })
 
-# === File paths & Sheets config ===
-CLOSED_TRADES_FILE = "closed_trades.csv"
-GOOGLE_CREDS_FILE = "service_account.json"
-SHEET_NAME = "Closed Trades Journal"
-GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
-
 # === Load live prices from Firebase ===
 def load_live_prices():
     return db.reference("live_prices").get() or {}
 
-# === Write closed trade to CSV + Google Sheets ===
-def write_closed_trade(trade, reason, exit_price):
-    entry = float(trade.get("entry_price", 0.0))
-    exit_price = exit_price or entry
-    pnl = (exit_price - entry) * (1 if trade['action'] == 'BUY' else -1) 
-    now_nz = datetime.now(timezone("Pacific/Auckland"))
-    exit_time = now_nz.strftime("%Y-%m-%d %H:%M:%S")
-    day_date = now_nz.strftime("%A %d %B %Y")  # e.g., "Monday 21 July 2025"
-    order_id = trade.get("order_id", "")
-
-    # 🟢 Friendly reason label mapping
-    REASON_MAP = {
-        "trailing_tp_exit": "Trailing Take Profit",
-        "manual_close": "Manual Close",
-        "ema_flattening_exit": "EMA Flattening",
-        "liquidation": "Liquidation",
-        "LACK_OF_MARGIN": "Lack of Margin",
-        "FILLED": "FILLED",
-        "CANCELLED": "Cancelled",
-        "EXPIRED": "Lack of Margin",
-        # Add any raw Tiger reason strings here mapped to these friendly labels as needed
-        "资金不足": "Lack of Margin",  # example Chinese text for insufficient funds
-    }
-    friendly_reason = REASON_MAP.get(reason, reason)
-
-    row = {
-        "day_date": day_date,  
-        "symbol": trade["symbol"],
-        "direction": trade["action"],
-        "entry_price": trade["entry_price"],
-        "exit_price": exit_price,
-        "pnl_dollars": round(pnl, 2),
-        "reason_for_exit": friendly_reason,
-        "entry_time": trade.get("entry_timestamp"),
-        "exit_time": exit_time,
-        "trail_triggered": "YES" if trade.get("trail_hit") else "NO",
-        "order_id": trade.get("order_id", "")
-    }
-
-        #=====  END OF PART 1 =====
+# ===== END OF PART 1 =====
 
 #=========================  MONITOR_TRADES_LOOP - PART 2  ================================
-
-    try:
-        file_exists = False
-        with open(CLOSED_TRADES_FILE, 'r') as f:
-            file_exists = True
-    except FileNotFoundError:
-        pass
-
-    with open(CLOSED_TRADES_FILE, 'a', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=row.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(row)
-
-    try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDS_FILE, GOOGLE_SCOPE)
-        gc = gspread.authorize(creds)
-        sheet = gc.open_by_key(SHEET_ID).worksheet("journal")
-        day_date = now_nz.strftime("%A %d %B %Y")  # e.g., Monday 21 July 2025
-        sheet.append_row([
-            day_date,
-            row["symbol"],
-            row["direction"],
-            row["entry_price"],
-            row["exit_price"],
-            row["pnl_dollars"],
-            friendly_reason,
-            row["entry_time"],
-            row["exit_time"],
-            row["trail_triggered"],
-            row["order_id"]
-        ])
-        print(f"✅ Logged to Google Sheet: {row['symbol']} – {friendly_reason}")
-    except Exception as e:
-        import traceback
-        print(f"❌ Google Sheets error for {trade['symbol']}: {e}")
-        traceback.print_exc()
 
 # === Firebase open trades handlers ===
 def load_open_trades(symbol):
@@ -157,7 +71,6 @@ def save_open_trades(symbol, trades):
 
 def delete_trade_from_firebase(symbol, trade_id):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
-    requests.delete(firebase_url)
     try:
         resp = requests.delete(firebase_url)
         resp.raise_for_status()
@@ -181,7 +94,7 @@ def load_trailing_tp_settings():
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
 
-    #=====  END OF PART 2 =====
+#=====  END OF PART 2 =====
 
 #=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART) ================================
 
@@ -275,7 +188,6 @@ def monitor_trades():
                 print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
                 exit_in_progress.add(trade_id)
                 close_position(symbol, trade['action'])
-                write_closed_trade(trade, 'trailing_tp_exit', current_price)
                 try:
                     success = delete_trade_from_firebase(trade_id)
                     if success:
@@ -289,10 +201,20 @@ def monitor_trades():
                 trade['exited'] = True
                 trade['status'] = "closed"
                 continue
-                
+
         print(f"📌 Keeping trade {trade.get('trade_id')} OPEN – trail_hit={trade.get('trail_hit')}, exited={trade.get('exited')}, status={trade.get('status')}")
         updated_trades.append(trade)
-    save_open_trades(symbol, updated_trades)
+    # ✅ Only save valid open trades back to Firebase
+    filtered_trades = [
+        t for t in updated_trades
+        if not t.get('exited') and
+        t.get('status') != 'closed' and
+        t.get('contracts_remaining', 0) > 0 and
+        t.get('filled') and
+        not t.get('is_ghost', False)
+    ]
+    save_open_trades(symbol, filtered_trades)
+    
 
 
 if __name__ == '__main__':
