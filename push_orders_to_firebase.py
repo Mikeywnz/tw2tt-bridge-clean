@@ -234,19 +234,21 @@ def push_orders_main():
          
             print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
-            # ✅ PATCH: Prevent re-adding closed FIFO trades to open_active_trades
-            if (
-                payload.get("is_open", False) and
-                payload.get("status") == "FILLED" and
-                payload.get("filled", 0) > 0 and
-                payload.get("exit_reason") not in ["FIFO Close", "manual_flattened"]
-            ):
+                # ✅ PATCH: Prevent re-adding closed FIFO trades to open_active_trades
+                trade_id = payload.get("trade_id")
+                symbol = payload.get("symbol")
+
+                firebase_trade = open_trades.get(symbol, {}).get(trade_id)
+
+                # If this trade already exists in Firebase and has an exit reason, skip it
+                if firebase_trade and firebase_trade.get("exit_reason") in ["FIFO Close", "manual_flattened", "Liquidation", "manual_close"]:
+                    print(f"⛔️ Skipping re-add of closed trade {trade_id} with exit_reason: {firebase_trade.get('exit_reason')}")
+                    continue
                 price = payload["avg_fill_price"]
                 action = payload["action"]
                 entry_timestamp = getattr(order, "order_time", None)
                 trigger_points, offset_points = load_trailing_tp_settings()
 
-                trade_id = oid
                 endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
                 new_trade = {
