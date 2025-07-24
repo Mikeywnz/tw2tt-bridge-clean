@@ -94,8 +94,20 @@ async def webhook(request: Request):
         try:
             result = place_trade(symbol, action, quantity)
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
-                trade_id = result.get("order_id")
+                # === Robustly extract Tiger order ID (int, str, or dict) ===
+                trade_id = None
+                if isinstance(result, dict) and result.get("status") == "SUCCESS":
+                    raw = result.get("order_id")
+                    if isinstance(raw, int):
+                        trade_id = str(raw)
+                    elif isinstance(raw, str):
+                        trade_id = raw if raw.isdigit() else "INVALID_STR_ID"
+                    elif isinstance(raw, dict):
+                        trade_id = raw.get("id", "DICT_NO_ID")
+                    else:
+                        trade_id = "UNKNOWN_TYPE"
                 log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
+                data["trade_id"] = trade_id
             else:
                 log_to_file(f"[❌] Trade result: {result}")
                 return {"status": "error", "message": f"Trade result: {result}"}, 555
