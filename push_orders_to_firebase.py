@@ -73,14 +73,14 @@ def map_source(raw_source):
     return "unknown"
 
 def get_exit_reason(status, reason, filled):
-    if status == "FILLED":
-        return "FILLED"
-    elif status == "CANCELLED" and filled == 0:
+    if status == "CANCELLED" and filled == 0:
         return "CANCELLED"
     elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
         return "LACK_OF_MARGIN"
     elif "liquidation" in reason.lower():
         return "liquidation"
+    elif status == "FILLED":
+        return "FILLED"
     return status
 
 #=====  END OF PART 1 =====
@@ -112,7 +112,6 @@ def push_orders_main():
         "ema_flattening_exit": "EMA Flattening",
         "liquidation": "Liquidation",
         "LACK_OF_MARGIN": "Lack of Margin",
-        "FILLED": "FILLED",
         "CANCELLED": "Cancelled",
         "EXPIRED": "Lack of Margin",
         # Add raw Tiger strings mapped here if needed
@@ -232,7 +231,7 @@ def push_orders_main():
                 open_trades_ref.child(symbol).child(matched_trade_id).delete()
                 print(f"✅ Removed from /open_active_trades/: {symbol}/{matched_trade_id}")
          
-            print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
+                print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
                 # ✅ PATCH: Prevent re-adding closed FIFO trades to open_active_trades
                 trade_id = payload.get("trade_id")

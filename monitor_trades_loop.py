@@ -149,6 +149,9 @@ def monitor_trades():
     for trade in active_trades:
         if not trade or not isinstance(trade, dict):
             continue
+        if trade.get("status") == "closed":
+            print(f"🔒 Skipping closed trade {trade.get('trade_id')}")
+            continue
         trade_id = trade.get('trade_id', 'unknown')
         print(f"🔄 Processing trade {trade_id}")
         if trade.get('exited') or trade_id in exit_in_progress:
