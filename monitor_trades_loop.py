@@ -116,25 +116,45 @@ def monitor_trades():
     all_trades = load_open_trades(symbol)
 
     for t in all_trades:
-        tid = t.get('trade_id', 'unknown')
+        tid = t.get('trade_id')
+
+        if not tid:
+            print("⚠️ Skipping trade with no trade_id")
+            continue
+
+        if t.get('exited') or t.get('status') in ['failed', 'closed']:
+            print(f"🔁 Skipping exited/closed trade {tid}")
+            continue
+
         if not t.get('filled'):
-            print(f"⏭️ Skipping {tid} – not filled")
+            print(f"🧾 Skipping {tid} ⚠️ not filled")
+            continue
+
         if t.get('contracts_remaining', 0) <= 0:
-            print(f"⏭️ Skipping {tid} – no contracts remaining")
+            print(f"🧾 Skipping {tid} ⚠️ no contracts remaining")
+            continue
 
     active_trades = []
     for t in all_trades:
         if not t or not isinstance(t, dict):
             continue
-        tid = t.get('trade_id', 'unknown')
+
+        tid = t.get('trade_id')
+        if not tid:
+            print("⚠️ Skipping trade with no trade_id")
+            continue
+
         if t.get('exited') or t.get('status') in ['failed', 'closed']:
             print(f"⏭️ Skipping exited/closed trade {t.get('trade_id', 'unknown')}")
             continue
+
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
+
         if t.get("is_ghost", False):
             print(f"⏭️ Skipping ghost trade {tid}")
             continue
+            
         if trigger_points < 0.01 or offset_points < 0.01:
             print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
             continue
