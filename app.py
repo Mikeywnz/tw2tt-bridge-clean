@@ -97,7 +97,7 @@ async def webhook(request: Request):
                 # === Robustly extract Tiger order ID (int, str, or dict) ===
                 trade_id = None
                 if isinstance(result, dict) and result.get("status") == "SUCCESS":
-                    raw = result.get("order_id")
+                    raw = result.get("order_id") or result.get("id")
                     if isinstance(raw, int):
                         trade_id = str(raw)
                     elif isinstance(raw, str):
