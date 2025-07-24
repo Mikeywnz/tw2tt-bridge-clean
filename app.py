@@ -94,7 +94,7 @@ async def webhook(request: Request):
         try:
             result = place_trade(symbol, action, quantity)
             result = execute_trade(symbol, action, quantity)
-            
+
             raw = result.get("order_id") or result.get("id") or result.get("data", {}).get("id")
             log_to_file(f"🔍 RAW TYPE: {type(raw)}, RAW VALUE: {raw}")
             log_to_file(f"📦 RESULT TYPE: {type(result)}, RESULT KEYS: {list(result.keys())}, RESULT CONTENT: {result}")
@@ -116,14 +116,16 @@ async def webhook(request: Request):
                 log_to_file("❌ Could not parse order_id — unsupported type")
                 trade_id = "UNKNOWN_TYPE"
 
-                log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
-                data["trade_id"] = trade_id
-            else:
-                log_to_file(f"[❌] Trade result: {result}")
-                return {"status": "error", "message": f"Trade result: {result}"}, 555
+            log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
+            data["trade_id"] = trade_id
+
         except Exception as e:
             log_to_file(f"[🔥] Trade execution error: {e}")
             return {"status": "error", "message": "Trade execution failed"}, 555
+
+        if not (isinstance(result, dict) and result.get("status") == "SUCCESS"):
+            log_to_file(f"[❌] Trade result: {result}")
+            return {"status": "error", "message": f"Trade result: {result}"}, 555
 
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
 
