@@ -83,6 +83,29 @@ async def webhook(request: Request):
         action = data["action"]
         quantity = int(data.get("quantity", 1))
 
+        # === MARKET ORDER PRICE FALLBACK ===
+        price = None
+        raw_price = data.get("price", "")  # Allow optional price in alert
+        if raw_price == "" or str(raw_price).upper() in ["MARKET", "MKT"]:
+            # Load live price from file as fallback
+            try:
+                with open(PRICE_FILE, "r") as f:
+                    prices = json.load(f)
+                price = float(prices.get(symbol, 0.0))
+            except Exception as e:
+                log_to_file(f"Price file fallback error in trade alert: {e}")
+                price = 0.0
+        else:
+            try:
+                price = float(raw_price)
+            except Exception as e:
+                log_to_file(f"Invalid explicit price in trade alert: {e}")
+                price = 0.0
+
+        if price <= 0:
+            log_to_file(f"❌ Invalid entry price {price} for market order fallback; aborting trade for {symbol}")
+            return {"status": "error", "message": "invalid entry price for market order fallback"}
+
         #=====  END OF PART 1 =====
 
  # ========================= APP.PY - PART 2 (FINAL PART) ================================
