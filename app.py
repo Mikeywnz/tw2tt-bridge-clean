@@ -93,38 +93,29 @@ async def webhook(request: Request):
 
         try:
             result = place_trade(symbol, action, quantity)
-
-            raw = result.get("order_id") or result.get("id") or result.get("data", {}).get("id")
-            log_to_file(f"🔍 RAW TYPE: {type(raw)}, RAW VALUE: {raw}")
-            log_to_file(f"📦 RESULT TYPE: {type(result)}, RESULT KEYS: {list(result.keys())}, RESULT CONTENT: {result}")
-
-            if isinstance(raw, int):
-                log_to_file("✅ Parsed order_id as INT")
-                trade_id = str(raw)
-            elif isinstance(raw, str):
-                if raw.isdigit():
-                    log_to_file("✅ Parsed order_id as DIGIT STRING")
-                    trade_id = raw
-                else:
-                    log_to_file("❌ STRING order_id not all digits")
-                    trade_id = "INVALID_STR_ID"
-            elif isinstance(raw, dict):
-                log_to_file("✅ Parsed order_id as DICT")
-                trade_id = raw.get("id", "DICT_NO_ID")
+            if isinstance(result, dict) and result.get("status") == "SUCCESS":
+                # === Robustly extract Tiger order ID (int, str, or dict) ===
+                trade_id = None
+                if isinstance(result, dict) and result.get("status") == "SUCCESS":
+                    raw = result.get("order_id") or result.get("id") or result.get("data", {}).get("id")
+                    log_to_file(f"💬 Raw ID extracted: {raw}")
+                    if isinstance(raw, int):
+                        trade_id = str(raw)
+                    elif isinstance(raw, str):
+                        trade_id = raw if raw.isdigit() else "INVALID_STR_ID"
+                    elif isinstance(raw, dict):
+                        trade_id = raw.get("id", "DICT_NO_ID")
+                    else:
+                        trade_id = "UNKNOWN_TYPE"
+                        
+                log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
+                data["trade_id"] = trade_id
             else:
-                log_to_file("❌ Could not parse order_id — unsupported type")
-                trade_id = "UNKNOWN_TYPE"
-
-            log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
-            data["trade_id"] = trade_id
-
+                log_to_file(f"[❌] Trade result: {result}")
+                return {"status": "error", "message": f"Trade result: {result}"}, 555
         except Exception as e:
             log_to_file(f"[🔥] Trade execution error: {e}")
             return {"status": "error", "message": "Trade execution failed"}, 555
-
-        if not (isinstance(result, dict) and result.get("status") == "SUCCESS"):
-            log_to_file(f"[❌] Trade result: {result}")
-            return {"status": "error", "message": f"Trade result: {result}"}, 555
 
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
 
