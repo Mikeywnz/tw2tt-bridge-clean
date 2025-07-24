@@ -50,6 +50,11 @@ def place_trade(symbol, action, quantity):
         print("✅ ORDER PLACED")
         print("✅ Order submitted. Raw Response:", response)
         print("🐯 Tiger response (raw):", response)
+        try:
+            order_id = getattr(response, "id", None)
+            print("🧩 Parsed order_id:", order_id)
+        except Exception as e:
+            print("❌ Error parsing order_id:", e)
 
         error_msg = getattr(response, "error_msg", "No error_msg")
         print("❗Tiger response message:", error_msg)
