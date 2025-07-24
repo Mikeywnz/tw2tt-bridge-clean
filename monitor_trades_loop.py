@@ -33,10 +33,6 @@ if not firebase_admin._apps:
 def load_live_prices():
     return db.reference("live_prices").get() or {}
 
-# ===== END OF PART 1 =====
-
-#=========================  MONITOR_TRADES_LOOP - PART 2  ================================
-
 # === Firebase open trades handlers ===
 def load_open_trades(symbol):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}.json"
@@ -94,9 +90,9 @@ def load_trailing_tp_settings():
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
 
-#=====  END OF PART 2 =====
+# ===== END OF PART 1 =====
 
-#=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART) ================================
+#=========================  MONITOR_TRADES_LOOP - PART 2  ================================
 
 # === MONITOR LOOP ===
 exit_in_progress = set()
@@ -237,8 +233,6 @@ def monitor_trades():
         not t.get('is_ghost', False)
     ]
     save_open_trades(symbol, filtered_trades)
-    
-
 
 if __name__ == '__main__':
     while True:
@@ -248,4 +242,5 @@ if __name__ == '__main__':
             print(f"❌ ERROR in monitor_trades(): {e}")
         time.sleep(10)
 
-        #=====  END OF PART 3 (END OF SCRIPT) =====
+#=====  END OF PART 2 (END OF SCRIPT)  =====
+

@@ -234,7 +234,7 @@ def push_orders_main():
                 print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
                 # ✅ PATCH: Prevent re-adding closed FIFO trades to open_active_trades
-                trade_id = payload.get("trade_id")
+                trade_id = oid  # Use the Tiger order ID extracted earlier, not payload.get("trade_id")
                 symbol = payload.get("symbol")
 
                 firebase_trade = open_trades.get(symbol, {}).get(trade_id)
@@ -265,6 +265,13 @@ def push_orders_main():
                     "exit_reason": "",
                     "trade_state": "open"
                 }
+
+                def is_valid_trade_id(tid):
+                    return isinstance(tid, str) and tid.isdigit()
+
+                if not is_valid_trade_id(trade_id):
+                    print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
+                    continue  # Skip this trade, do not push invalid IDs
 
                 put = requests.put(endpoint, json=new_trade)
 

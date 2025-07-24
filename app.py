@@ -85,7 +85,7 @@ async def webhook(request: Request):
 
         #=====  END OF PART 1 =====
 
- #=========================  APP.PY - PART 2 (FINAL PART) ================================       
+ # ========================= APP.PY - PART 2 (FINAL PART) ================================
 
         # ✅ FETCH Tiger Order ID + Timestamp from Execution
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
@@ -94,25 +94,32 @@ async def webhook(request: Request):
         try:
             result = place_trade(symbol, action, quantity)
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
-                # === Robustly extract Tiger order ID (int, str, or dict) ===
-                trade_id = None
-                if isinstance(result, dict) and result.get("status") == "SUCCESS":
-                    raw = result.get("order_id") or result.get("id") or result.get("data", {}).get("id")
-                    log_to_file(f"💬 Raw ID extracted: {raw}")
-                    if isinstance(raw, int):
-                        trade_id = str(raw)
-                    elif isinstance(raw, str):
-                        trade_id = raw if raw.isdigit() else "INVALID_STR_ID"
-                    elif isinstance(raw, dict):
-                        trade_id = raw.get("id", "DICT_NO_ID")
-                    else:
-                        trade_id = "UNKNOWN_TYPE"
-                        
-                log_to_file(f"[✅] Tiger Order ID received: {trade_id}")
+
+                # === Simplified trade ID extraction and validation ===
+                def is_valid_trade_id(tid):
+                    return isinstance(tid, str) and tid.isdigit()
+
+                raw = result.get("order_id")
+                log_to_file(f"💬 Raw ID extracted: {raw}")
+
+                if isinstance(raw, int):
+                    trade_id = str(raw)
+                elif isinstance(raw, str):
+                    trade_id = raw
+                else:
+                    trade_id = None
+
+                if not trade_id or not is_valid_trade_id(trade_id):
+                    log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
+                    return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
+
+                log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id
+
             else:
                 log_to_file(f"[❌] Trade result: {result}")
                 return {"status": "error", "message": f"Trade result: {result}"}, 555
+
         except Exception as e:
             log_to_file(f"[🔥] Trade execution error: {e}")
             return {"status": "error", "message": "Trade execution failed"}, 555
@@ -167,6 +174,11 @@ async def webhook(request: Request):
                 log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
             except Exception as e:
                 log_to_file(f"❌ Open sheet log failed: {e}")
+
+        # === Guard clause: abort if trade_id invalid to avoid Nun bug ===
+        if not is_valid_trade_id(trade_id):
+            log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
+            return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
 
         # ✅ PUSH trade to Firebase under /open_trades/{symbol}/{order_id}
         try:
