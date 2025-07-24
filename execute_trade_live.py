@@ -47,16 +47,34 @@ def place_trade(symbol, action, quantity):
     # === Submit Order ===
     try:
         response = client.place_order(order)
+
         # PATCH: Handle string response from Tiger
         if isinstance(response, str) and response.isdigit():
-            print("📦 Tiger returned raw string order ID – converting to dict")
+            print("📦 Tiger returned raw string order ID → converting to dict")
             response = {"id": response}
-            print("✅ ORDER PLACED")
-            print("✅ Order submitted. Raw Response:", response)
-            print("🐯 Tiger response (raw):", response)
+
+        # PATCH: Handle integer response from Tiger
+        if isinstance(response, int):
+            print("📦 Tiger returned raw integer order ID → converting to dict")
+            response = {"id": response}
+
+        print("✅ ORDER PLACED")
+        print("✅ Tiger response (raw):", response)
+
         try:
-            order_id = response.get("id", None)
-            print("🧩 Parsed order_id:", order_id)
+            # === Extract order ID robustly ===
+            order_id = None
+            if isinstance(response, dict):
+                order_id = response.get("id", "HELLO_DICT_NONE")
+            elif isinstance(response, str):
+                order_id = response if response.isdigit() else "HELLO_STR_INVALID"
+            elif isinstance(response, int):
+                order_id = str(response)
+            else:
+                order_id = "HELLO_UNRECOGNIZED_TYPE"
+
+            print("📛 Parsed order_id:", order_id)
+            
         except Exception as e:
             print("❌ Error parsing order_id:", e)
 
