@@ -93,7 +93,6 @@ async def webhook(request: Request):
 
         try:
             result = place_trade(symbol, action, quantity)
-            result = execute_trade(symbol, action, quantity)
 
             raw = result.get("order_id") or result.get("id") or result.get("data", {}).get("id")
             log_to_file(f"🔍 RAW TYPE: {type(raw)}, RAW VALUE: {raw}")
