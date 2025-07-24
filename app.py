@@ -168,7 +168,7 @@ async def webhook(request: Request):
                 "trail_peak": price,
                 "filled": True,
                 "entry_timestamp": entry_timestamp,  # UTC
-                "status": "open"  
+                "trade_state": "open"  
             }
 
             endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
