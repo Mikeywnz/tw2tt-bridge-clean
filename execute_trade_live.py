@@ -84,7 +84,9 @@ def place_trade(symbol, action, quantity):
 
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         if is_filled:
-            order_id = getattr(response, "order_id", None)
+            order_id = getattr(response, "id", None)
+            if not order_id:
+            print("🛑 No order_id received from TigerTrade response!")
             print(f"✅ Trade confirmed filled at approx. ${live_price} 🕒 timestamp {timestamp}", flush=True)
             print(f"✅ Tiger Order ID: {order_id}", flush=True)
             return {
