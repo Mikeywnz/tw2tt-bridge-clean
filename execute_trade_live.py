@@ -47,11 +47,15 @@ def place_trade(symbol, action, quantity):
     # === Submit Order ===
     try:
         response = client.place_order(order)
-        print("✅ ORDER PLACED")
-        print("✅ Order submitted. Raw Response:", response)
-        print("🐯 Tiger response (raw):", response)
+        # PATCH: Handle string response from Tiger
+        if isinstance(response, str) and response.isdigit():
+            print("📦 Tiger returned raw string order ID – converting to dict")
+            response = {"id": response}
+            print("✅ ORDER PLACED")
+            print("✅ Order submitted. Raw Response:", response)
+            print("🐯 Tiger response (raw):", response)
         try:
-            order_id = getattr(response, "id", None)
+            order_id = response.get("id", None)
             print("🧩 Parsed order_id:", order_id)
         except Exception as e:
             print("❌ Error parsing order_id:", e)
