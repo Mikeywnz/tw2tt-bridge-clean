@@ -23,20 +23,12 @@ def log_to_file(message: str):
     with open(LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
 
-    # ✅ GOOGLE SHEETS: Get OPEN Trades Journal Sheet ** NO LONGER USING THIS _ BUT LEAVING IN FOR NOW ***
+    # ✅ GOOGLE SHEETS: Get OPEN Trades Journal Sheet 
 def get_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_credentials.json", scope)
     client = gspread.authorize(creds)
-    sheet = client.open("Trade Log").worksheet("Open Trades")
-    return sheet
-
-    # ✅ GOOGLE SHEETS: Get Closed Trades Journal Sheet
-def get_closed_trades_sheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_credentials.json", scope)
-    client = gspread.authorize(creds)
-    sheet = client.open("Closed Trades Journal").sheet1  # Update sheet1 if needed
+    sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
 
 @app.post("/webhook")
@@ -111,19 +103,6 @@ async def webhook(request: Request):
             log_to_file(f"[🔥] Trade execution error: {e}")
             return {"status": "error", "message": "Trade execution failed"}, 555
 
-        # ✅ REPLACEMENT FOR subprocess
- #       try:
-  #          result = place_trade(symbol, action, quantity)
-   #         if result == "SUCCESS":
-    #            log_to_file("[✅] Trade confirmed — logging to Firebase and Sheets.")
-     #       else:
-      #          log_to_file(f"[❌] Trade returned unexpected result: {result}")
-       #         return {"status": "error", "message": f"Trade result: {result}"}, 555
-        #except Exception as e:
-         #   log_to_file(f"[🔥] Trade execution error: {e}")
-          #  return {"status": "error", "message": f"Trade execution failed"}, 555
-
-        # 🕒 Entry timestamp in UTC
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
 
         try:
@@ -153,51 +132,27 @@ async def webhook(request: Request):
             log_to_file("❌ Invalid entry price (0.0) – aborting log.")
             return {"status": "invalid entry price"}
 
-        if "rejected" in str(result).lower():
-            log_to_file("⚠️ Trade rejected — logging ghost entry.")
-            try:
-                day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
-
-                sheet.append_row([
-                    day_date,
-                    symbol,
-                    "REJECTED",     # direction
-                    0.0,            # entry_price
-                    0.0,            # exit_price
-                    0.0,            # pnl_dollars
-                    "ghost_trade",  # reason_for_exit
-                    entry_timestamp,
-                    "",             # exit_time
-                    False,          # trail_triggered
-                    trade_id        # Tiger Order ID (even if it failed)
-                ])
-                log_to_file("Ghost trade logged to Sheets.")
-            except Exception as e:
-                log_to_file(f"❌ Ghost sheet log failed: {e}")
-            return {"status": "trade not filled"}
-
+        # ✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL
         for _ in range(quantity):
             try:
                 day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
+                trail_trigger_price = round(price + trigger_points, 2)
 
                 sheet.append_row([
-                    day_date,
-                    symbol,
-                    "open",          # ✅ NEW COLUMN: status
-                    action,
-                    price,           # entry_price
-                    0.0,             # exit_price (not filled yet)
-                    0.0,             # pnl_dollars
-                    "entry",         # reason_for_exit
-                    entry_timestamp, # entry_time (UTC)
-                    "",              # exit_time
-                    False,           # trail_triggered
-                    trade_id         # Tiger order_id         
+                    day_date,           # 1. day_date
+                    symbol,             # 2. symbol
+                    action,             # 3. action
+                    price,              # 4. entry_price
+                    trigger_points,     # 5. trail_trigger (pts)
+                    offset_points,      # 6. trail_offset (pts)
+                    trail_trigger_price,# 7. trigger_price
+                    trade_id,           # 8. tiger_order_id
+                    entry_timestamp     # 9. entry_time (UTC)
                 ])
 
-                log_to_file(f"Logged to Google Sheets: {trade_id}")
+                log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
             except Exception as e:
-                log_to_file(f"❌ Sheets log failed: {e}")
+                log_to_file(f"❌ Open sheet log failed: {e}")
 
         # ✅ PUSH trade to Firebase under /open_trades/{symbol}/{order_id}
         try:
