@@ -43,15 +43,18 @@ logged_ghost_order_ids = set(logged_ghost_ids_ref.get() or [])
 
 # === Google Sheets Setup (Global) ===
 from google.oauth2.service_account import Credentials
+import gspread
 
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 GOOGLE_CREDS_FILE = "firebase_key.json"
 SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
 CLOSED_TRADES_FILE = "closed_trades.csv"
 
-creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
-gs_client = gspread.authorize(creds)
-sheet = gs_client.open_by_key(SHEET_ID).worksheet("journal")
+def get_google_sheet():
+    creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
+    gs_client = gspread.authorize(creds)
+    sheet = gs_client.open("Closed Trades Journal").worksheet("Open Trades Journal")
+    return sheet
 
 # === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
 def is_zombie_trade(trade_id, firebase_db):
