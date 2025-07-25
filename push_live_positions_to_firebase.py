@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.const import SegmentType
+from tigeropen.common.consts import SegmentType
 from firebase_admin import credentials, initialize_app, db
 
 # Initialize Firebase Admin SDK (adjust path to your credentials JSON)
