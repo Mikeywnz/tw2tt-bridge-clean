@@ -1,3 +1,4 @@
+#=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE  ================================
 import time
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
@@ -49,3 +50,5 @@ def push_live_positions():
 
 if __name__ == "__main__":
     push_live_positions()
+
+    #=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE (END OF SCRIPT)  ================================

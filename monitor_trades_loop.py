@@ -100,7 +100,7 @@ exit_in_progress = set()
 GRACE_PERIOD_SECONDS = 30
 
 # === Step 2a: Check Live Positions Freshness ===
-def check_live_positions_freshness(firebase_db, grace_period_seconds=20):
+def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
 
         live_ref = firebase_db.reference("/live_total_positions")
         data = live_ref.get() or {}
@@ -129,7 +129,10 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=20):
 
         print(f"✅ Firebase data fresh ({delta_seconds:.1f}s ago), position_count = {position_count}")
 
-        return position_count == 0
+        if position_count == 0 or position_count == 0.0:
+            return True
+        else:
+            return False
 
 # === Step 2b: Handle Zombie Trades ===
 def handle_zombie_trades(firebase_db):
