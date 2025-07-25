@@ -22,6 +22,12 @@ def close_position(symbol, original_action):
     except Exception as e:
         print(f"❌ Failed to execute exit order: {e}")
 
+# === Helper: Check if trade is archived ===
+def is_archived_trade(trade_id, firebase_db):
+    archived_ref = firebase_db.reference("/tiger_orders_log")
+    archived_trades = archived_ref.get() or {}
+    return trade_id in archived_trades
+
 # 🟢 Archive trade HELPER to /archived_trades/ before deletion
 def archive_trade(symbol, trade):
     trade_id = trade.get("trade_id")

@@ -59,6 +59,12 @@ def is_zombie_trade(trade_id, firebase_db):
     zombies = zombie_ref.get() or {}
     return trade_id in zombies
 
+    # ===== Archived_trade() helper function =====
+def is_archived_trade(trade_id, firebase_db):
+    archived_ref = firebase_db.reference("/tiger_orders_log")
+    archived_trades = archived_ref.get() or {}
+    return trade_id in archived_trades
+
 # === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
 def safe_float(val):
     try:
@@ -165,6 +171,7 @@ def push_orders_main():
             status = str(getattr(order, "status", "")).split('.')[-1].upper()
             reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
             filled = getattr(order, "filled", 0)
+            exit_reason_raw = ""
             exit_reason_raw = get_exit_reason(status, reason, filled)
 
             # === Normalize TigerTrade timestamp (raw ms → ISO UTC) ===
@@ -178,6 +185,8 @@ def push_orders_main():
                 exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 exit_time_iso = datetime.utcnow().isoformat() + "Z"
 
+                exit_reason_raw = "UNKNOWN"
+
             print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
 
         except Exception as e:
@@ -185,6 +194,7 @@ def push_orders_main():
 
             # Detect ghost
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+            filled = getattr(order, "filled", 0)
             is_ghost = filled == 0 and status in ghost_statuses
 
             # Map friendly reason
