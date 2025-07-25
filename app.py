@@ -13,6 +13,8 @@ from execute_trade_live import place_trade  # ✅ NEW: Import the function direc
 import os
 from firebase_admin import credentials, initialize_app, db
 
+
+
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
@@ -24,6 +26,18 @@ initialize_app(cred, {
 
 # Firebase database reference
 firebase_db = db
+
+# 🟢 ARCHIVED TRADE CHECK FUNCTION
+def is_archived_trade(trade_id: str, firebase_db) -> bool:
+    archived_ref = firebase_db.reference("/tiger_orders_log")
+    archived_trades = archived_ref.get() or {}
+    return trade_id in archived_trades
+
+# 🟢 ZOMBIE TRADE CHECK FUNCTION
+def is_zombie_trade(trade_id: str, firebase_db) -> bool:
+    zombie_ref = firebase_db.reference("/zombie_trades_log")
+    zombie_trades = zombie_ref.get() or {}
+    return trade_id in zombie_trades
 
 # Global net position tracker dict
 position_tracker = {}
@@ -183,6 +197,15 @@ async def webhook(request: Request):
                 if not trade_id or not is_valid_trade_id(trade_id):
                     log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
                     return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
+
+                # 🟢 FILTER ARCHIVED AND ZOMBIE TRADES BEFORE PROCESSING
+                if is_archived_trade(trade_id, firebase_db):
+                    log_to_file(f"⏭️ Ignoring archived trade {trade_id} in webhook")
+                    return {"status": "skipped", "reason": "archived trade"}
+
+                if is_zombie_trade(trade_id, firebase_db):
+                    log_to_file(f"⏭️ Ignoring zombie trade {trade_id} in webhook")
+                    return {"status": "skipped", "reason": "zombie trade"}
 
                 log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id

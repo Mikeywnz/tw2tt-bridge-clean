@@ -154,6 +154,10 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {oid} not a zombie, proceeding")
 
+            if is_archived_trade(oid, db):
+                print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
+                continue
+
             tiger_ids.add(oid)
 
             # Extract order info
