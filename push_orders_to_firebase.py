@@ -53,7 +53,7 @@ CLOSED_TRADES_FILE = "closed_trades.csv"
 def get_google_sheet():
     creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
     gs_client = gspread.authorize(creds)
-    sheet = gs_client.open("Closed Trades Journal").worksheet("Open Trades Journal")
+    sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
 
 # === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
@@ -267,6 +267,11 @@ def push_orders_main():
                 # Remove from /open_trades/
                 open_trades_ref.child(symbol).child(matched_trade_id).delete()
                 print(f"✅ Removed from /open_active_trades/: {symbol}/{matched_trade_id}")
+                try:
+                    # Log closed trade to Google Sheets
+                    log_closed_trade_to_google_sheet(trade)
+                except Exception as e:
+                    print(f"❌ Failed to log closed trade to Google Sheets for trade {matched_trade_id}: {e}")
          
                 print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
 
@@ -345,6 +350,7 @@ def push_orders_main():
 
 def log_closed_trade_to_google_sheet(trade):
     try:
+        sheet = get_google_sheet()
         now_nz = datetime.now(timezone("Pacific/Auckland"))
         day_date = now_nz.strftime("%A %d %B %Y")
         exit_time_str = now_nz.strftime("%Y-%m-%d %H:%M:%S")

@@ -64,29 +64,31 @@ def get_google_sheet():
 
     # 🟢 classify_trade: Determine trade type and update net position
 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
-    net = pos_tracker.get(symbol)
-    if net is None:
+    old_net = pos_tracker.get(symbol)
+    if old_net is None:
         data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-        net = int(data.get("position_count", 0))
-        pos_tracker[symbol] = net
+        old_net = int(data.get("position_count", 0))
+        pos_tracker[symbol] = old_net
 
     buy = (action.upper() == "BUY")
 
-    if net == 0:
+    if old_net == 0:
         ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-        net = qty if buy else -qty
+        new_net = qty if buy else -qty
     else:
-        if (net > 0 and buy) or (net < 0 and not buy):
+        if (old_net > 0 and buy) or (old_net < 0 and not buy):
             ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-            net += qty if buy else -qty
+            new_net = old_net + (qty if buy else -qty)
         else:
             ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
-            net += qty if buy else -qty
-            if (buy and net > 0) or (not buy and net < 0):
-                net = 0
+            new_net = old_net + (qty if buy else -qty)
+            if (buy and new_net > 0) or (not buy and new_net < 0):
+                new_net = 0
 
-    pos_tracker[symbol] = net
-    return ttype, net
+    print(f"[DEBUG] {symbol}: action={action}, qty={qty}, old_net={old_net}, new_net={new_net}, trade_type={ttype}") #DUBUG
+
+    pos_tracker[symbol] = new_net
+    return ttype, new_net
 
 @app.post("/webhook")
 async def webhook(request: Request):
