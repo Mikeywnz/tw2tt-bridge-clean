@@ -105,6 +105,7 @@ def push_orders_main():
 
     tiger_orders_ref = db.reference("/tiger_orders_log")
     open_trades_ref = db.reference("open_active_trades")
+    pos_tracker = {}
 
     # Initialize counters here, BEFORE the order loop:
     filled_count = 0
@@ -273,11 +274,14 @@ def push_orders_main():
 
                 endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
+                ttype, net_pos = classify_trade(symbol, action, 1, pos_tracker, db)
+
                 new_trade = {
                     "trade_id": trade_id,
                     "symbol": symbol,
                     "entry_price": price,
                     "action": action,
+                    "trade_type": ttype,
                     "contracts_remaining": 1,
                     "trail_trigger": trigger_points,
                     "trail_offset": offset_points,
@@ -341,18 +345,19 @@ def log_closed_trade_to_google_sheet(trade):
         sheet.append_row([
             day_date,                                # 0
             trade.get("symbol", ""),                 # 1
-            "closed",                               # 2  Status field
+            "closed",                               # 2
             trade.get("action", ""),                 # 3
-            safe_float(trade.get("entry_price")),   # 4
-            exit_price,                             # 5
-            pnl_dollars,                            # 6
-            exit_reason,                            # 7  e.g. "trailing_tp", "manual_flattened"
-            trade.get("entry_timestamp", ""),       # 8
-            exit_time_str,                          # 9
-            trade.get("trail_hit", False),          # 10
-            trade.get("trade_id", ""),              # 11
-            exit_order_id,                          # 12
-            exit_method                            # 13
+            trade.get("trade_type", ""),             # 4  NEW trade_type column
+            safe_float(trade.get("entry_price")),   # 5 (shifted)
+            exit_price,                             # 6
+            pnl_dollars,                            # 7
+            exit_reason,                            # 8
+            trade.get("entry_timestamp", ""),       # 9
+            exit_time_str,                          # 10
+            trade.get("trail_hit", False),          # 11
+            trade.get("trade_id", ""),              # 12
+            exit_order_id,                          # 13
+            exit_method                             # 14
         ])
         print(f"✅ Logged closed trade to Google Sheets: {trade.get('trade_id', 'unknown')}")
     except Exception as e:

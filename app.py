@@ -97,6 +97,7 @@ async def webhook(request: Request):
         return {"status": "invalid json", "error": str(e)}
 
     log_to_file(f"Webhook received: {data}")
+    sheet = get_google_sheet()
 
     if data.get("type") == "price_update":
         symbol = data.get("symbol")
@@ -248,6 +249,8 @@ async def webhook(request: Request):
             return {"status": "invalid entry price"}
 
         # ✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL
+        trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
+        log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
         for _ in range(quantity):
             try:
                 day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
