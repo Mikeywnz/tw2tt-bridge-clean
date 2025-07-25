@@ -10,6 +10,23 @@ import string
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from execute_trade_live import place_trade  # ✅ NEW: Import the function directly
+import os
+from firebase_admin import credentials, initialize_app, db
+
+# Load Firebase secret key
+firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+cred = credentials.Certificate(firebase_key_path)
+
+# Initialize Firebase Admin SDK
+initialize_app(cred, {
+    'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+})
+
+# Firebase database reference
+firebase_db = db
+
+# Global net position tracker dict
+position_tracker = {}
 
 app = FastAPI()
 
@@ -30,6 +47,32 @@ def get_google_sheet():
     client = gspread.authorize(creds)
     sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
+
+    # 🟢 classify_trade: Determine trade type and update net position
+def classify_trade(symbol, action, qty, pos_tracker, fb_db):
+    net = pos_tracker.get(symbol)
+    if net is None:
+        data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
+        net = int(data.get("position_count", 0))
+        pos_tracker[symbol] = net
+
+    buy = (action.upper() == "BUY")
+
+    if net == 0:
+        ttype = "long entry" if buy else "short entry"
+        net = qty if buy else -qty
+    else:
+        if (net > 0 and buy) or (net < 0 and not buy):
+            ttype = "long entry" if buy else "short entry"
+            net += qty if buy else -qty
+        else:
+            ttype = "flattening buy" if buy else "flattening sell"
+            net += qty if buy else -qty
+            if (buy and net > 0) or (not buy and net < 0):
+                net = 0
+
+    pos_tracker[symbol] = net
+    return ttype, net
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -81,7 +124,11 @@ async def webhook(request: Request):
     elif data.get("action") in ("BUY", "SELL"):
         symbol = data["symbol"]
         action = data["action"]
+        log_to_file("🟢 [LOG] Received action from webhook: " + action)
         quantity = int(data.get("quantity", 1))
+
+        trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
+        log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
 
         # === MARKET ORDER PRICE FALLBACK ===
         price = None
@@ -115,6 +162,7 @@ async def webhook(request: Request):
         log_to_file("[🧩] Entered trade execution block")
 
         try:
+            log_to_file(f"🟢 [LOG] Calling place_trade with symbol={symbol}, action={action}, quantity={quantity}")
             result = place_trade(symbol, action, quantity)
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
 
@@ -221,6 +269,7 @@ async def webhook(request: Request):
             }
 
             endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+            log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
             put = requests.put(endpoint, json=new_trade)
             print(f"[APP.PY] Firebase push URL: {endpoint}")
             print(f"[APP.PY] Payload: {json.dumps(new_trade, indent=2)}")
