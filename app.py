@@ -73,14 +73,14 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     buy = (action.upper() == "BUY")
 
     if net == 0:
-        ttype = "long entry" if buy else "short entry"
+        ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
         net = qty if buy else -qty
     else:
         if (net > 0 and buy) or (net < 0 and not buy):
-            ttype = "long entry" if buy else "short entry"
+            ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
             net += qty if buy else -qty
         else:
-            ttype = "flattening buy" if buy else "flattening sell"
+            ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
             net += qty if buy else -qty
             if (buy and net > 0) or (not buy and net < 0):
                 net = 0
@@ -257,12 +257,13 @@ async def webhook(request: Request):
                     day_date,           # 1. day_date
                     symbol,             # 2. symbol
                     action,             # 3. action
-                    price,              # 4. entry_price
-                    trigger_points,     # 5. trail_trigger (pts)
-                    offset_points,      # 6. trail_offset (pts)
-                    trail_trigger_price,# 7. trigger_price
-                    trade_id,           # 8. tiger_order_id
-                    entry_timestamp     # 9. entry_time (UTC)
+                    trade_type,         # 4. Short or Long (new column)
+                    price,              # 5. entry_price
+                    trigger_points,     # 6. trail_trigger (pts)
+                    offset_points,      # 7. trail_offset (pts)
+                    trail_trigger_price,# 8. trigger_price
+                    trade_id,           # 9. tiger_order_id
+                    entry_timestamp     # 10. entry_time (UTC)
                 ])
 
                 log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
@@ -281,6 +282,7 @@ async def webhook(request: Request):
                 "symbol": symbol,
                 "entry_price": price,
                 "action": action,
+                "trade_type": trade_type,
                 "contracts_remaining": 1,
                 "trail_trigger": trigger_points,
                 "trail_offset": offset_points,
