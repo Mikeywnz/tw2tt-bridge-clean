@@ -4,11 +4,16 @@ from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType
 from firebase_admin import credentials, initialize_app, db
+from datetime import datetime
+from pytz import timezone
+import os
+
+firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+cred = credentials.Certificate(firebase_key_path)
 
 # Initialize Firebase Admin SDK (adjust path to your credentials JSON)
-cred = credentials.Certificate("service_account.json")
 initialize_app(cred, {
-    'databaseURL': 'https://your-firebase-db-url.firebaseio.com'
+    'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 })
 
 # Setup TigerOpen client exactly as your existing code
@@ -21,12 +26,15 @@ def push_live_positions():
     while True:
         try:
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-            position_count = len(positions)
+            position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
             timestamp_iso = datetime.utcnow().isoformat() + 'Z'
+
+            now_nz = datetime.now(timezone("Pacific/Auckland"))
+            timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
 
             live_ref.update({
                 "position_count": position_count,
-                "last_updated": timestamp_iso
+                "last_updated": timestamp_readable
             })
             print(f"✅ Pushed position count {position_count} at {timestamp_iso}")
 
