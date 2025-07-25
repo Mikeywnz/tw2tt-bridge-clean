@@ -46,7 +46,8 @@ def load_open_trades(symbol):
                 td['trade_id'] = tid
                 trades.append(td)
         else:
-            trades = data
+            trades = []
+            
         print(f"🔄 Loaded {len(trades)} open trades from Firebase.")
         return trades
     except Exception as e:
