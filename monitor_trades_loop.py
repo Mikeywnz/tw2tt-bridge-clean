@@ -22,6 +22,22 @@ def close_position(symbol, original_action):
     except Exception as e:
         print(f"❌ Failed to execute exit order: {e}")
 
+# 🟢 Archive trade HELPER to /archived_trades/ before deletion
+def archive_trade(symbol, trade):
+    trade_id = trade.get("trade_id")
+    if not trade_id:
+        print(f"❌ Cannot archive trade without trade_id")
+        return False
+    try:
+        archive_ref = db.reference(f"/archived_trades/{trade_id}")
+        trade["trade_type"] = "closed"
+        archive_ref.set(trade)
+        print(f"✅ Archived trade {trade_id}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to archive trade {trade_id}: {e}")
+        return False
+
 # === FIREBASE INITIALIZATION ===
 if not firebase_admin._apps:
     cred = credentials.Certificate("firebase_key.json")
@@ -185,8 +201,6 @@ def monitor_trades():
         print(f"🛰️ System working – MGC2508 price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
 
-    # ...rest of your existing monitor_trades() code continues here...
-
     symbol = "MGC2508"  # or pull from a config later
     all_trades = load_open_trades(symbol)
 
@@ -269,6 +283,7 @@ def monitor_trades():
             print(f"❌ Invalid entry price for {trade_id} — skipping.")
             continue
 
+        # 🟢 Trailing TP Exit Handling with Archive & Delete
         tp_trigger = trigger_points
 
         if not trade.get('trail_hit'):
@@ -286,22 +301,30 @@ def monitor_trades():
                 print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
                 exit_in_progress.add(trade_id)
                 close_position(symbol, trade['action'])
+
+                # Archive then delete trade
                 try:
-                    success = delete_trade_from_firebase(trade_id)
-                    if success:
-                        print(f"✅ Trade {trade_id} successfully deleted.")
+                    archived = archive_trade(symbol, trade)
+                    if archived:
+                        success = delete_trade_from_firebase(symbol, trade_id)
+                        if success:
+                            print(f"✅ Trade {trade_id} archived and deleted from open trades.")
+                            trade['exited'] = True
+                            trade['status'] = "closed"
+                        else:
+                            print(f"❌ Trade {trade_id} deletion failed after archiving.")
                     else:
-                        print(f"❌ Trade {trade_id} still exists in Firebase after attempted delete.")
+                        print(f"❌ Trade {trade_id} archiving failed, skipping deletion.")
                 except Exception as e:
                     import traceback
-                    print(f"❌ Error while deleting trade {trade_id} from Firebase: {e}")
+                    print(f"❌ Exception during archive/delete for trade {trade_id}: {e}")
                     traceback.print_exc()
-                trade['exited'] = True
-                trade['status'] = "closed"
                 continue
 
         print(f"📌 Keeping trade {trade.get('trade_id')} OPEN – trail_hit={trade.get('trail_hit')}, exited={trade.get('exited')}, status={trade.get('status')}")
         updated_trades.append(trade)
+
+
     # ✅ Only save valid open trades back to Firebase
     filtered_trades = [
         t for t in updated_trades
