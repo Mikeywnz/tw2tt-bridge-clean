@@ -98,7 +98,73 @@ def load_trailing_tp_settings():
 exit_in_progress = set()
 GRACE_PERIOD_SECONDS = 30
 
+# === Step 2a: Check Live Positions Freshness ===
+def check_live_positions_freshness(firebase_db, grace_period_seconds=20):
+
+        live_ref = firebase_db.reference("/live_total_positions")
+        data = live_ref.get() or {}
+
+        position_count = data.get("position_count", None)
+        last_updated_str = data.get("last_updated", None)
+
+        if position_count is None or last_updated_str is None:
+            print("⚠️ /live_total_positions data incomplete or missing")
+            return False
+
+        try:
+            nz_tz = timezone("Pacific/Auckland")
+            last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S NZST")
+            last_updated = nz_tz.localize(last_updated)
+        except Exception as e:
+            print(f"⚠️ Failed to parse last_updated timestamp: {e}")
+            return False
+
+        now_nz = datetime.now(nz_tz)
+        delta_seconds = (now_nz - last_updated).total_seconds()
+
+        if delta_seconds > grace_period_seconds:
+            print(f"⚠️ Firebase data too old ({delta_seconds:.1f}s), skipping zombie check")
+            return False
+
+        print(f"✅ Firebase data fresh ({delta_seconds:.1f}s ago), position_count = {position_count}")
+
+        return position_count == 0
+
+# === Step 2b: Handle Zombie Trades ===
+def handle_zombie_trades(firebase_db):
+    open_trades_ref = firebase_db.reference("/open_active_trades")
+    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
+
+    all_open_trades = open_trades_ref.get() or {}
+    existing_zombies = set(zombie_trades_ref.get() or {})
+
+    for symbol, trades_by_id in all_open_trades.items():
+        for trade_id, trade in trades_by_id.items():
+            if not isinstance(trade, dict):
+                continue
+            if trade_id in existing_zombies:
+                print(f"⏭️ Skipping already known zombie trade: {trade_id}")
+                continue
+
+            # Mark as zombie
+            print(f"🛑 Marking zombie trade: {trade_id} for symbol {symbol}")
+
+            # Add to zombie_trades_log list
+            zombie_trades_ref.child(trade_id).set({
+                "symbol": symbol,
+                "trade_data": trade
+            })
+
+            # Delete trade from open_active_trades to prevent re-entry
+            open_trades_ref.child(symbol).child(trade_id).delete()
+            print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades/")
+
 def monitor_trades():
+    if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
+        print("⚠️ Skipping zombie trade check — live positions data not fresh or non-zero")
+    else:
+        handle_zombie_trades(db)
+
     trigger_points, offset_points = load_trailing_tp_settings()
     current_time = time.time()
     if not hasattr(monitor_trades, 'last_heartbeat'):
@@ -107,6 +173,8 @@ def monitor_trades():
         mgc_price = load_live_prices().get("MGC2508", {}).get('price')
         print(f"🛰️ System working – MGC2508 price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
+
+    # ...rest of your existing monitor_trades() code continues here...
 
     symbol = "MGC2508"  # or pull from a config later
     all_trades = load_open_trades(symbol)

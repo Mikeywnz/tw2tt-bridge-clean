@@ -53,7 +53,13 @@ creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_S
 gs_client = gspread.authorize(creds)
 sheet = gs_client.open_by_key(SHEET_ID).worksheet("journal")
 
-# === Manual Flatten Block Helper ===
+# === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
+def is_zombie_trade(trade_id, firebase_db):
+    zombie_ref = firebase_db.reference("/zombie_trades_log")
+    zombies = zombie_ref.get() or {}
+    return trade_id in zombies
+
+# === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
 def safe_float(val):
     try:
         return float(val)
@@ -138,6 +144,10 @@ def push_orders_main():
             oid = str(getattr(order, 'id', '')).strip()
             if not oid:
                 print("⚠️ Skipping order with empty or missing ID")
+                continue
+
+            if is_zombie_trade(oid, db):
+                print(f"⏭️ Skipping zombie trade {oid} during API push")
                 continue
 
             tiger_ids.add(oid)
