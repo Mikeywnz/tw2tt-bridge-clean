@@ -47,7 +47,7 @@ def load_open_trades(symbol):
                 trades.append(td)
         else:
             trades = []
-            
+
         print(f"🔄 Loaded {len(trades)} open trades from Firebase.")
         return trades
     except Exception as e:
@@ -139,26 +139,33 @@ def handle_zombie_trades(firebase_db):
     all_open_trades = open_trades_ref.get() or {}
     existing_zombies = set(zombie_trades_ref.get() or {})
 
-    for symbol, trades_by_id in all_open_trades.items():
-        for trade_id, trade in trades_by_id.items():
-            if not isinstance(trade, dict):
-                continue
-            if trade_id in existing_zombies:
-                print(f"⏭️ Skipping already known zombie trade: {trade_id}")
-                continue
+    if isinstance(all_open_trades, dict):
+        for symbol, trades_by_id in all_open_trades.items():
+            if isinstance(trades_by_id, dict):
+                for trade_id, trade in trades_by_id.items():
+                    if not isinstance(trade, dict):
+                        continue
 
-            # Mark as zombie
-            print(f"🛑 Marking zombie trade: {trade_id} for symbol {symbol}")
+                    if trade_id in existing_zombies:
+                        print(f"⏭️ Skipping already known zombie trade: {trade_id}")
+                        continue
 
-            # Add to zombie_trades_log list
-            zombie_trades_ref.child(trade_id).set({
-                "symbol": symbol,
-                "trade_data": trade
-            })
+                    # Mark as zombie
+                    print(f"🛑 Marking zombie trade: {trade_id} for symbol {symbol}")
 
-            # Delete trade from open_active_trades to prevent re-entry
-            open_trades_ref.child(symbol).child(trade_id).delete()
-            print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades/")
+                    # Add to zombie_trades_log list
+                    zombie_trades_ref.child(trade_id).set({
+                        "symbol": symbol,
+                        "trade_data": trade
+                    })
+
+                    # Delete trade from open_active_trades to prevent re-entry
+                    open_trades_ref.child(symbol).child(trade_id).delete()
+                    print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades/")
+            else:
+                print(f"⚠️ Skipping trades_by_id for symbol {symbol} because it's not a dict")
+    else:
+        print("⚠️ all_open_trades is not a dict, skipping trade processing")
 
 def monitor_trades():
     if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
