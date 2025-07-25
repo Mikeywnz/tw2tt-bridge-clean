@@ -57,7 +57,7 @@ def log_to_file(message: str):
     # ✅ GOOGLE SHEETS: Get OPEN Trades Journal Sheet 
 def get_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_credentials.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_name("firebase_key.json", scope)
     client = gspread.authorize(creds)
     sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
@@ -98,6 +98,13 @@ async def webhook(request: Request):
 
     log_to_file(f"Webhook received: {data}")
     sheet = get_google_sheet()
+
+    if data.get("liquidation", False):
+        source = "Liquidation"
+    elif data.get("manual", False):
+        source = "Manual"
+    else:
+        source = "OpGo"
 
     if data.get("type") == "price_update":
         symbol = data.get("symbol")
@@ -266,7 +273,8 @@ async def webhook(request: Request):
                     offset_points,      # 7. trail_offset (pts)
                     trail_trigger_price,# 8. trigger_price
                     trade_id,           # 9. tiger_order_id
-                    entry_timestamp     # 10. entry_time (UTC)
+                    entry_timestamp,    # 10. entry_time (UTC)
+                    source              # 11. Where did the trade come from?
                 ])
 
                 log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
