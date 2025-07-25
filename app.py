@@ -39,6 +39,11 @@ def is_zombie_trade(trade_id: str, firebase_db) -> bool:
     zombie_trades = zombie_ref.get() or {}
     return trade_id in zombie_trades
 
+    # 🟢 GHOST TRADE CHECK FUNCTION
+def is_ghost_trade(status: str, filled: int) -> bool:
+    ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+    return filled == 0 and status in ghost_statuses
+
 # Global net position tracker dict
 position_tracker = {}
 
@@ -296,6 +301,7 @@ async def webhook(request: Request):
                 "entry_price": price,
                 "action": action,
                 "trade_type": trade_type,
+                "status": status,
                 "contracts_remaining": 1,
                 "trail_trigger": trigger_points,
                 "trail_offset": offset_points,
