@@ -146,9 +146,13 @@ def push_orders_main():
                 print("⚠️ Skipping order with empty or missing ID")
                 continue
 
+            print(f"🔍 Processing order ID: {oid}")
+
             if is_zombie_trade(oid, db):
-                print(f"⏭️ Skipping zombie trade {oid} during API push")
+                print(f"⏭️ ⛔ Skipping zombie trade {oid} during API push")
                 continue
+            else:
+                print(f"✅ Order ID {oid} not a zombie, proceeding")
 
             tiger_ids.add(oid)
 
@@ -168,6 +172,11 @@ def push_orders_main():
                 print(f"⚠️ Failed to parse Tiger order_time: {raw_ts} → {e}")
                 exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 exit_time_iso = datetime.utcnow().isoformat() + "Z"
+
+            print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
+
+        except Exception as e:
+            print(f"❌ Exception processing order: {e}")
 
             # Detect ghost
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
