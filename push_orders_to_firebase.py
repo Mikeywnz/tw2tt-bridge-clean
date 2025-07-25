@@ -303,120 +303,36 @@ def push_orders_main():
  
 #=========================  PUSH_ORDERS_TO_FIREBASE - PART 3 (FINAL PART)  ================================
 
-def handle_position_flattening():
+def log_closed_trade_to_google_sheet(trade):
     try:
-        positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-        live_ref = db.reference("/live_total_positions")
-        position_count = len(positions)
-        live_ref.update({"position_count": position_count})
+        now_nz = datetime.now(timezone("Pacific/Auckland"))
+        day_date = now_nz.strftime("%A %d %B %Y")
+        exit_time_str = now_nz.strftime("%Y-%m-%d %H:%M:%S")
 
-        # ✅ Ensure /live_total_positions/ path stays alive
-        try:
-            snapshot = live_ref.get() or {}
-            if not snapshot:
-                print("🫀 Writing /live_total_positions/_heartbeat to keep path alive")
-                live_ref.child("_heartbeat").set("alive")
-        except Exception as e:
-            print(f"❌ Failed to write /live_total_positions/_heartbeat: {e}")
+        exit_price = 0.0  # Optional placeholder for now
+        pnl_dollars = 0.0
+        exit_reason = "manual_flattened"
+        exit_method = "manual"
+        exit_order_id = "MANUAL"
 
-        open_trades_ref = db.reference("/open_active_trades")
-
-        # ✅ Push live Tiger positions into Firebase
-        print(f"📊 Open Positions: {position_count}")
-        for pos in positions:
-            contract = str(getattr(pos, "contract", ""))
-            quantity = getattr(pos, "quantity", 0)
-            avg_cost = getattr(pos, "average_cost", 0.0)
-            market_price = getattr(pos, "market_price", 0.0)
-
-            print(f"contract: {contract}, quantity: {quantity}, average_cost: {avg_cost}, market_price: {market_price}")
-            symbol = contract.split("/")[0] if "/" in contract else contract
-
-            try:
-                live_ref.child(symbol).set({
-                    "quantity": quantity,
-                    "average_cost": avg_cost,
-                    "market_price": market_price,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                print(f"✅ Updated live_positions for {symbol}")
-            except Exception as e:
-                print(f"❌ Failed to update live_positions for {symbol}: {e}")
-
-        # ✅ Check for open trades that are no longer matched by Tiger positions
-        tiger_symbols = {str(getattr(pos, "contract", "")).split("/")[0] for pos in positions}
-        all_open_trades = open_trades_ref.get() or {}
-
-        for symbol, trades_by_id in all_open_trades.items():
-            if symbol in tiger_symbols:
-                continue  # Tiger still shows this position — skip
-
-            for trade_id, trade in trades_by_id.items():
-                if not isinstance(trade, dict):
-                    continue
-
-                now_nz = datetime.now(timezone("Pacific/Auckland"))
-                print(f"🛑 Flattening manually closed trade: {symbol} / {trade_id}")
-
-                day_date = now_nz.strftime("%A %d %B %Y")
-                exit_time_str = now_nz.strftime("%Y-%m-%d %H:%M:%S")
-
-                exit_price = 0.0  # Optional placeholder for now
-                pnl_dollars = 0.0
-                exit_reason = "manual_flattened"
-                exit_method = "manual"
-                exit_order_id = "MANUAL"
-
-                # ✅ Log to Google Sheets
-                sheet.append_row([
-                    day_date,                               # 0
-                    trade.get("symbol", ""),               # 1
-                    "closed",                              # 2  Status field
-                    trade.get("action", ""),               # 3
-                    safe_float(trade.get("entry_price")),  # 4
-                    exit_price,                            # 5  From Tiger or 0.0 if unknown
-                    pnl_dollars,                           # 6
-                    exit_reason,                           # 7  e.g. "trailing_tp", "manual_flattened"
-                    trade.get("entry_timestamp", ""),      # 8
-                    exit_time_str,                         # 9  e.g. datetime string
-                    trade.get("trail_hit", False),         # 10
-                    trade.get("trade_id", ""),             # 11
-                    exit_order_id,                         # 12
-                    exit_method                            # 13 ✅ At the end
-                ])
-
-                # ✅ Mark trade as closed instead of deleting
-                raw_ts = trade.get("order_time", 0)  # From TigerTrade or wherever you store it
-                try:
-                    ts_int = int(raw_ts)
-                    if ts_int > 1e12:  # Convert ms → s
-                        ts_int //= 1000
-                    exit_time_iso = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
-                except Exception:
-                    exit_time_iso = None
-
-                open_trades_ref.child(symbol).child(trade_id).update({
-                    "trade_state": "closed",
-                    "exit_reason": "manual_flattened",
-                    "exit_time_iso": exit_time_iso
-})
-
-        # ✅ Cleanup: remove stale live_positions not seen in Tiger positions
-        try:
-            firebase_snapshot = live_ref.get() or {}
-            for symbol in firebase_snapshot:
-                if symbol not in tiger_symbols:
-                    print(f"🧹 Deleting stale /live_positions/{symbol}")
-                    live_ref.child(symbol).delete()
-        except Exception as e:
-            print(f"❌ Failed to clean stale live_positions: {e}")
-
+        sheet.append_row([
+            day_date,                                # 0
+            trade.get("symbol", ""),                 # 1
+            "closed",                               # 2  Status field
+            trade.get("action", ""),                 # 3
+            safe_float(trade.get("entry_price")),   # 4
+            exit_price,                             # 5
+            pnl_dollars,                            # 6
+            exit_reason,                            # 7  e.g. "trailing_tp", "manual_flattened"
+            trade.get("entry_timestamp", ""),       # 8
+            exit_time_str,                          # 9
+            trade.get("trail_hit", False),          # 10
+            trade.get("trade_id", ""),              # 11
+            exit_order_id,                          # 12
+            exit_method                            # 13
+        ])
+        print(f"✅ Logged closed trade to Google Sheets: {trade.get('trade_id', 'unknown')}")
     except Exception as e:
-        print(f"🔥 ERROR during manual flattening check: {e}")
-
-# === SAFE ENTRY POINT ===
-if __name__ == "__main__":
-    push_orders_main()
-    handle_position_flattening()
+        print(f"❌ Failed to log trade to Google Sheets: {e}")
 
 #=====  END OF PART 3 (END OF SCRIPT) =====
