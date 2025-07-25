@@ -15,6 +15,7 @@ initialize_app(cred, {
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
+
 def push_live_positions():
     live_ref = db.reference("/live_total_positions")
     while True:
