@@ -107,7 +107,8 @@ def place_trade(symbol, action, quantity):
         if not is_filled:
             print(f"⚠️ Order not filled; skipping open trades entry. Status: {order_status}")
             return {
-                "status": "NOT_FILLED",
+                "status": "REJECTED",   # <-- Patch: Treat anything not FILLED as REJECTED
+                "reject_reason": f"Unfilled status: {order_status}",
                 "order_id": order_id
             }
         # === END GREEN PATCH ===
@@ -153,4 +154,4 @@ if __name__ == "__main__":
     quantity = 1
     place_trade(None, action, quantity)
 
-      #=====  END OF SCRIPT =====
+#=====  END OF SCRIPT =====
