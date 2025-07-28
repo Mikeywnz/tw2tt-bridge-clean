@@ -87,6 +87,31 @@ def place_trade(symbol, action, quantity):
         error_msg = getattr(response, "error_msg", "No error_msg")
         print("❗Tiger response message:", error_msg)
 
+        # === GREEN PATCH: BLOCK GHOST TRADES EARLY ===
+        ghost_rejects = {"EXPIRED", "REJECTED", "LACK_OF_MARGIN", "INSUFFICIENT_FUNDS"}
+
+        order_status = getattr(response, "status", "").upper() if isinstance(response, dict) else ""
+        reject_reason = getattr(response, "reject_reason", "").upper() if isinstance(response, dict) else ""
+        error_msg_upper = error_msg.upper() if isinstance(error_msg, str) else ""
+
+        if reject_reason in ghost_rejects or any(keyword in error_msg_upper for keyword in ghost_rejects):
+            print(f"🛑 Ghost trade blocked: Order rejected due to {reject_reason or error_msg}")
+            return {
+                "status": "REJECTED",
+                "reject_reason": reject_reason or error_msg,
+                "order_id": order_id
+            }
+
+        is_filled = (order_status == "FILLED")
+
+        if not is_filled:
+            print(f"⚠️ Order not filled; skipping open trades entry. Status: {order_status}")
+            return {
+                "status": "NOT_FILLED",
+                "order_id": order_id
+            }
+        # === END GREEN PATCH ===
+
     except Exception as e:
         print("❌ Tiger API Exception raised:")
         print(e)
@@ -96,41 +121,28 @@ def place_trade(symbol, action, quantity):
         traceback.print_exc()
         raise e
 
-    # === Check Fill Status ===
-    if response:
-        order_status = getattr(response, "status", "").upper()
-        filled_qty = getattr(response, "filled", 0)
-        is_filled = True  # TEMP: Assume trade is filled for now
+    # === Get Live Price from local file ===
+    live_price = 0.0
+    try:
+        with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
+            live_data = json.load(f)
+            data = live_data.get(symbol)
+            if isinstance(data, dict):
+                live_price = float(data.get("price", 0.0))
+            elif isinstance(data, (float, int)):
+                live_price = float(data)
+    except Exception as e:
+        print("⚠️ Could not read live_prices.json:", e)
 
-        # Get Live Price from local file
-        live_price = 0.0
-        try:
-            with open(os.path.join(os.path.dirname(__file__), 'live_prices.json')) as f:
-                live_data = json.load(f)
-                data = live_data.get(symbol)
-                if isinstance(data, dict):
-                    live_price = float(data.get("price", 0.0))
-                elif isinstance(data, (float, int)):
-                    live_price = float(data)
-        except Exception as e:
-            print("⚠️ Could not read live_prices.json:", e)
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        if is_filled:
-            if not order_id:
-                print("🛑 No order_id received from TigerTrade response!")
-                print(f"✅ Trade confirmed filled at approx. ${live_price} 🕒 timestamp {timestamp}", flush=True)
-                print(f"✅ Tiger Order ID: {order_id}", flush=True)
-            return {
-                "status": "SUCCESS",
-                "order_id": order_id
-            }
-        else:
-            print("⚠️ Order not filled – no further logging will occur.")
-            return "NOT_FILLED"
-    else:
-        print("❌ No valid response received from TigerTrade. Cannot confirm trade status.")
-        return "NO_RESPONSE"
+    print(f"✅ Trade confirmed filled at approx. ${live_price} 🕒 timestamp {timestamp}", flush=True)
+    print(f"✅ Tiger Order ID: {order_id}", flush=True)
+
+    return {
+        "status": "SUCCESS",
+        "order_id": order_id
+    }
 
 # Optional CLI support
 if __name__ == "__main__":
