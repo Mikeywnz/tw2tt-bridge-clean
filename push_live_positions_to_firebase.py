@@ -14,6 +14,7 @@ from datetime import date
 import rollover_updater  # Your rollover script filename without .py
 import firebase_admin
 from datetime import timezone
+import pytz
 
 # === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -56,7 +57,7 @@ def push_live_positions():
 
     while True:
         try:
-            now_nz = datetime.now(timezone("Pacific/Auckland")).date()
+            now_nz = datetime.now(pytz.timezone("Pacific/Auckland")).date()
             if last_rollover_date != now_nz:
                 print(f"⏰ Running daily rollover check for {now_nz}")
                 rollover_updater.main()  # Call rollover script main function
