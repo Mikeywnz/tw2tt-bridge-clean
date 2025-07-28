@@ -75,6 +75,12 @@ def get_google_sheet():
     sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
 
+    # === Helper to Check if Trade ID is a Known Ghost Trade ===
+def is_ghost_trade(trade_id, firebase_db):
+    ghost_ref = firebase_db.reference("/ghost_trades_log")
+    ghosts = ghost_ref.get() or {}
+    return trade_id in ghosts
+
 # === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
 def is_zombie_trade(trade_id, firebase_db):
     zombie_ref = firebase_db.reference("/zombie_trades_log")
@@ -98,6 +104,8 @@ def archive_trade(symbol, trade):
     except Exception as e:
         print(f"❌ Failed to archive trade {trade_id}: {e}")
         return False
+
+ 
 
 # === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
 def safe_float(val):
@@ -199,6 +207,12 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
+            if is_ghost_trade(oid, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push")
+                continue
+            else:
+                print(f"✅ Order ID {oid} not a ghost, proceeding")
+
             tiger_ids.add(oid)
 
             # Extract order info
@@ -230,6 +244,8 @@ def push_orders_main():
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
             filled = getattr(order, "filled", 0)
             is_ghost = filled == 0 and status in ghost_statuses
+            if is_ghost:
+            print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
             # Map friendly reason
             friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
@@ -259,7 +275,18 @@ def push_orders_main():
             }
 
             # ✅ Always push raw Tiger order into tiger_orders_log
-            tiger_orders_ref.child(oid).set(payload)
+            tiger_orders_ref.child(oid).set(payload)        
+            # Only push to open_active_trades if not ghost
+            if not is_ghost:
+                # push to /open_active_trades/ as usual
+                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+                put = requests.put(endpoint, json=new_trade)
+                if put.status_code == 200:
+                    print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
+                else:
+                    print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
+            else:
+                print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
             # === STEP 2 FIFI EXIT MATCHING LOGIC: If this is a closing trade, match it to an open trade ===
             action = payload.get("action")
             symbol = firebase_active_contract.get_active_contract()
@@ -320,6 +347,9 @@ def push_orders_main():
                 # If this trade already exists in Firebase and has an exit reason, skip it
                 if firebase_trade and firebase_trade.get("exit_reason") in ["FIFO Close", "manual_flattened", "Liquidation", "manual_close"]:
                     print(f"⛔️ Skipping re-add of closed trade {trade_id} with exit_reason: {firebase_trade.get('exit_reason')}")
+                    continue
+                if firebase_trade.get("is_ghost", False):
+                    print(f"⛔️ Skipping re-add of ghost trade {trade_id}")
                     continue
                 price = payload["avg_fill_price"]
                 action = payload["action"]

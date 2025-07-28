@@ -247,6 +247,10 @@ async def webhook(request: Request):
                     log_to_file(f"⏭️ Ignoring zombie trade {trade_id} in webhook")
                     return {"status": "skipped", "reason": "zombie trade"}
 
+                if is_ghost_trade(status, filled, trade_id, firebase_db):
+                    log_to_file(f"⏭️ Ignoring ghost trade {trade_id} in webhook")
+                    return {"status": "skipped", "reason": "ghost trade"}
+
                 log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id
 
