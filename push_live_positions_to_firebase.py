@@ -1,4 +1,5 @@
 #=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE  ================================
+
 import time
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
@@ -14,12 +15,13 @@ import rollover_updater  # Your rollover script filename without .py
 import firebase_admin
 from datetime import timezone
 
-# Load Firebase secret key
+# === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
 # === Firebase Initialization ===
 if not firebase_admin._apps:
+    firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
     cred = credentials.Certificate(firebase_key_path)
     initialize_app(cred, {
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -44,7 +46,8 @@ def fetch_trade_transactions(account_id):
         return []
 
 
-# === Main Loop: Push Live Positions and Sync Entry Prices to Firebase ===
+
+# === 🟩 DAILY ROLLOVER UPDATER INTEGRATION 🟩 ===
 def push_live_positions():
     live_ref = db.reference("/live_total_positions")
     open_trades_ref = db.reference("/open_active_trades")
@@ -58,6 +61,7 @@ def push_live_positions():
                 print(f"⏰ Running daily rollover check for {now_nz}")
                 rollover_updater.main()  # Call rollover script main function
                 last_rollover_date = now_nz
+
             # --- Update position count ---
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
             position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
