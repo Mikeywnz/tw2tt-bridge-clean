@@ -28,6 +28,8 @@ if not firebase_admin._apps:
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
+FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+
 # === Load live prices from Firebase ===
 def load_live_prices():
     return db.reference("live_prices").get() or {}
