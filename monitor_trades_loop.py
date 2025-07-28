@@ -11,14 +11,20 @@ import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import os
 
+# Trade fields usage:
+# - trade_type: LONG_ENTRY, SHORT_ENTRY, FLATTENING_BUY, FLATTENING_SELL, etc. (Classification of trade)
+# - status: FILLED, CANCELLED, EXPIRED, CLOSED, etc. (Order execution status)
+# - trade_state: "open" or "closed" (Used for filtering trades in Firebase)
+#
+# Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
+
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
 # === FIREBASE INITIALIZATION ===
 if not firebase_admin._apps:
-    cred = credentials.Certificate(firebase_key_path)
-    initialize_app(cred, {
+    firebase_admin.initialize_app(cred, {
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
@@ -43,7 +49,7 @@ def close_position(symbol, original_action):
 
 # === Helper: Check if trade is archived ===
 def is_archived_trade(trade_id, firebase_db):
-    archived_ref = firebase_db.reference("/tiger_orders_log")
+    archived_ref = firebase_db.reference("/archived_trades_log")
     archived_trades = archived_ref.get() or {}
     return trade_id in archived_trades
 
@@ -54,10 +60,12 @@ def archive_trade(symbol, trade):
         print(f"❌ Cannot archive trade without trade_id")
         return False
     try:
-        archive_ref = db.reference(f"/archived_trades/{trade_id}")
-        trade["trade_type"] = "closed"
+        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")
+        # Preserve original trade_type; do NOT overwrite it with "closed"
+        if "trade_type" not in trade or not trade["trade_type"]:
+            trade["trade_type"] = "UNKNOWN"
         archive_ref.set(trade)
-        print(f"✅ Archived trade {trade_id}")
+        print(f"[DEBUG] Archiving trade {trade_id} with trade_type: {trade.get('trade_type')}")
         return True
     except Exception as e:
         print(f"❌ Failed to archive trade {trade_id}: {e}")
@@ -212,11 +220,11 @@ def monitor_trades():
         monitor_trades.last_heartbeat = 0
     if current_time - monitor_trades.last_heartbeat >= 60:
         active_symbol = firebase_active_contract.get_active_contract()
-    if not active_symbol:
-        print("❌ No active contract symbol for live price fetch")
-        mgc_price = None
-    else:
-        mgc_price = load_live_prices().get(active_symbol, {}).get('price')
+        if not active_symbol:
+            print("❌ No active contract symbol for live price fetch")
+            mgc_price = None
+        else:
+            mgc_price = load_live_prices().get(active_symbol, {}).get('price')
 
         print(f"🛰️ System working – {active_symbol} price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
@@ -338,6 +346,7 @@ def monitor_trades():
                             print(f"✅ Trade {trade_id} archived and deleted from open trades.")
                             trade['exited'] = True
                             trade['status'] = "closed"
+                            trade['trade_state'] = "closed"
                         else:
                             print(f"❌ Trade {trade_id} deletion failed after archiving.")
                     else:
@@ -354,12 +363,13 @@ def monitor_trades():
 
     # ✅ Only save valid open trades back to Firebase
     filtered_trades = [
-        t for t in updated_trades
-        if not t.get('exited') and
-        t.get('status') != 'closed' and t.get('trade_state') != 'closed' and
-        t.get('contracts_remaining', 0) > 0 and
-        t.get('filled') and
-        not t.get('is_ghost', False)
+    t for t in updated_trades
+    if not t.get('exited')
+    and t.get('status') != 'closed'
+    and t.get('trade_state') != 'closed'
+    and t.get('contracts_remaining', 0) > 0
+    and t.get('filled')
+    and not t.get('is_ghost', False)
     ]
     save_open_trades(symbol, filtered_trades)
 

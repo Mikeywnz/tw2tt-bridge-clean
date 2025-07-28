@@ -29,9 +29,9 @@ if not firebase_admin._apps:
 # Firebase database reference
 firebase_db = db
 
-# 🟢 ARCHIVED TRADE CHECK FUNCTION
+# 🟢 ARCHIVED TRADE CHECK FUNCTION (updated path and logic)
 def is_archived_trade(trade_id: str, firebase_db) -> bool:
-    archived_ref = firebase_db.reference("/tiger_orders_log")
+    archived_ref = firebase_db.reference("/archived_trades_log")  # updated path
     archived_trades = archived_ref.get() or {}
     return trade_id in archived_trades
 
@@ -45,6 +45,23 @@ def is_zombie_trade(trade_id: str, firebase_db) -> bool:
 def is_ghost_trade(status: str, filled: int) -> bool:
     ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
     return filled == 0 and status in ghost_statuses
+    ghost_ref = firebase_db.reference(f"/ghost_trades_log/{symbol}/{trade_id}")
+    ghost_ref.set(trade_data)
+
+    # Archive_trade helper
+def archive_trade(symbol, trade):
+    trade_id = trade.get("trade_id")
+    if not trade_id:
+        print(f"❌ Cannot archive trade without trade_id")
+        return False
+    try:
+        archive_ref = db.reference(f"/archived_trades_log/{symbol}/{trade_id}")
+        archive_ref.set(trade)
+        print(f"✅ Archived trade {trade_id} under {symbol}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to archive trade {trade_id}: {e}")
+        return False
 
 # Global net position tracker dict
 position_tracker = {}
@@ -304,6 +321,16 @@ async def webhook(request: Request):
         if not is_valid_trade_id(trade_id):
             log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
             return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
+
+        # Explicitly set status here — e.g., 'FILLED' or 'OPEN'
+        status = "FILLED"  # or assign dynamically if you have more logic
+
+        # Prevent trade_type from being 'closed' — map to LONG_ENTRY or SHORT_ENTRY
+        if trade_type.lower() == "closed":
+            if action.upper() == "BUY":
+                trade_type = "LONG_ENTRY"
+            else:
+                trade_type = "SHORT_ENTRY"
 
         # ✅ PUSH trade to Firebase under /open_trades/{symbol}/{order_id}
         try:

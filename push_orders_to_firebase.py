@@ -24,12 +24,22 @@ cred = credentials.Certificate(firebase_key_path)
 
 # === Firebase Init ===
 if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
     })
 
-FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+# =========================
+# 🟢 PATCH 1: Define Trade Status Helpers
+# =========================
+def is_archived_trade(trade_id, firebase_db):
+    archived_ref = firebase_db.reference("/archived_trades_log")
+    archived_trades = archived_ref.get() or {}
+    return trade_id in archived_trades
+
+def is_zombie_trade(trade_id, firebase_db):
+    zombie_ref = firebase_db.reference("/zombie_trades_log")
+    zombie_trades = zombie_ref.get() or {}
+    return trade_id in zombie_trades
 
 # === Load Trailing Take Profit Settings from Firebase ===
 def load_trailing_tp_settings():
@@ -72,10 +82,22 @@ def is_zombie_trade(trade_id, firebase_db):
     return trade_id in zombies
 
     # ===== Archived_trade() helper function =====
-def is_archived_trade(trade_id, firebase_db):
-    archived_ref = firebase_db.reference("/tiger_orders_log")
-    archived_trades = archived_ref.get() or {}
-    return trade_id in archived_trades
+def archive_trade(symbol, trade):
+    trade_id = trade.get("trade_id")
+    if not trade_id:
+        print(f"❌ Cannot archive trade without trade_id")
+        return False
+    try:
+        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")  # <-- changed here
+        # Preserve original trade_type; do NOT overwrite it with "closed"
+        if "trade_type" not in trade or not trade["trade_type"]:
+            trade["trade_type"] = "UNKNOWN"
+        archive_ref.set(trade)
+        print(f"✅ Archived trade {trade_id}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to archive trade {trade_id}: {e}")
+        return False
 
 # === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
 def safe_float(val):
@@ -121,7 +143,7 @@ def safe_int(value):
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
 
-    tiger_orders_ref = db.reference("/tiger_orders_log")
+    tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
     open_trades_ref = db.reference("open_active_trades")
     pos_tracker = {}
 
@@ -180,10 +202,10 @@ def push_orders_main():
             tiger_ids.add(oid)
 
             # Extract order info
+            exit_reason_raw = "UNKNOWN"
             status = str(getattr(order, "status", "")).split('.')[-1].upper()
             reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
             filled = getattr(order, "filled", 0)
-            exit_reason_raw = ""
             exit_reason_raw = get_exit_reason(status, reason, filled)
 
             # === Normalize TigerTrade timestamp (raw ms → ISO UTC) ===
@@ -306,7 +328,33 @@ def push_orders_main():
 
                 endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
-                ttype, net_pos = classify_trade(symbol, action, 1, pos_tracker, db)
+                def classify_trade(symbol, action, qty, pos_tracker, fb_db):
+                    old_net = pos_tracker.get(symbol)
+                    if old_net is None:
+                        data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
+                        old_net = int(data.get("position_count", 0))
+                        pos_tracker[symbol] = old_net
+
+                    buy = (action.upper() == "BUY")
+
+                    if old_net == 0:
+                        ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+                        new_net = qty if buy else -qty
+                    else:
+                        if (old_net > 0 and buy) or (old_net < 0 and not buy):
+                            ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+                            new_net = old_net + (qty if buy else -qty)
+                        else:
+                            ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
+                            new_net = old_net + (qty if buy else -qty)
+                            if (buy and new_net > 0) or (not buy and new_net < 0):
+                                new_net = 0
+
+                    print(f"[DEBUG] {symbol}: action={action}, qty={qty}, old_net={old_net}, new_net={new_net}, trade_type={ttype}")
+
+                    pos_tracker[symbol] = new_net
+                    return ttype, new_net
+                    status = "FILLED"  # or whatever logic sets it properly, e.g. based on order info
 
                 new_trade = {
                     "trade_id": trade_id,
@@ -314,6 +362,7 @@ def push_orders_main():
                     "entry_price": price,
                     "action": action,
                     "trade_type": ttype,
+                    "status": status,               # <-- Add this line
                     "contracts_remaining": 1,
                     "trail_trigger": trigger_points,
                     "trail_offset": offset_points,
@@ -369,28 +418,28 @@ def log_closed_trade_to_google_sheet(trade):
         day_date = now_nz.strftime("%A %d %B %Y")
         exit_time_str = now_nz.strftime("%Y-%m-%d %H:%M:%S")
 
-        exit_price = 0.0  # Optional placeholder for now
+        exit_price = 0.0  # Optional placeholder
         pnl_dollars = 0.0
-        exit_reason = "manual_flattened"
+        exit_reason = trade.get("exit_reason", "manual_flattened")
         exit_method = "manual"
-        exit_order_id = "MANUAL"
+        exit_order_id = trade.get("exit_order_id", "MANUAL")
 
         sheet.append_row([
-            day_date,                                # 0
-            trade.get("symbol", ""),                 # 1
-            "closed",                               # 2
-            trade.get("action", ""),                 # 3
-            trade.get("trade_type", ""),             # 4  NEW trade_type column
-            safe_float(trade.get("entry_price")),   # 5 (shifted)
-            exit_price,                             # 6
-            pnl_dollars,                            # 7
-            exit_reason,                            # 8
-            trade.get("entry_timestamp", ""),       # 9
-            exit_time_str,                          # 10
-            trade.get("trail_hit", False),          # 11
-            trade.get("trade_id", ""),              # 12
-            exit_order_id,                          # 13
-            exit_method                             # 14
+            day_date,
+            trade.get("symbol", ""),
+            "closed",
+            trade.get("action", ""),
+            trade.get("trade_type", ""),  # preserve trade_type here
+            safe_float(trade.get("entry_price")),
+            exit_price,
+            pnl_dollars,
+            exit_reason,
+            trade.get("entry_timestamp", ""),
+            exit_time_str,
+            trade.get("trail_hit", False),
+            trade.get("trade_id", ""),
+            exit_order_id,
+            exit_method
         ])
         print(f"✅ Logged closed trade to Google Sheets: {trade.get('trade_id', 'unknown')}")
     except Exception as e:
