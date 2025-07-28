@@ -191,6 +191,9 @@ async def webhook(request: Request):
         # === MARKET ORDER PRICE FALLBACK ===
         price = None
         raw_price = data.get("price", "")  # Allow optional price in alert
+                # === MARKET ORDER PRICE FALLBACK ===
+        price = None
+        raw_price = data.get("price", "")  # Allow optional price in alert
         if raw_price == "" or str(raw_price).upper() in ["MARKET", "MKT"]:
             # Load live price from file as fallback
             try:
@@ -215,17 +218,14 @@ async def webhook(request: Request):
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
         log_to_file("[🧩] Entered trade execution block")
 
+        # ======= START PATCH: place_trade try/except block =======
         try:
             log_to_file(f"🟢 [LOG] Calling place_trade with symbol={symbol}, action={action}, quantity={quantity}")
             log_to_file(f"🟢 Calling place_trade with symbol={symbol}, action={action}, quantity={quantity}")
-        try:
             result = place_trade(symbol, action, quantity)
             log_to_file(f"🟢 place_trade result: {result}")
-        except Exception as e:
-            log_to_file(f"❌ Exception in place_trade: {e}")
-            return {"status": "error", "message": f"Exception in place_trade: {e}"}, 555
 
-        if isinstance(result, dict) and result.get("status") == "SUCCESS":
+            if isinstance(result, dict) and result.get("status") == "SUCCESS":
 
                 # === Simplified trade ID extraction and validation ===
                 def is_valid_trade_id(tid):
@@ -266,8 +266,9 @@ async def webhook(request: Request):
                 return {"status": "error", "message": f"Trade result: {result}"}, 555
 
         except Exception as e:
-            log_to_file(f"[🔥] Trade execution error: {e}")
-            return {"status": "error", "message": "Trade execution failed"}, 555
+            log_to_file(f"❌ Exception in place_trade: {e}")
+            return {"status": "error", "message": f"Exception in place_trade: {e}"}, 555
+        # ======= END PATCH =======
 
                #=====  END OF PART 2 =====
 
