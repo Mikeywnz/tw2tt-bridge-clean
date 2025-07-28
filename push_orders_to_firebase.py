@@ -245,7 +245,7 @@ def push_orders_main():
             filled = getattr(order, "filled", 0)
             is_ghost = filled == 0 and status in ghost_statuses
             if is_ghost:
-            print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+                print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
             # Map friendly reason
             friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
