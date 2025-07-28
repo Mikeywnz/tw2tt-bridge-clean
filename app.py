@@ -26,8 +26,6 @@ if not firebase_admin._apps:
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-
 # Firebase database reference
 firebase_db = db
 
@@ -219,8 +217,15 @@ async def webhook(request: Request):
 
         try:
             log_to_file(f"🟢 [LOG] Calling place_trade with symbol={symbol}, action={action}, quantity={quantity}")
+            log_to_file(f"🟢 Calling place_trade with symbol={symbol}, action={action}, quantity={quantity}")
+        try:
             result = place_trade(symbol, action, quantity)
-            if isinstance(result, dict) and result.get("status") == "SUCCESS":
+            log_to_file(f"🟢 place_trade result: {result}")
+        except Exception as e:
+            log_to_file(f"❌ Exception in place_trade: {e}")
+            return {"status": "error", "message": f"Exception in place_trade: {e}"}, 555
+
+        if isinstance(result, dict) and result.get("status") == "SUCCESS":
 
                 # === Simplified trade ID extraction and validation ===
                 def is_valid_trade_id(tid):

@@ -16,6 +16,7 @@ import firebase_admin
 from datetime import timezone
 import pytz
 
+
 # === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
@@ -28,7 +29,6 @@ if not firebase_admin._apps:
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # === TigerOpen Client Setup ===
 config = TigerOpenClientConfig()
