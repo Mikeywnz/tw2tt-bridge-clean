@@ -67,7 +67,7 @@ def push_live_positions():
             position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
             timestamp_iso = datetime.now(timezone.utc).isoformat()
 
-            now_nz = datetime.now(timezone("Pacific/Auckland"))
+            now_nz = datetime.now(pytz.timezone("Pacific/Auckland"))
             timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
 
             live_ref.update({
