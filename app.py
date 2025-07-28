@@ -12,6 +12,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from execute_trade_live import place_trade  # ✅ NEW: Import the function directly
 import os
 from firebase_admin import credentials, initialize_app, db
+import firebase_active_contract
 
 
 
@@ -95,6 +96,10 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     pos_tracker[symbol] = new_net
     return ttype, new_net
 
+        #=====  END OF PART 1 =====
+
+ # ========================= APP.PY - PART 2 ================================  
+
 @app.post("/webhook")
 async def webhook(request: Request):
     try:
@@ -114,8 +119,11 @@ async def webhook(request: Request):
         source = "OpGo"
 
     if data.get("type") == "price_update":
-        symbol = data.get("symbol")
-        symbol = symbol.split("@")[0] if symbol else "UNKNOWN"
+        symbol = firebase_active_contract.get_active_contract()
+        if not symbol:
+            log_to_file("❌ No active contract symbol found in Firebase; aborting price update")
+            return {"status": "error", "message": "No active contract symbol configured"}
+
         try:
             # === PATCH: Allow "MARKET" or "MKT" fallback price from file ===
             raw_price = data.get("price", "")
@@ -151,7 +159,10 @@ async def webhook(request: Request):
         return {"status": "price stored"}
 
     elif data.get("action") in ("BUY", "SELL"):
-        symbol = data["symbol"]
+        symbol = firebase_active_contract.get_active_contract()
+        if not symbol:
+            log_to_file("❌ No active contract symbol found in Firebase; aborting trade action")
+            return {"status": "error", "message": "No active contract symbol configured"}
         action = data["action"]
         log_to_file("🟢 [LOG] Received action from webhook: " + action)
         quantity = int(data.get("quantity", 1))
@@ -181,10 +192,6 @@ async def webhook(request: Request):
         if price <= 0:
             log_to_file(f"❌ Invalid entry price {price} for market order fallback; aborting trade for {symbol}")
             return {"status": "error", "message": "invalid entry price for market order fallback"}
-
-        #=====  END OF PART 1 =====
-
- # ========================= APP.PY - PART 2 (FINAL PART) ================================
 
         # ✅ FETCH Tiger Order ID + Timestamp from Execution
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
@@ -232,6 +239,10 @@ async def webhook(request: Request):
         except Exception as e:
             log_to_file(f"[🔥] Trade execution error: {e}")
             return {"status": "error", "message": "Trade execution failed"}, 555
+
+               #=====  END OF PART 2 =====
+
+ # ========================= APP.PY - PART 3 (FINAL PART) ================================
 
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
 
@@ -347,4 +358,4 @@ async def webhook(request: Request):
 
     return {"status": "ok"}
 
-    #=====  END OF PART 2 (END OF SCRIPT) =====
+    #=====  END OF PART 3 (END OF SCRIPT) =====

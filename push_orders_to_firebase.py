@@ -13,6 +13,7 @@ import csv
 from pytz import timezone
 import requests
 import json
+import firebase_active_contract
 
 FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
@@ -204,8 +205,10 @@ def push_orders_main():
             friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
 
             # Parse symbol
-            raw_contract = str(getattr(order, 'contract', ''))
-            symbol = raw_contract.split('/')[0] if '/' in raw_contract else raw_contract
+            symbol = firebase_active_contract.get_active_contract()
+            if not symbol:
+                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
+                continue  # Skip processing this order
 
             # Construct payload
             payload = {
@@ -229,7 +232,10 @@ def push_orders_main():
             tiger_orders_ref.child(oid).set(payload)
             # === STEP 2 FIFI EXIT MATCHING LOGIC: If this is a closing trade, match it to an open trade ===
             action = payload.get("action")
-            symbol = payload.get("symbol")
+            symbol = firebase_active_contract.get_active_contract()
+            if not symbol:
+                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
+                continue
             order_time = payload.get("order_time")
             opposite_action = "SELL" if action == "BUY" else "BUY"
 

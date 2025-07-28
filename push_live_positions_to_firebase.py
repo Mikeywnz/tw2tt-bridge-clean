@@ -8,6 +8,9 @@ from firebase_admin import credentials, initialize_app, db
 from datetime import datetime
 from pytz import timezone
 import os
+import firebase_active_contract
+from datetime import date
+import rollover_updater  # Your rollover script filename without .py
 
 # === Firebase Initialization ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -25,7 +28,11 @@ client = TradeClient(config)
 # === Helper: Fetch Trade Transactions from Tiger (for accurate entry prices) ===
 def fetch_trade_transactions(account_id):
     try:
-        transactions = client.get_transactions(account=account_id, symbol="MGC2508", limit=20)
+        active_symbol = firebase_active_contract.get_active_contract()
+        if not active_symbol:
+            print("❌ No active contract symbol found in Firebase; aborting fetch_trade_transactions")
+            return []
+        transactions = client.get_transactions(account=account_id, symbol=active_symbol, limit=20)
         return transactions or []
     except Exception as e:
         print(f"❌ Failed to fetch trade transactions: {e}")
@@ -37,8 +44,15 @@ def push_live_positions():
     live_ref = db.reference("/live_total_positions")
     open_trades_ref = db.reference("/open_active_trades")
 
+    last_rollover_date = None
+
     while True:
         try:
+            now_nz = datetime.now(timezone("Pacific/Auckland")).date()
+            if last_rollover_date != now_nz:
+                print(f"⏰ Running daily rollover check for {now_nz}")
+                rollover_updater.main()  # Call rollover script main function
+                last_rollover_date = now_nz
             # --- Update position count ---
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
             position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
@@ -64,9 +78,8 @@ def push_live_positions():
             for tx in transactions:
                 trade_key = getattr(tx, "order_id", None)  # Use order_id instead of transaction id
                 symbol = None
-                contract = getattr(tx, "contract", None)
-                if contract:
-                    symbol = str(contract).split('/')[0]
+                active_symbol = firebase_active_contract.get_active_contract()
+                symbol = active_symbol  # Use dynamic symbol, ignore contract in tx
                 entry_price = getattr(tx, "filled_price", None) or getattr(tx, "price", None)
                 if not (trade_key and symbol and entry_price):
                     continue

@@ -6,6 +6,7 @@ from datetime import datetime
 from pytz import timezone
 import requests 
 import subprocess
+import firebase_active_contract
 
 # === Helper to execute exit trades ===
 def close_position(symbol, original_action):
@@ -203,11 +204,20 @@ def monitor_trades():
     if not hasattr(monitor_trades, 'last_heartbeat'):
         monitor_trades.last_heartbeat = 0
     if current_time - monitor_trades.last_heartbeat >= 60:
-        mgc_price = load_live_prices().get("MGC2508", {}).get('price')
-        print(f"🛰️ System working – MGC2508 price: {mgc_price}")
+        active_symbol = firebase_active_contract.get_active_contract()
+    if not active_symbol:
+        print("❌ No active contract symbol for live price fetch")
+        mgc_price = None
+    else:
+        mgc_price = load_live_prices().get(active_symbol, {}).get('price')
+
+    print(f"🛰️ System working – {active_symbol} price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
 
-    symbol = "MGC2508"  # or pull from a config later
+    symbol = firebase_active_contract.get_active_contract()
+    if not symbol:
+        print("❌ No active contract symbol found in Firebase; aborting monitor_trades")
+        return
     all_trades = load_open_trades(symbol)
 
     for t in all_trades:
@@ -257,6 +267,10 @@ def monitor_trades():
 
     if not active_trades:
         print("⚠️ No active trades found — Trade Worker happy & awake.")
+
+        # ===== END OF PART 2 =====
+
+#=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART)  ================================
 
     updated_trades = []
     prices = load_live_prices()
@@ -350,5 +364,5 @@ if __name__ == '__main__':
             print(f"❌ ERROR in monitor_trades(): {e}")
         time.sleep(10)
 
-#=====  END OF PART 2 (END OF SCRIPT)  =====
+#=====  END OF PART 3 (END OF SCRIPT)  =====
 

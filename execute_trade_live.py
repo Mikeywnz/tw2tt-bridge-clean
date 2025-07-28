@@ -7,8 +7,14 @@ from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
+import firebase_active_contract
 
 def place_trade(symbol, action, quantity):
+    # Ignore passed symbol; fetch active contract from Firebase instead
+    import firebase_active_contract
+    symbol = firebase_active_contract.get_active_contract()
+    if not symbol:
+        raise ValueError("No active contract symbol found in Firebase")
     symbol = symbol.upper()
     action = action.upper()
     print(f"📂 Executing Trade → Symbol: {symbol}, Action: {action}")
@@ -128,12 +134,11 @@ def place_trade(symbol, action, quantity):
 
 # Optional CLI support
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python3 execute_trade_live.py <symbol> <buy/sell>")
+    if len(sys.argv) < 2:
+        print("Usage: python3 execute_trade_live.py <buy/sell>")
         sys.exit(1)
-    symbol = sys.argv[1]
-    action = sys.argv[2]
+    action = sys.argv[1]
     quantity = 1
-    place_trade(symbol, action, quantity)
+    place_trade(None, action, quantity)
 
       #=====  END OF SCRIPT =====
