@@ -13,17 +13,18 @@ from execute_trade_live import place_trade  # ✅ NEW: Import the function direc
 import os
 from firebase_admin import credentials, initialize_app, db
 import firebase_active_contract
-
-
+import firebase_admin
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
 # Initialize Firebase Admin SDK
-initialize_app(cred, {
-    'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-})
+if not firebase_admin._apps:
+    cred = credentials.Certificate(firebase_key_path)
+    initialize_app(cred, {
+        'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+    })
 
 # Firebase database reference
 firebase_db = db

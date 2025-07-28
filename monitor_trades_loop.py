@@ -7,6 +7,23 @@ from pytz import timezone
 import requests 
 import subprocess
 import firebase_active_contract
+import firebase_admin
+from firebase_admin import credentials, initialize_app, db
+
+# Load Firebase secret key
+firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+cred = credentials.Certificate(firebase_key_path)
+
+# === FIREBASE INITIALIZATION ===
+if not firebase_admin._apps:
+    cred = credentials.Certificate(firebase_key_path)
+    initialize_app(cred, {
+        'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+    })
+
+# === Load live prices from Firebase ===
+def load_live_prices():
+    return db.reference("live_prices").get() or {}
 
 # === Helper to execute exit trades ===
 def close_position(symbol, original_action):
@@ -44,17 +61,6 @@ def archive_trade(symbol, trade):
     except Exception as e:
         print(f"❌ Failed to archive trade {trade_id}: {e}")
         return False
-
-# === FIREBASE INITIALIZATION ===
-if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase_key.json")
-    firebase_admin.initialize_app(cred, {
-        "databaseURL": "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/"
-    })
-
-# === Load live prices from Firebase ===
-def load_live_prices():
-    return db.reference("live_prices").get() or {}
 
 # === Firebase open trades handlers ===
 def load_open_trades(symbol):

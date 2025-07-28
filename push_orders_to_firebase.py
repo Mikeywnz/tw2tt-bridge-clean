@@ -14,6 +14,19 @@ from pytz import timezone
 import requests
 import json
 import firebase_active_contract
+import firebase_admin
+from firebase_admin import credentials, initialize_app, db
+
+# Load Firebase secret key
+firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+cred = credentials.Certificate(firebase_key_path)
+
+# === Firebase Init ===
+if not firebase_admin._apps:
+    cred = credentials.Certificate("firebase_key.json")
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
+    })
 
 FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
@@ -32,12 +45,6 @@ def load_trailing_tp_settings():
 # === Setup Tiger API ===
 config = TigerOpenClientConfig()
 client = TradeClient(config)
-
-# === Firebase Init ===
-cred = credentials.Certificate("firebase_key.json")
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
-})
 
 logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
 logged_ghost_order_ids = set(logged_ghost_ids_ref.get() or [])

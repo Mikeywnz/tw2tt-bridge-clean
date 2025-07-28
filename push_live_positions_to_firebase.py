@@ -11,14 +11,18 @@ import os
 import firebase_active_contract
 from datetime import date
 import rollover_updater  # Your rollover script filename without .py
+import firebase_admin
 
-# === Firebase Initialization ===
+# Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
-initialize_app(cred, {
-    'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-})
+# === Firebase Initialization ===
+if not firebase_admin._apps:
+    cred = credentials.Certificate(firebase_key_path)
+    initialize_app(cred, {
+        'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+    })
 
 # === TigerOpen Client Setup ===
 config = TigerOpenClientConfig()

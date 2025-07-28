@@ -1,13 +1,16 @@
 from firebase_admin import credentials, initialize_app, db
 import os
+from firebase_admin import _apps
 
-# Initialize Firebase (only do this once per process)
+# Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
-initialize_app(cred, {
-    'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-})
+# Initialize Firebase Admin SDK
+if not _apps:
+    initialize_app(cred, {
+        'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+    })
 
 def set_active_contract(symbol: str):
     ref = db.reference("/active_contract")
