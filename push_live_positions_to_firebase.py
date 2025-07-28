@@ -12,6 +12,7 @@ import firebase_active_contract
 from datetime import date
 import rollover_updater  # Your rollover script filename without .py
 import firebase_admin
+from datetime import timezone
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -60,7 +61,7 @@ def push_live_positions():
             # --- Update position count ---
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
             position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
-            timestamp_iso = datetime.utcnow().isoformat() + 'Z'
+            timestamp_iso = datetime.now(timezone.utc).isoformat()
 
             now_nz = datetime.now(timezone("Pacific/Auckland"))
             timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
