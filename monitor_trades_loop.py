@@ -9,6 +9,7 @@ import subprocess
 import firebase_active_contract
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
+import os
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -217,7 +218,7 @@ def monitor_trades():
     else:
         mgc_price = load_live_prices().get(active_symbol, {}).get('price')
 
-    print(f"🛰️ System working – {active_symbol} price: {mgc_price}")
+        print(f"🛰️ System working – {active_symbol} price: {mgc_price}")
         monitor_trades.last_heartbeat = current_time
 
     symbol = firebase_active_contract.get_active_contract()

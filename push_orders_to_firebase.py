@@ -16,6 +16,7 @@ import json
 import firebase_active_contract
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
+import os
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
