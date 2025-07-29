@@ -189,6 +189,8 @@ def push_orders_main():
 
     print(f"\n📦 Total orders returned: {len(orders)}")
 
+    # ====================== GREEN PATCH START: Push Orders Processing Fixes ======================
+
     tiger_ids = set()
     for order in orders:
         try:
@@ -240,117 +242,95 @@ def push_orders_main():
 
         except Exception as e:
             print(f"❌ Exception processing order: {e}")
+            continue
 
-            # Detect ghost
-            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-            filled = getattr(order, "filled", 0)
-            is_ghost = filled == 0 and status in ghost_statuses
-            if is_ghost:
-                print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+        # === DETECT GHOST TRADE ===
+        ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+        is_ghost = filled == 0 and status in ghost_statuses
+        if is_ghost:
+            print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
-            # Map friendly reason
-            friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
+        # Map friendly reason
+        friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
 
-            # Parse symbol
-            symbol = firebase_active_contract.get_active_contract()
-            if not symbol:
-                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
-                continue  # Skip processing this order
+        # Parse symbol
+        symbol = firebase_active_contract.get_active_contract()
+        if not symbol:
+            print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
+            continue  # Skip processing this order
 
-            # Construct payload using exact filled price
-            payload = {
-                "order_id": oid,
-                "symbol": symbol,
-                "action": str(getattr(order, 'action', '')).upper(),
-                "quantity": getattr(order, 'quantity', 0),
-                "filled": filled,
-                "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price from Tiger
-                "status": status,
-                "reason": friendly_reason,
-                "liquidation": getattr(order, 'liquidation', False),
-                "timestamp": exit_time_iso,
-                "source": map_source(getattr(order, 'source', None)),
-                "is_open": getattr(order, 'is_open', False),
-                "is_ghost": is_ghost,
-                "exit_reason": friendly_reason
-            }
+        # === BUILD PAYLOAD WITH PATCHED STATUS, TRADE_STATE, TRADE_TYPE ===
+        payload = {
+            "order_id": oid,
+            "symbol": symbol,
+            "action": str(getattr(order, 'action', '')).upper(),
+            "quantity": getattr(order, 'quantity', 0),
+            "filled": filled,
+            "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
+            "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
+            "reason": friendly_reason,
+            "liquidation": getattr(order, 'liquidation', False),
+            "timestamp": exit_time_iso,
+            "source": map_source(getattr(order, 'source', None)),
+            "is_open": getattr(order, 'is_open', False),
+            "is_ghost": is_ghost,
+            "exit_reason": friendly_reason,
+            # Trade State and Trade Type logic for downstream usage
+            "trade_state": "open" if status == "FILLED" else "closed",
+            "trade_type": None  # Will be assigned below
+        }
 
-            # ✅ Always push raw Tiger order into tiger_orders_log
-            tiger_orders_ref.child(oid).set(payload)
+        # === CLASSIFY TRADE TYPE BASED ON POSITION ===
+        trigger_points, offset_points = load_trailing_tp_settings()
 
-            # Only push to open_active_trades if not ghost
-            if not is_ghost:
-                # Build new_trade dict with classification and trailing TP info
-                trigger_points, offset_points = load_trailing_tp_settings()
+        def classify_trade(symbol, action, qty, pos_tracker, fb_db):
+            old_net = pos_tracker.get(symbol)
+            if old_net is None:
+                data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
+                old_net = int(data.get("position_count", 0))
+                pos_tracker[symbol] = old_net
 
-                def classify_trade(symbol, action, qty, pos_tracker, fb_db):
-                    old_net = pos_tracker.get(symbol)
-                    if old_net is None:
-                        data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-                        old_net = int(data.get("position_count", 0))
-                        pos_tracker[symbol] = old_net
+            buy = (action.upper() == "BUY")
 
-                    buy = (action.upper() == "BUY")
-
-                    if old_net == 0:
-                        ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-                        new_net = qty if buy else -qty
-                    else:
-                        if (old_net > 0 and buy) or (old_net < 0 and not buy):
-                            ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-                            new_net = old_net + (qty if buy else -qty)
-                        else:
-                            ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
-                            new_net = old_net + (qty if buy else -qty)
-                            if (buy and new_net > 0) or (not buy and new_net < 0):
-                                new_net = 0
-
-                    print(f"[DEBUG] {symbol}: action={action}, qty={qty}, old_net={old_net}, new_net={new_net}, trade_type={ttype}")
-
-                    pos_tracker[symbol] = new_net
-                    return ttype, new_net
-
-                price = payload["avg_fill_price"]
-                action = payload["action"]
-                entry_timestamp = raw_ts
-                trade_id = oid
-                status = "FILLED"
-
-                ttype, _ = classify_trade(symbol, action, 1, pos_tracker, db)
-
-                new_trade = {
-                    "trade_id": trade_id,
-                    "symbol": symbol,
-                    "entry_price": price,
-                    "action": action,
-                    "trade_type": ttype,
-                    "status": status,
-                    "contracts_remaining": 1,
-                    "trail_trigger": trigger_points,
-                    "trail_offset": offset_points,
-                    "trail_hit": False,
-                    "trail_peak": price,
-                    "filled": True,
-                    "entry_timestamp": entry_timestamp,
-                    "exit_reason": "",
-                    "trade_state": "open"
-                }
-
-                def is_valid_trade_id(tid):
-                    return isinstance(tid, str) and tid.isdigit()
-
-                if not is_valid_trade_id(trade_id):
-                    print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-                    continue
-
-                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
-                put = requests.put(endpoint, json=new_trade)
-                if put.status_code == 200:
-                    print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
-                else:
-                    print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
+            if old_net == 0:
+                ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
             else:
-                print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
+                if (old_net > 0 and buy) or (old_net < 0 and not buy):
+                    ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+                else:
+                    ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
+
+            pos_tracker[symbol] = old_net  # No net update here, just classification
+            return ttype
+
+        trade_type = classify_trade(symbol, payload["action"], payload["quantity"], pos_tracker, db)
+        payload["trade_type"] = trade_type
+
+        # ✅ Always push raw Tiger order into tiger_orders_log
+        tiger_orders_ref.child(oid).set(payload)
+
+        # Only push to open_active_trades if not ghost
+        if not is_ghost:
+            trade_id = oid
+
+            # VALIDATE trade_id
+            def is_valid_trade_id(tid):
+                return isinstance(tid, str) and tid.isdigit()
+
+            if not is_valid_trade_id(trade_id):
+                print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
+                continue
+
+            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+            put = requests.put(endpoint, json=payload)
+            if put.status_code == 200:
+                print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
+            else:
+                print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
+        else:
+            print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
+
+# ====================== GREEN PATCH END ======================
 
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")
