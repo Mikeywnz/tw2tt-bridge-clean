@@ -220,11 +220,11 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
-            if is_ghost_trade(oid, db):
-                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push")
-                continue
-            else:
-                print(f"✅ Order ID {oid} not a ghost, proceeding")
+            #if is_ghost_trade(oid, db):
+            #    print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push")
+            #    continue
+            #else:
+            #    print(f"✅ Order ID {oid} not a ghost, proceeding")
 
             tiger_ids.add(oid)
 
@@ -278,7 +278,7 @@ def push_orders_main():
                 "timestamp": exit_time_iso,
                 "source": map_source(getattr(order, 'source', None)),
                 "is_open": getattr(order, 'is_open', False),
-                "is_ghost": is_ghost,
+               # "is_ghost": is_ghost,
                 "exit_reason": friendly_reason,
                 # Trade State and Trade Type logic for downstream usage
                 "trade_state": "open" if status == "FILLED" else "closed",
