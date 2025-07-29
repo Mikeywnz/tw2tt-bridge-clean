@@ -47,6 +47,7 @@ def close_position(symbol, original_action):
     except Exception as e:
         print(f"❌ Failed to execute exit order: {e}")
 
+
 # === Helper: Check if trade is archived ===
 def is_archived_trade(trade_id, firebase_db):
     archived_ref = firebase_db.reference("/archived_trades_log")
@@ -103,6 +104,56 @@ def save_open_trades(symbol, trades):
             print(f"✅ Saved trade {trade_id} to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
+
+# 🟩 FIFO MATCHING PATCH (using trade_type) — Insert into monitor_trades() before trailing TP loop
+
+def fifo_match_and_flatten(active_trades):
+    """
+    Perform FIFO flattening ONLY on trades labeled as FLATTENING_BUY or FLATTENING_SELL,
+    adjusting contracts_remaining and marking trades exited when fully flattened.
+    """
+    buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and t.get('contracts_remaining', 0) > 0]
+    sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and t.get('contracts_remaining', 0) > 0]
+
+    # Sort FIFO by entry timestamp or trade_id
+    buys.sort(key=lambda x: x.get('entry_timestamp', x['trade_id']))
+    sells.sort(key=lambda x: x.get('entry_timestamp', x['trade_id']))
+
+    i, j = 0, 0
+    while i < len(buys) and j < len(sells):
+        buy = buys[i]
+        sell = sells[j]
+
+        buy_remain = buy.get('contracts_remaining', 0)
+        sell_remain = sell.get('contracts_remaining', 0)
+
+        if buy_remain <= 0:
+            i += 1
+            continue
+        if sell_remain <= 0:
+            j += 1
+            continue
+
+        qty = min(buy_remain, sell_remain)
+
+        buy['contracts_remaining'] -= qty
+        sell['contracts_remaining'] -= qty
+
+        print(f"🟢 FIFO flattening {qty} contracts: BUY {buy['trade_id']} with SELL {sell['trade_id']}")
+
+        for trade in (buy, sell):
+            if trade['contracts_remaining'] == 0 and not trade.get('exited'):
+                trade['exited'] = True
+                trade['status'] = 'closed'
+                trade['trade_state'] = 'closed'
+                print(f"✅ Trade {trade['trade_id']} fully flattened and closed via FIFO match")
+
+        if buy['contracts_remaining'] == 0:
+            i += 1
+        if sell['contracts_remaining'] == 0:
+            j += 1
+
+# 🟩 FIFO MATCHING PATCH END
 
 def delete_trade_from_firebase(symbol, trade_id):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
@@ -289,6 +340,8 @@ def monitor_trades():
 
     updated_trades = []
     prices = load_live_prices()
+
+    fifo_match_and_flatten(active_trades)
 
     for trade in active_trades:
         if not trade or not isinstance(trade, dict):

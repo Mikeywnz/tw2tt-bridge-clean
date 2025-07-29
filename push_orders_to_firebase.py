@@ -285,31 +285,8 @@ def push_orders_main():
                 "trade_type": None  # Will be assigned below
             }
 
-            # === CLASSIFY TRADE TYPE BASED ON POSITION ===
-            trigger_points, offset_points = load_trailing_tp_settings()
-
-            def classify_trade(symbol, action, qty, pos_tracker, fb_db):
-                old_net = pos_tracker.get(symbol)
-                if old_net is None:
-                    data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-                    old_net = int(data.get("position_count", 0))
-                    pos_tracker[symbol] = old_net
-
-                buy = (action.upper() == "BUY")
-
-                if old_net == 0:
-                    ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-                else:
-                    if (old_net > 0 and buy) or (old_net < 0 and not buy):
-                        ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-                    else:
-                        ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
-
-                pos_tracker[symbol] = old_net  # No net update here, just classification
-                return ttype
-
-            trade_type = classify_trade(symbol, payload["action"], payload["quantity"], pos_tracker, db)
-            payload["trade_type"] = trade_type
+            # === Use trade_type from upstream (app.py) if available ===
+            payload["trade_type"] = getattr(order, "trade_type", None) or None
 
             # ✅ Always push raw Tiger order into tiger_orders_log
             tiger_orders_ref.child(oid).set(payload)
