@@ -2,6 +2,7 @@
 import sys
 import os
 import json
+import time
 from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
@@ -66,63 +67,18 @@ def place_trade(symbol, action, quantity):
 
         print(f"📛 Parsed order_id: {order_id}")
 
-        # === GREEN PATCH: Use Transaction Filled Quantity to Confirm Success ===
+        # 🟢 PATCH: Retry loop to fetch matching transaction, polling every 1 sec up to 3 times
+        matched_tx = None
         if order_id:
-            # Fetch recent transactions for this order to check fill
-            transactions = client.get_transactions(account=config.account, symbol=symbol, limit=20)
-            matched_tx = next((tx for tx in transactions if str(tx.order_id) == str(order_id)), None)
-
-            if matched_tx:
-                filled_qty = getattr(matched_tx, "filled_quantity", 0)
-                # Determine status and trade_state
-                status = "FILLED" if filled_qty > 0 else "REJECTED"
-                trade_state = "open" if filled_qty > 0 else "closed"
-
-                # Determine trade_type based on action and position
-                if filled_qty > 0:
-                    trade_type = "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY"
+            for attempt in range(3):  # Retry 3 times
+                transactions = client.get_transactions(account=config.account, symbol=symbol, limit=20)
+                matched_tx = next((tx for tx in transactions if str(tx.order_id) == str(order_id)), None)
+                if matched_tx:
+                    print(f"✅ Found matching transaction on attempt {attempt+1}")
+                    break
                 else:
-                    trade_type = ""
-
-                if filled_qty > 0:
-                    print(f"✅ Order {order_id} filled with quantity {filled_qty}")
-                    # Return full dictionary including original TigerTrade data plus new fields
-                    return {
-                        "status": "SUCCESS",
-                        "order_id": order_id,
-                        "filled_quantity": filled_qty,
-                        "filled_price": getattr(matched_tx, "filled_price", None),
-                        "filled_amount": getattr(matched_tx, "filled_amount", None),
-                        "transacted_at": getattr(matched_tx, "transacted_at", None),
-                        "transaction_time": getattr(matched_tx, "transaction_time", None),
-                        # New interpreted fields:
-                        "trade_status": status,
-                        "trade_state": trade_state,
-                        "trade_type": trade_type,
-                        # include the full matched_tx object if you want raw data as well
-                        "raw_transaction": matched_tx
-                    }
-                else:
-                    print(f"🛑 Order {order_id} has zero fill quantity → treated as rejected")
-                    return {
-                        "status": "REJECTED",
-                        "order_id": order_id,
-                        "reason": "Zero fill quantity",
-                        "trade_status": status,
-                        "trade_state": trade_state,
-                        "trade_type": trade_type,
-                        "raw_transaction": matched_tx
-                    }
-            else:
-                print(f"🛑 No matching transaction found for order {order_id} → treated as rejected")
-                return {
-                    "status": "REJECTED",
-                    "order_id": order_id,
-                    "reason": "No matching transaction found",
-                    "trade_status": "REJECTED",
-                    "trade_state": "closed",
-                    "trade_type": ""
-                }
+                    print(f"⏳ Transaction not found on attempt {attempt+1}, retrying...")
+                    time.sleep(1)  # Wait 1 second before next attempt
         else:
             print("🛑 No order_id parsed from response → rejecting trade")
             return {
@@ -133,7 +89,58 @@ def place_trade(symbol, action, quantity):
                 "trade_state": "closed",
                 "trade_type": ""
             }
-        # === END GREEN PATCH ===
+
+        if matched_tx:
+            filled_qty = getattr(matched_tx, "filled_quantity", 0)
+            # Determine status and trade_state
+            status = "FILLED" if filled_qty > 0 else "REJECTED"
+            trade_state = "open" if filled_qty > 0 else "closed"
+
+            # Determine trade_type based on action and position
+            if filled_qty > 0:
+                trade_type = "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY"
+            else:
+                trade_type = ""
+
+            if filled_qty > 0:
+                print(f"✅ Order {order_id} filled with quantity {filled_qty}")
+                # Return full dictionary including original TigerTrade data plus new fields
+                return {
+                    "status": "SUCCESS",
+                    "order_id": order_id,
+                    "filled_quantity": filled_qty,
+                    "filled_price": getattr(matched_tx, "filled_price", None),
+                    "filled_amount": getattr(matched_tx, "filled_amount", None),
+                    "transacted_at": getattr(matched_tx, "transacted_at", None),
+                    "transaction_time": getattr(matched_tx, "transaction_time", None),
+                    # New interpreted fields:
+                    "trade_status": status,
+                    "trade_state": trade_state,
+                    "trade_type": trade_type,
+                    # include the full matched_tx object if you want raw data as well
+                    "raw_transaction": matched_tx
+                }
+            else:
+                print(f"🛑 Order {order_id} has zero fill quantity → treated as rejected")
+                return {
+                    "status": "REJECTED",
+                    "order_id": order_id,
+                    "reason": "Zero fill quantity",
+                    "trade_status": status,
+                    "trade_state": trade_state,
+                    "trade_type": trade_type,
+                    "raw_transaction": matched_tx
+                }
+        else:
+            print(f"🛑 No matching transaction found for order {order_id} → treated as rejected")
+            return {
+                "status": "REJECTED",
+                "order_id": order_id,
+                "reason": "No matching transaction found",
+                "trade_status": "REJECTED",
+                "trade_state": "closed",
+                "trade_type": ""
+            }
 
     except Exception as e:
         print("❌ Tiger API Exception raised:")
