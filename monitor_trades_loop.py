@@ -232,7 +232,12 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
             print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
             return False
 
-# === Step 2b: Handle Zombie Trades ===
+# ==========================
+# 🟩 GREEN PATCH START: Add 30-second cooldown to zombie trade moves
+# ==========================
+
+ZOMBIE_COOLDOWN_SECONDS = 30  # trades younger than this won't be moved to zombie
+
 def handle_zombie_trades(firebase_db):
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
@@ -240,38 +245,58 @@ def handle_zombie_trades(firebase_db):
     all_open_trades = open_trades_ref.get() or {}
     existing_zombies = set(zombie_trades_ref.get() or {})
 
-    print(f"[DEBUG] Handling zombie trades at {datetime.now(timezone('Pacific/Auckland'))}")
+    nz_tz = timezone("Pacific/Auckland")
+    now_nz = datetime.now(nz_tz)
+
+    print(f"[DEBUG] Handling zombie trades at {now_nz}")
 
     if isinstance(all_open_trades, dict):
         for symbol, trades_by_id in all_open_trades.items():
-            if isinstance(trades_by_id, dict):
-                for trade_id, trade in trades_by_id.items():
-                    if not isinstance(trade, dict):
-                        continue
+            if not isinstance(trades_by_id, dict):
+                print(f"⚠️ Skipping trades for symbol {symbol} because it's not a dict")
+                continue
 
-                    if trade_id in existing_zombies:
-                        print(f"⏭️ Skipping already known zombie trade: {trade_id}")
-                        continue
+            for trade_id, trade in trades_by_id.items():
+                if not isinstance(trade, dict):
+                    continue
 
-                    # 🟩 DEBUG: evaluating trade for zombie marking
-                    print(f"[DEBUG] Evaluating trade {trade_id} for symbol {symbol} for zombie marking")
+                if trade_id in existing_zombies:
+                    print(f"⏭️ Skipping already known zombie trade: {trade_id}")
+                    continue
 
-                    # Mark as zombie
-                    print(f"🛑 Marking zombie trade: {trade_id} for symbol {symbol}")
+                entry_ts_str = trade.get("entry_timestamp")
+                if not entry_ts_str:
+                    print(f"⚠️ No entry_timestamp for trade {trade_id}; skipping cooldown check")
+                    continue
 
-                    # Add to zombie_trades_log list
-                    zombie_trades_ref.child(trade_id).set({
-                        "symbol": symbol,
-                        "trade_data": trade
-                    })
+                try:
+                    entry_ts = datetime.fromisoformat(entry_ts_str.replace("Z", "+00:00")).astimezone(nz_tz)
+                except Exception as e:
+                    print(f"⚠️ Failed to parse entry_timestamp for {trade_id}: {e}; skipping cooldown check")
+                    continue
 
-                    # Delete trade from open_active_trades to prevent re-entry
-                    open_trades_ref.child(symbol).child(trade_id).delete()
-                    print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades/")
-            else:
-                print(f"⚠️ Skipping trades_by_id for symbol {symbol} because it's not a dict")
+                age_seconds = (now_nz - entry_ts).total_seconds()
+
+                if age_seconds < ZOMBIE_COOLDOWN_SECONDS:
+                    print(f"⏳ Trade {trade_id} age {age_seconds:.1f}s < cooldown {ZOMBIE_COOLDOWN_SECONDS}s — skipping zombie move")
+                    continue
+
+                # Passed cooldown — mark as zombie
+                print(f"🛑 Marking zombie trade: {trade_id} for symbol {symbol} (age {age_seconds:.1f}s)")
+
+                zombie_trades_ref.child(trade_id).set({
+                    "symbol": symbol,
+                    "trade_data": trade
+                })
+
+                open_trades_ref.child(symbol).child(trade_id).delete()
+                print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades/")
     else:
         print("⚠️ all_open_trades is not a dict, skipping trade processing")
+
+# ==========================
+# 🟩 GREEN PATCH END
+# ==========================
 
 def monitor_trades():
     print(f"[DEBUG] Starting zombie check in monitor_trades at {datetime.now(timezone('Pacific/Auckland'))}")
