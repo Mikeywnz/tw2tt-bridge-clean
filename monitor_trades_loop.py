@@ -201,7 +201,8 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
 
         try:
             nz_tz = timezone("Pacific/Auckland")
-            last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S NZST")
+            last_updated_str = last_updated_str.replace(" NZST", "")
+            last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
             last_updated = nz_tz.localize(last_updated)
         except Exception as e:
             print(f"⚠️ Failed to parse last_updated timestamp: {e}")
@@ -240,6 +241,7 @@ ZOMBIE_STATUSES = {"FILLED"}  # Legitimate filled trades with no position
 GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 
 def handle_zombie_and_ghost_trades(firebase_db):
+    now_utc = datetime.now(timezone("UTC"))
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
     ghost_trades_ref = firebase_db.reference("/ghost_trades_log")
@@ -251,7 +253,14 @@ def handle_zombie_and_ghost_trades(firebase_db):
     now_nz = datetime.now(timezone("Pacific/Auckland"))
 
     # Check current position count
-    position_count = firebase_db.reference("/live_total_positions/position_count").get() or 0
+    # ==========================
+    # 🟩 GREEN PATCH 2: Safely cast position_count to int
+    # ==========================
+    try:
+        position_count = int(firebase_db.reference("/live_total_positions/position_count").get())
+    except Exception:
+        position_count = 0
+
     if position_count > 0:
         print("[INFO] Positions open; skipping zombie and ghost cleanup.")
         return
