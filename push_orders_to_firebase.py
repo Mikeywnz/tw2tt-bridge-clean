@@ -59,8 +59,8 @@ def load_trailing_tp_settings():
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
-logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
-logged_ghost_order_ids = set(logged_ghost_ids_ref.get() or [])
+#logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
+#logged_ghost_order_ids = set(logged_ghost_ids_ref.get() or [])
 
 # === Google Sheets Setup (Global) ===
 from google.oauth2.service_account import Credentials
@@ -78,10 +78,10 @@ def get_google_sheet():
     return sheet
 
     # === Helper to Check if Trade ID is a Known Ghost Trade ===
-def is_ghost_trade(trade_id, firebase_db):
-    ghost_ref = firebase_db.reference("/ghost_trades_log")
-    ghosts = ghost_ref.get() or {}
-    return trade_id in ghosts
+#def is_ghost_trade(trade_id, firebase_db):
+ #   ghost_ref = firebase_db.reference("/ghost_trades_log")
+ #   ghosts = ghost_ref.get() or {}
+ #   return trade_id in ghosts
 
 # === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
 def is_zombie_trade(trade_id, firebase_db):
@@ -250,10 +250,10 @@ def push_orders_main():
             print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
 
             # === DETECT GHOST TRADE ===
-            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-            is_ghost = filled == 0 and status in ghost_statuses
-            if is_ghost:
-                print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+           # ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+           # is_ghost = filled == 0 and status in ghost_statuses
+           # if is_ghost:
+           #     print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
             # Map friendly reason
             friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
@@ -314,26 +314,23 @@ def push_orders_main():
             # ✅ Always push raw Tiger order into tiger_orders_log
             tiger_orders_ref.child(oid).set(payload)
 
-            # Only push to open_active_trades if not ghost
-            if not is_ghost:
-                trade_id = oid
+            # Push to open_active_trades unconditionally
+            trade_id = oid
 
-                # VALIDATE trade_id
-                def is_valid_trade_id(tid):
-                    return isinstance(tid, str) and tid.isdigit()
+            # VALIDATE trade_id
+            def is_valid_trade_id(tid):
+                return isinstance(tid, str) and tid.isdigit()
 
-                if not is_valid_trade_id(trade_id):
-                    print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-                    continue
+            if not is_valid_trade_id(trade_id):
+                print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
+                continue
 
-                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
-                put = requests.put(endpoint, json=payload)
-                if put.status_code == 200:
-                    print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
-                else:
-                    print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
+            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+            put = requests.put(endpoint, json=payload)
+            if put.status_code == 200:
+                print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
             else:
-                print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
+                print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
 
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")

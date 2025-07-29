@@ -42,11 +42,11 @@ def is_zombie_trade(trade_id: str, firebase_db) -> bool:
     return trade_id in zombie_trades
 
     # 🟢 GHOST TRADE CHECK FUNCTION
-def is_ghost_trade(status: str, filled: int) -> bool:
-    ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-    return filled == 0 and status in ghost_statuses
-    ghost_ref = firebase_db.reference(f"/ghost_trades_log/{symbol}/{trade_id}")
-    ghost_ref.set(trade_data)
+    #def is_ghost_trade(status: str, filled: int) -> bool:
+        #ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+        #return filled == 0 and status in ghost_statuses
+        #ghost_ref = firebase_db.reference(f"/ghost_trades_log/{symbol}/{trade_id}")
+        #ghost_ref.set(trade_data)
 
     # Archive_trade helper
 def archive_trade(symbol, trade):
@@ -253,10 +253,11 @@ async def webhook(request: Request):
                     log_to_file(f"⏭️ Ignoring zombie trade {trade_id} in webhook")
                     return {"status": "skipped", "reason": "zombie trade"}
 
+
                 # GHOST TRADE DETECTION (now safe to use status and filled)
-                if is_ghost_trade(status, filled, trade_id, firebase_db):
-                    log_to_file(f"⏭️ Ignoring ghost trade {trade_id} in webhook")
-                    return {"status": "skipped", "reason": "ghost trade"}
+            #   if is_ghost_trade(status, filled, trade_id, firebase_db):
+            #       log_to_file(f"⏭️ Ignoring ghost trade {trade_id} in webhook")
+            #       return {"status": "skipped", "reason": "ghost trade"}
 
                 log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id
@@ -272,130 +273,130 @@ async def webhook(request: Request):
 
                #=====  END OF PART 2 =====
 
-# ========================= APP.PY - PART 3 (FINAL PART) ================================
+    # ========================= APP.PY - PART 3 (FINAL PART) ================================
 
-        entry_timestamp = datetime.utcnow().isoformat() + "Z"
+    entry_timestamp = datetime.utcnow().isoformat() + "Z"
 
-        try:
-            fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
-            res = requests.get(fb_url)
-            cfg = res.json() if res.ok else {}
-            if cfg.get("enabled", False):
-                trigger_points = float(cfg.get("trigger_points", 14.0))
-                offset_points = float(cfg.get("offset_points", 5.0))
-            else:
-                trigger_points = 14.0
-                offset_points = 5.0
-        except Exception as e:
-            log_to_file(f"[WARN] Failed to fetch trailing settings, using defaults: {e}")
+    try:
+        fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
+        res = requests.get(fb_url)
+        cfg = res.json() if res.ok else {}
+        if cfg.get("enabled", False):
+            trigger_points = float(cfg.get("trigger_points", 14.0))
+            offset_points = float(cfg.get("offset_points", 5.0))
+        else:
             trigger_points = 14.0
             offset_points = 5.0
+    except Exception as e:
+        log_to_file(f"[WARN] Failed to fetch trailing settings, using defaults: {e}")
+        trigger_points = 14.0
+        offset_points = 5.0
 
+    try:
+        with open(PRICE_FILE, "r") as f:
+            prices = json.load(f)
+            price = float(prices.get(symbol, 0.0))
+    except Exception as e:
+        log_to_file(f"Price load error: {e}")
+        price = 0.0
+
+    if price <= 0:
+        log_to_file("❌ Invalid entry price (0.0) – aborting log.")
+        return {"status": "invalid entry price"}
+
+    # ✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL
+    trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
+    log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
+
+    for _ in range(quantity):
         try:
-            with open(PRICE_FILE, "r") as f:
-                prices = json.load(f)
-                price = float(prices.get(symbol, 0.0))
+            day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
+            trail_trigger_price = round(price + trigger_points, 2)
+
+            sheet.append_row([
+                day_date,           # 1. day_date
+                symbol,             # 2. symbol
+                action,             # 3. action
+                trade_type,         # 4. Short or Long (new column)
+                price,              # 5. entry_price
+                trigger_points,     # 6. trail_trigger (pts)
+                offset_points,      # 7. trail_offset (pts)
+                trail_trigger_price,# 8. trigger_price
+                trade_id,           # 9. tiger_order_id
+                entry_timestamp,    # 10. entry_time (UTC)
+                source              # 11. Where did the trade come from?
+            ])
+
+            log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
         except Exception as e:
-            log_to_file(f"Price load error: {e}")
-            price = 0.0
+            log_to_file(f"❌ Open sheet log failed: {e}")
 
-        if price <= 0:
-            log_to_file("❌ Invalid entry price (0.0) – aborting log.")
-            return {"status": "invalid entry price"}
+    # === Guard clause: abort if trade_id invalid to avoid None bug ===
+    def is_valid_trade_id(tid):
+        return isinstance(tid, str) and tid.isdigit()
 
-        # ✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL
-        trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
-        log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
+    if not is_valid_trade_id(trade_id):
+        log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
+        return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
 
-        for _ in range(quantity):
-            try:
-                day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
-                trail_trigger_price = round(price + trigger_points, 2)
+    # Explicitly set status here for new trade
+    status = "FILLED"  # You can adjust logic later if needed
 
-                sheet.append_row([
-                    day_date,           # 1. day_date
-                    symbol,             # 2. symbol
-                    action,             # 3. action
-                    trade_type,         # 4. Short or Long (new column)
-                    price,              # 5. entry_price
-                    trigger_points,     # 6. trail_trigger (pts)
-                    offset_points,      # 7. trail_offset (pts)
-                    trail_trigger_price,# 8. trigger_price
-                    trade_id,           # 9. tiger_order_id
-                    entry_timestamp,    # 10. entry_time (UTC)
-                    source              # 11. Where did the trade come from?
-                ])
+    # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
+    if trade_type.lower() == "closed":
+        if action.upper() == "BUY":
+            trade_type = "LONG_ENTRY"
+        else:
+            trade_type = "SHORT_ENTRY"
 
-                log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
-            except Exception as e:
-                log_to_file(f"❌ Open sheet log failed: {e}")
+    new_trade = {
+        "trade_id": trade_id,
+        "symbol": symbol,
+        "entry_price": price,
+        "action": action,
+        "trade_type": trade_type,
+        "status": status,
+        "contracts_remaining": 1,
+        "trail_trigger": trigger_points,
+        "trail_offset": offset_points,
+        "trail_hit": False,
+        "trail_peak": price,
+        "filled": True,
+        "entry_timestamp": entry_timestamp,
+        "trade_state": "open"  # Newly opened trade
+    }
 
-        # === Guard clause: abort if trade_id invalid to avoid None bug ===
-        def is_valid_trade_id(tid):
-            return isinstance(tid, str) and tid.isdigit()
+    endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+    try:
+        log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
+        put = requests.put(endpoint, json=new_trade)
+        if put.status_code == 200:
+            log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
+        else:
+            log_to_file(f"❌ Firebase update failed: {put.text}")
+    except Exception as e:
+        log_to_file(f"❌ Firebase push error: {e}")
 
-        if not is_valid_trade_id(trade_id):
-            log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-            return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
-
-        # Explicitly set status here for new trade
-        status = "FILLED"  # You can adjust logic later if needed
-
-        # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
-        if trade_type.lower() == "closed":
-            if action.upper() == "BUY":
-                trade_type = "LONG_ENTRY"
-            else:
-                trade_type = "SHORT_ENTRY"
-
-        new_trade = {
+    try:
+        entry = {
+            "timestamp": entry_timestamp,
             "trade_id": trade_id,
             "symbol": symbol,
-            "entry_price": price,
             "action": action,
-            "trade_type": trade_type,
-            "status": status,
-            "contracts_remaining": 1,
-            "trail_trigger": trigger_points,
-            "trail_offset": offset_points,
-            "trail_hit": False,
-            "trail_peak": price,
-            "filled": True,
-            "entry_timestamp": entry_timestamp,
-            "trade_state": "open"  # Newly opened trade
+            "price": price,
+            "quantity": quantity
         }
-
-        endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
-        try:
-            log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
-            put = requests.put(endpoint, json=new_trade)
-            if put.status_code == 200:
-                log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
-            else:
-                log_to_file(f"❌ Firebase update failed: {put.text}")
-        except Exception as e:
-            log_to_file(f"❌ Firebase push error: {e}")
-
-        try:
-            entry = {
-                "timestamp": entry_timestamp,
-                "trade_id": trade_id,
-                "symbol": symbol,
-                "action": action,
-                "price": price,
-                "quantity": quantity
-            }
-            logs = []
-            if os.path.exists(TRADE_LOG):
-                with open(TRADE_LOG, "r") as f:
-                    logs = json.load(f)
-            logs.append(entry)
-            with open(TRADE_LOG, "w") as f:
-                json.dump(logs, f, indent=2)
-            log_to_file("Logged to trade_log.json.")
-        except Exception as e:
-            log_to_file(f"❌ trade_log.json failed: {e}")
+        logs = []
+        if os.path.exists(TRADE_LOG):
+            with open(TRADE_LOG, "r") as f:
+                logs = json.load(f)
+        logs.append(entry)
+        with open(TRADE_LOG, "w") as f:
+            json.dump(logs, f, indent=2)
+        log_to_file("Logged to trade_log.json.")
+    except Exception as e:
+        log_to_file(f"❌ trade_log.json failed: {e}")
 
     return {"status": "ok"}
 
-#=====  END OF PART 3 (END OF SCRIPT) =====
+    #=====  END OF PART 3 (END OF SCRIPT) =====
