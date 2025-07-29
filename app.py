@@ -116,7 +116,7 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
 
         #=====  END OF PART 1 =====
 
- # ========================= APP.PY - PART 2 ================================  
+# ========================= APP.PY - PART 2 ================================  
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -142,30 +142,13 @@ async def webhook(request: Request):
             log_to_file("❌ No active contract symbol found in Firebase; aborting price update")
             return {"status": "error", "message": "No active contract symbol configured"}
 
+        # Price update block removed fallback price loading for market order
         try:
-            # === PATCH: Allow "MARKET" or "MKT" fallback price from file ===
-            raw_price = data.get("price", "")
-            if str(raw_price).upper() in ["MARKET", "MKT"]:
-                try:
-                    with open(PRICE_FILE, "r") as f:
-                        prices = json.load(f)
-                    price = float(prices.get(data.get("symbol", ""), 0.0))
-                except Exception as e:
-                    log_to_file(f"Price file fallback error: {e}")
-                    price = 0.0
-            else:
-                price = float(raw_price)
-        except (ValueError, TypeError):
+            price = float(data.get("price", 0.0))
+        except Exception as e:
             log_to_file("❌ Invalid price value received")
             return {"status": "error", "reason": "invalid price"}
-        try:
-            with open(PRICE_FILE, "r") as f:
-                prices = json.load(f)
-        except FileNotFoundError:
-            prices = {}
-        prices[symbol] = price
-        with open(PRICE_FILE, "w") as f:
-            json.dump(prices, f, indent=2)
+
         utc_time = datetime.utcnow().isoformat() + "Z"
         payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
@@ -190,31 +173,7 @@ async def webhook(request: Request):
 
      # ========================= GREEN PATCH START: MARKET ORDER PRICE FALLBACK & TRADE EXECUTION =========================
 
-        # === MARKET ORDER PRICE FALLBACK ===
-        price = None
-        raw_price = data.get("price", "")  # Allow optional price in alert
-
-        if raw_price == "" or str(raw_price).upper() in ["MARKET", "MKT"]:
-            # Load live price from file as fallback
-            try:
-                with open(PRICE_FILE, "r") as f:
-                    prices = json.load(f)
-                price = float(prices.get(symbol, 0.0))
-            except Exception as e:
-                log_to_file(f"Price file fallback error in trade alert: {e}")
-                price = 0.0
-        else:
-            try:
-                price = float(raw_price)
-            except Exception as e:
-                log_to_file(f"Invalid explicit price in trade alert: {e}")
-                price = 0.0
-
-        if str(raw_price).upper() not in ["MARKET", "MKT"] and price <= 0:
-            log_to_file(f"❌ Invalid entry price {price} for non-market order; aborting trade for {symbol}")
-            return {"status": "error", "message": "invalid entry price for order"}
-
-        # ✅ FETCH Tiger Order ID + Timestamp from Execution
+        # No fallback price logic — pure market order flow
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
         log_to_file("[🧩] Entered trade execution block")
 
@@ -253,11 +212,10 @@ async def webhook(request: Request):
                     log_to_file(f"⏭️ Ignoring zombie trade {trade_id} in webhook")
                     return {"status": "skipped", "reason": "zombie trade"}
 
-
                 # GHOST TRADE DETECTION (now safe to use status and filled)
-            #   if is_ghost_trade(status, filled, trade_id, firebase_db):
-            #       log_to_file(f"⏭️ Ignoring ghost trade {trade_id} in webhook")
-            #       return {"status": "skipped", "reason": "ghost trade"}
+                # if is_ghost_trade(status, filled, trade_id, firebase_db):
+                #    log_to_file(f"⏭️ Ignoring ghost trade {trade_id} in webhook")
+                #    return {"status": "skipped", "reason": "ghost trade"}
 
                 log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id
@@ -271,7 +229,7 @@ async def webhook(request: Request):
             return {"status": "error", "message": f"Exception in place_trade: {e}"}, 555
         # ======= END PATCH =======
 
-               #=====  END OF PART 2 =====
+       #=====  END OF PART 2 =====
 
     # ========================= APP.PY - PART 3 (FINAL PART) ================================
 
