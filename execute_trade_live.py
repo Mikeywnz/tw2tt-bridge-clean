@@ -10,6 +10,23 @@ from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 import firebase_active_contract
 
+# ==========================
+# 🟩 GREEN PATCH START: Archive Ghost Trade Immediately
+# ==========================
+import firebase_admin
+from firebase_admin import db
+
+def archive_ghost_trade(trade_id, trade_data):
+    try:
+        ghost_ref = db.reference("/ghost_trades_log")
+        ghost_ref.child(trade_id).set(trade_data)
+        print(f"✅ Archived ghost trade {trade_id} to ghost_trades_log")
+    except Exception as e:
+        print(f"❌ Failed to archive ghost trade {trade_id}: {e}")
+# ==========================
+# 🟩 GREEN PATCH END
+# ==========================
+
 def place_trade(symbol, action, quantity):
     # Initialize status to avoid unbound local variable error
     status = None  # <<< GREEN PATCH: Initialize status early to avoid error
@@ -101,6 +118,39 @@ def place_trade(symbol, action, quantity):
             status = "FILLED" if filled_qty > 0 else "REJECTED"
             trade_state = "open" if filled_qty > 0 else "closed"
 
+            # ==========================
+            # 🟩 GREEN PATCH START: Strict Ghost Trade Rejection in place_trade()
+            # ==========================
+
+            # Place this inside place_trade(), right after you retrieve matched_tx and filled_qty:
+
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+            trade_status = getattr(matched_tx, "status", "").upper()
+
+         # ==========================
+            # 🟩 GREEN PATCH START: Call archive_ghost_trade on ghost detection
+            # ==========================
+
+            if filled_qty == 0 and trade_status in ghost_statuses:
+                print(f"⏭️ Rejected ghost trade detected: status={trade_status}, filled_qty=0")
+                archive_ghost_trade(order_id, {
+                    "trade_status": trade_status,
+                    "filled_quantity": filled_qty,
+                    "trade_state": "closed",
+                    "trade_type": "",
+                    "raw_transaction": matched_tx
+                })
+                return {
+                    "status": "skipped",
+                    "reason": "ghost trade - zero fill with bad status",
+                    "trade_status": trade_status,
+                    "trade_state": "closed",
+                    "trade_type": ""
+                }
+
+            # ==========================
+            # 🟩 GREEN PATCH END
+            # ==========================
             # Determine trade_type based on action and position
             if filled_qty > 0:
                 trade_type = "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY"

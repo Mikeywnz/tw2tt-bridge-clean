@@ -302,6 +302,29 @@ def push_orders_main():
                 continue
 
             endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+
+            # ==========================
+            # 🟩 GREEN PATCH START: Ghost Trade Filtering and Archiving
+            # ==========================
+
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+
+            status = payload.get("status", "").upper()
+            filled = payload.get("filled", 0)
+            order_id = payload.get("order_id", "")
+
+            if filled == 0 and status in ghost_statuses:
+                print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
+                # Archive ghost trade
+                ghost_ref = db.reference("/ghost_trades_log")
+                ghost_ref.child(order_id).set(payload)
+                # Skip pushing this trade to open_active_trades
+                continue
+
+            # ==========================
+            # 🟩 GREEN PATCH END
+            # ==========================
+
             put = requests.put(endpoint, json=payload)
             if put.status_code == 200:
                 print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
