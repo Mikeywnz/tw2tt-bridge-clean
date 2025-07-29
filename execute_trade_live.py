@@ -11,6 +11,9 @@ from tigeropen.trade.domain.order import Order
 import firebase_active_contract
 
 def place_trade(symbol, action, quantity):
+    # Initialize status to avoid unbound local variable error
+    status = None  # <<< GREEN PATCH: Initialize status early to avoid error
+    
     # Ignore passed symbol; fetch active contract from Firebase instead
     import firebase_active_contract
     symbol = firebase_active_contract.get_active_contract()
@@ -22,7 +25,7 @@ def place_trade(symbol, action, quantity):
 
     # === Load Tiger Config ===
     try:
-        config = TigerOpenClientConfig()  #This is critical do not change this on this version if tiger SDK
+        config = TigerOpenClientConfig()  # This is critical do not change this on this version if tiger SDK
         config.env = 'PROD'
         config.language = 'en_US'
 
@@ -67,7 +70,7 @@ def place_trade(symbol, action, quantity):
 
         print(f"📛 Parsed order_id: {order_id}")
 
-        # 🟢 PATCH: Retry loop to fetch matching transaction, polling every 1 sec up to 3 times
+        # 🟢 PATCH: Retry loop to fetch matching transaction, polling every 3 sec up to 3 times
         matched_tx = None
         if order_id:
             for attempt in range(3):  # Retry 3 times
@@ -78,14 +81,16 @@ def place_trade(symbol, action, quantity):
                     break
                 else:
                     print(f"⏳ Transaction not found on attempt {attempt+1}, retrying...")
-                    time.sleep(1)  # Wait 1 second before next attempt
+                    time.sleep(3)  # Wait 3 seconds before next attempt
         else:
             print("🛑 No order_id parsed from response → rejecting trade")
+            # Assign status here before returning
+            status = "REJECTED"
             return {
                 "status": "REJECTED",
                 "order_id": None,
                 "reason": "No order ID from Tiger response",
-                "trade_status": "REJECTED",
+                "trade_status": status,
                 "trade_state": "closed",
                 "trade_type": ""
             }
@@ -133,11 +138,13 @@ def place_trade(symbol, action, quantity):
                 }
         else:
             print(f"🛑 No matching transaction found for order {order_id} → treated as rejected")
+            # Assign status here before returning
+            status = "REJECTED"
             return {
                 "status": "REJECTED",
                 "order_id": order_id,
                 "reason": "No matching transaction found",
-                "trade_status": "REJECTED",
+                "trade_status": status,
                 "trade_state": "closed",
                 "trade_type": ""
             }
