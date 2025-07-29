@@ -210,9 +210,9 @@ async def webhook(request: Request):
                 log_to_file(f"Invalid explicit price in trade alert: {e}")
                 price = 0.0
 
-        if price <= 0:
-            log_to_file(f"❌ Invalid entry price {price} for market order fallback; aborting trade for {symbol}")
-            return {"status": "error", "message": "invalid entry price for market order fallback"}
+        if str(raw_price).upper() not in ["MARKET", "MKT"] and price <= 0:
+            log_to_file(f"❌ Invalid entry price {price} for non-market order; aborting trade for {symbol}")
+            return {"status": "error", "message": "invalid entry price for order"}
 
         # ✅ FETCH Tiger Order ID + Timestamp from Execution
         entry_timestamp = datetime.utcnow().isoformat() + "Z"

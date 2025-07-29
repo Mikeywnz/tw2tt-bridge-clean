@@ -197,7 +197,6 @@ def push_orders_main():
 
     print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
 
-    # =================== GREEN PATCH END ===================
     # ====================== GREEN PATCH START: Push Orders Processing Fixes ======================
 
     tiger_ids = set()
