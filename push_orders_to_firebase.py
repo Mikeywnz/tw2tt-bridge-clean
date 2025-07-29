@@ -174,21 +174,27 @@ def push_orders_main():
         # Add raw Tiger strings mapped here if needed
     }
 
-    # === Time Window: last 48 hours ===
-    now = datetime.utcnow()
-    start_time = now - timedelta(hours=48)
-    end_time = now
+   # =================== GREEN PATCH: Use Active Contract Symbol ===================
 
+    # Before fetching orders from TigerTrade API, fetch the active contract from Firebase
+    active_symbol = firebase_active_contract.get_active_contract()
+    if not active_symbol:
+        print("❌ No active contract symbol found in Firebase; aborting orders fetch")
+        return  # Or raise Exception or handle error as appropriate
+
+    # Then pass active_symbol as a filter parameter to client.get_orders()
     orders = client.get_orders(
         account="21807597867063647",
         seg_type=SegmentType.FUT,
+        symbol=active_symbol,  # <--- Add this line here
         start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
         end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
         limit=150
     )
 
-    print(f"\n📦 Total orders returned: {len(orders)}")
+    print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
 
+    # =================== GREEN PATCH END ===================
     # ====================== GREEN PATCH START: Push Orders Processing Fixes ======================
 
     tiger_ids = set()
