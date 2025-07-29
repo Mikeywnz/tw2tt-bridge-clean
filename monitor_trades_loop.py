@@ -212,6 +212,13 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
         now_nz = datetime.now(nz_tz)
         delta_seconds = (now_nz - last_updated).total_seconds()
 
+        # 🟩 DEBUG LOGS - zombie detection timing start
+        print(f"[DEBUG] Current time: {datetime.now(timezone('Pacific/Auckland'))}")
+        print(f"[DEBUG] /live_total_positions last_updated: {last_updated} (NZST)")
+        print(f"[DEBUG] Data age (seconds): {delta_seconds:.1f}")
+        print(f"[DEBUG] Position count: {position_count}")
+        # 🟩 DEBUG LOGS - zombie detection timing end
+
         if delta_seconds > grace_period_seconds:
             print(f"⚠️ Firebase data too old ({delta_seconds:.1f}s), skipping zombie check")
             return False
@@ -219,8 +226,10 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
         print(f"✅ Firebase data fresh ({delta_seconds:.1f}s ago), position_count = {position_count}")
 
         if position_count == 0 or position_count == 0.0:
+            print("✅ Position count is zero, safe to run zombie trade detection")
             return True
         else:
+            print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
             return False
 
 # === Step 2b: Handle Zombie Trades ===
@@ -230,6 +239,8 @@ def handle_zombie_trades(firebase_db):
 
     all_open_trades = open_trades_ref.get() or {}
     existing_zombies = set(zombie_trades_ref.get() or {})
+
+    print(f"[DEBUG] Handling zombie trades at {datetime.now(timezone('Pacific/Auckland'))}")
 
     if isinstance(all_open_trades, dict):
         for symbol, trades_by_id in all_open_trades.items():
@@ -241,6 +252,9 @@ def handle_zombie_trades(firebase_db):
                     if trade_id in existing_zombies:
                         print(f"⏭️ Skipping already known zombie trade: {trade_id}")
                         continue
+
+                    # 🟩 DEBUG: evaluating trade for zombie marking
+                    print(f"[DEBUG] Evaluating trade {trade_id} for symbol {symbol} for zombie marking")
 
                     # Mark as zombie
                     print(f"🛑 Marking zombie trade: {trade_id} for symbol {symbol}")
@@ -260,9 +274,12 @@ def handle_zombie_trades(firebase_db):
         print("⚠️ all_open_trades is not a dict, skipping trade processing")
 
 def monitor_trades():
+    print(f"[DEBUG] Starting zombie check in monitor_trades at {datetime.now(timezone('Pacific/Auckland'))}")
+
     if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
-        print("⚠️ Skipping zombie trade check — live positions data not fresh or non-zero")
+        print("[DEBUG] Skipping zombie trade check due to stale data or non-zero positions")
     else:
+        print("[DEBUG] Passing zombie trade check, handling zombies")
         handle_zombie_trades(db)
 
     trigger_points, offset_points = load_trailing_tp_settings()
@@ -322,9 +339,9 @@ def monitor_trades():
         if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
             continue
 
-        if t.get("is_ghost", False):
-            print(f"⏭️ Skipping ghost trade {tid}")
-            continue
+       # if t.get("is_ghost", False):
+        #    print(f"⏭️ Skipping ghost trade {tid}")
+         #   continue
 
         if trigger_points < 0.01 or offset_points < 0.01:
             print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
@@ -334,7 +351,7 @@ def monitor_trades():
     if not active_trades:
         print("⚠️ No active trades found — Trade Worker happy & awake.")
 
-        # ===== END OF PART 2 =====
+# ===== END OF PART 2 =====
 
 #=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART)  ================================
 
@@ -353,9 +370,10 @@ def monitor_trades():
         print(f"🔄 Processing trade {trade_id}")
         if trade.get('exited') or trade_id in exit_in_progress:
             continue
-        if trade.get("is_ghost", False):
-            print(f"⏭️ Skipping already exited/in-progress trade {trade_id}")
-            continue
+
+       # if trade.get("is_ghost", False):
+        #    print(f"⏭️ Skipping already exited/in-progress trade {trade_id}")
+         #   continue
 
         symbol = trade['symbol']
         direction = 1 if trade['action'] == 'BUY' else -1
@@ -416,13 +434,12 @@ def monitor_trades():
 
     # ✅ Only save valid open trades back to Firebase
     filtered_trades = [
-    t for t in updated_trades
-    if not t.get('exited')
-    and t.get('status') != 'closed'
-    and t.get('trade_state') != 'closed'
-    and t.get('contracts_remaining', 0) > 0
-    and t.get('filled')
-    and not t.get('is_ghost', False)
+        t for t in updated_trades
+        if not t.get('exited')
+        and t.get('status') != 'closed'
+        and t.get('trade_state') != 'closed'
+        and t.get('contracts_remaining', 0) > 0
+        and t.get('filled')
     ]
     save_open_trades(symbol, filtered_trades)
 
@@ -435,4 +452,3 @@ if __name__ == '__main__':
         time.sleep(10)
 
 #=====  END OF PART 3 (END OF SCRIPT)  =====
-
