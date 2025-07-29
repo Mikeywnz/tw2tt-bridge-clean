@@ -6,10 +6,15 @@ def main():
     client = TradeClient(config)
 
     account = "21807597867063647"
+    symbol = "MGC2510"
+
     try:
-        transactions = client.get_transactions(account=account, symbol="MGC2508", limit=10)
+        transactions = client.get_transactions(account=account, symbol=symbol, limit=10)
         for tx in transactions:
-            print(vars(tx))
+            print("Transaction:")
+            for key, value in vars(tx).items():
+                print(f"  {key}: {value}")
+            print()
     except Exception as e:
         print(f"Error fetching transactions: {e}")
 

@@ -234,7 +234,6 @@ def push_orders_main():
                 print(f"⚠️ Failed to parse Tiger order_time: {raw_ts} → {e}")
                 exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 exit_time_iso = datetime.utcnow().isoformat() + "Z"
-
                 exit_reason_raw = "UNKNOWN"
 
             print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
@@ -258,14 +257,14 @@ def push_orders_main():
                 print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
                 continue  # Skip processing this order
 
-            # Construct payload
+            # Construct payload using exact filled price
             payload = {
                 "order_id": oid,
                 "symbol": symbol,
                 "action": str(getattr(order, 'action', '')).upper(),
                 "quantity": getattr(order, 'quantity', 0),
                 "filled": filled,
-                "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),
+                "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price from Tiger
                 "status": status,
                 "reason": friendly_reason,
                 "liquidation": getattr(order, 'liquidation', False),
@@ -277,88 +276,12 @@ def push_orders_main():
             }
 
             # ✅ Always push raw Tiger order into tiger_orders_log
-            tiger_orders_ref.child(oid).set(payload)        
+            tiger_orders_ref.child(oid).set(payload)
+
             # Only push to open_active_trades if not ghost
             if not is_ghost:
-                # push to /open_active_trades/ as usual
-                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
-                put = requests.put(endpoint, json=new_trade)
-                if put.status_code == 200:
-                    print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
-                else:
-                    print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
-            else:
-                print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
-            # === STEP 2 FIFI EXIT MATCHING LOGIC: If this is a closing trade, match it to an open trade ===
-            action = payload.get("action")
-            symbol = firebase_active_contract.get_active_contract()
-            if not symbol:
-                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
-                continue
-            order_time = payload.get("order_time")
-            opposite_action = "SELL" if action == "BUY" else "BUY"
-
-            # Get current open trades for this symbol
-            open_trades = open_trades_ref.child(symbol).get() or {}
-
-            # ✅ Skip any trade not marked as open (prevents reprocessing closed trades)
-            matched_trade_id = None
-            for tid, trade in sorted(open_trades.items(), key=lambda item: safe_int(item[1].get("entry_timestamp", 0))):
-                if trade.get("action") == opposite_action and trade.get("trade_state", "open") == "open":
-                    matched_trade_id = tid
-                    break
-
-            # If we found a match, mark it as closed and remove it
-            if matched_trade_id:
-                print(f"🟡 Matched closing trade: {action} {symbol} → closes {opposite_action} {matched_trade_id}")
-
-                # ⏱️ Convert Tiger order_time to ISO
-                try:
-                    ts_int = int(order_time)
-                    if ts_int > 1e12:
-                        ts_int //= 1000
-                    exit_time_iso = datetime.utcfromtimestamp(ts_int).isoformat() + 'Z'
-                except Exception:
-                    exit_time_iso = None
-
-                open_trades_ref.child(symbol).child(matched_trade_id).update({
-                    "trade_state": "closed",
-                    "exit_reason": friendly_reason,
-                    "exit_method": "fifo",
-                    "exit_order_id": oid,
-                    "exit_time_iso": exit_time_iso
-                })
-
-                # Remove from /open_trades/
-                open_trades_ref.child(symbol).child(matched_trade_id).delete()
-                print(f"✅ Removed from /open_active_trades/: {symbol}/{matched_trade_id}")
-                try:
-                    # Log closed trade to Google Sheets
-                    log_closed_trade_to_google_sheet(trade)
-                except Exception as e:
-                    print(f"❌ Failed to log closed trade to Google Sheets for trade {matched_trade_id}: {e}")
-         
-                print(f"✅ Pushed to Firebase Tiger Orders Log: {oid}")
-
-                # ✅ PATCH: Prevent re-adding closed FIFO trades to open_active_trades
-                trade_id = oid  # Use the Tiger order ID extracted earlier, not payload.get("trade_id")
-                symbol = payload.get("symbol")
-
-                firebase_trade = open_trades.get(symbol, {}).get(trade_id)
-
-                # If this trade already exists in Firebase and has an exit reason, skip it
-                if firebase_trade and firebase_trade.get("exit_reason") in ["FIFO Close", "manual_flattened", "Liquidation", "manual_close"]:
-                    print(f"⛔️ Skipping re-add of closed trade {trade_id} with exit_reason: {firebase_trade.get('exit_reason')}")
-                    continue
-                if firebase_trade.get("is_ghost", False):
-                    print(f"⛔️ Skipping re-add of ghost trade {trade_id}")
-                    continue
-                price = payload["avg_fill_price"]
-                action = payload["action"]
-                entry_timestamp = getattr(order, "order_time", None)
+                # Build new_trade dict with classification and trailing TP info
                 trigger_points, offset_points = load_trailing_tp_settings()
-
-                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
                 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
                     old_net = pos_tracker.get(symbol)
@@ -386,7 +309,14 @@ def push_orders_main():
 
                     pos_tracker[symbol] = new_net
                     return ttype, new_net
-                    status = "FILLED"  # or whatever logic sets it properly, e.g. based on order info
+
+                price = payload["avg_fill_price"]
+                action = payload["action"]
+                entry_timestamp = raw_ts
+                trade_id = oid
+                status = "FILLED"
+
+                ttype, _ = classify_trade(symbol, action, 1, pos_tracker, db)
 
                 new_trade = {
                     "trade_id": trade_id,
@@ -394,7 +324,7 @@ def push_orders_main():
                     "entry_price": price,
                     "action": action,
                     "trade_type": ttype,
-                    "status": status,               # <-- Add this line
+                    "status": status,
                     "contracts_remaining": 1,
                     "trail_trigger": trigger_points,
                     "trail_offset": offset_points,
@@ -411,14 +341,16 @@ def push_orders_main():
 
                 if not is_valid_trade_id(trade_id):
                     print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-                    continue  # Skip this trade, do not push invalid IDs
+                    continue
 
+                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
                 put = requests.put(endpoint, json=new_trade)
-
                 if put.status_code == 200:
                     print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
                 else:
                     print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
+            else:
+                print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
 
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")

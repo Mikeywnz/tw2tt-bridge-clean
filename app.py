@@ -290,6 +290,7 @@ async def webhook(request: Request):
             log_to_file(f"[WARN] Failed to fetch trailing settings, using defaults: {e}")
             trigger_points = 14.0
             offset_points = 5.0
+            
 
         try:
             with open(PRICE_FILE, "r") as f:

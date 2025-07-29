@@ -53,63 +53,66 @@ def place_trade(symbol, action, quantity):
     # === Submit Order ===
     try:
         response = client.place_order(order)
+        print("🐯 Full Tiger order response:", response)
 
-        # PATCH: Handle string response from Tiger
-        if isinstance(response, str) and response.isdigit():
-            print("📦 Tiger returned raw string order ID → converting to dict")
-            response = {"id": response}
+        # Extract order ID robustly
+        order_id = None
+        if isinstance(response, dict):
+            order_id = response.get("id", None)
+        elif isinstance(response, str) and response.isdigit():
+            order_id = response
+        elif isinstance(response, int):
+            order_id = str(response)
 
-        # PATCH: Handle integer response from Tiger
-        if isinstance(response, int):
-            print("📦 Tiger returned raw integer order ID → converting to dict")
-            response = {"id": response}
+        print(f"📛 Parsed order_id: {order_id}")
 
-        print("✅ ORDER PLACED")
-        print("✅ Tiger response (raw):", response)
+        # === GREEN PATCH: Use Transaction Filled Quantity and Details to Confirm Success and Return Full Info ===
+        if order_id:
+            # Fetch recent transactions for this order to check fill and gather details
+            transactions = client.get_transactions(account=config.account, symbol=symbol, limit=20)
+            matched_tx = next((tx for tx in transactions if str(tx.order_id) == str(order_id)), None)
 
-        try:
-            # === Extract order ID robustly ===
-            order_id = None
-            if isinstance(response, dict):
-                order_id = response.get("id", "HELLO_DICT_NONE")
-            elif isinstance(response, str):
-                order_id = response if response.isdigit() else "HELLO_STR_INVALID"
-            elif isinstance(response, int):
-                order_id = str(response)
+            if matched_tx:
+                filled_qty = getattr(matched_tx, "filled_quantity", 0)
+                filled_price = getattr(matched_tx, "filled_price", 0.0)
+                filled_amount = getattr(matched_tx, "filled_amount", 0.0)
+                transacted_at = getattr(matched_tx, "transacted_at", "")
+                transaction_time = getattr(matched_tx, "transaction_time", 0)
+                action_tx = getattr(matched_tx, "action", "")
+
+                if filled_qty > 0:
+                    print(f"✅ Order {order_id} filled with quantity {filled_qty} at price {filled_price}")
+
+                    return {
+                        "status": "SUCCESS",
+                        "order_id": order_id,
+                        "filled_quantity": filled_qty,
+                        "filled_price": filled_price,
+                        "filled_amount": filled_amount,
+                        "transacted_at": transacted_at,
+                        "transaction_time": transaction_time,
+                        "action": action_tx
+                    }
+                else:
+                    print(f"🛑 Order {order_id} has zero fill quantity → treated as rejected")
+                    return {
+                        "status": "REJECTED",
+                        "order_id": order_id,
+                        "reason": "Zero fill quantity"
+                    }
             else:
-                order_id = "HELLO_UNRECOGNIZED_TYPE"
-
-            print("📛 Parsed order_id:", order_id)
-            
-        except Exception as e:
-            print("❌ Error parsing order_id:", e)
-
-        error_msg = getattr(response, "error_msg", "No error_msg")
-        print("❗Tiger response message:", error_msg)
-
-        # === GREEN PATCH: BLOCK GHOST TRADES EARLY ===
-        ghost_rejects = {"EXPIRED", "REJECTED", "LACK_OF_MARGIN", "INSUFFICIENT_FUNDS"}
-
-        order_status = getattr(response, "status", "").upper() if isinstance(response, dict) else ""
-        reject_reason = getattr(response, "reject_reason", "").upper() if isinstance(response, dict) else ""
-        error_msg_upper = error_msg.upper() if isinstance(error_msg, str) else ""
-
-        if reject_reason in ghost_rejects or any(keyword in error_msg_upper for keyword in ghost_rejects):
-            print(f"🛑 Ghost trade blocked: Order rejected due to {reject_reason or error_msg}")
+                print(f"🛑 No matching transaction found for order {order_id} → treated as rejected")
+                return {
+                    "status": "REJECTED",
+                    "order_id": order_id,
+                    "reason": "No matching transaction found"
+                }
+        else:
+            print("🛑 No order_id parsed from response → rejecting trade")
             return {
                 "status": "REJECTED",
-                "reject_reason": reject_reason or error_msg,
-                "order_id": order_id
-            }
-
-        is_filled = (order_status == "FILLED")
-
-        if not is_filled:
-            print(f"⚠️ Order not filled; skipping open trades entry. Status: {order_status}")
-            return {
-                "status": "REJECTED",   # <-- Patch: Treat anything not FILLED as REJECTED
-                "reject_reason": f"Unfilled status: {order_status}",
-                "order_id": order_id
+                "order_id": None,
+                "reason": "No order ID from Tiger response"
             }
         # === END GREEN PATCH ===
 
