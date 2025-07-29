@@ -240,100 +240,96 @@ def push_orders_main():
 
             print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
 
-        except Exception as e:
-            print(f"❌ Exception processing order: {e}")
-            continue
+            # === DETECT GHOST TRADE ===
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+            is_ghost = filled == 0 and status in ghost_statuses
+            if is_ghost:
+                print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
-        # === DETECT GHOST TRADE ===
-        ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-        is_ghost = filled == 0 and status in ghost_statuses
-        if is_ghost:
-            print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+            # Map friendly reason
+            friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
 
-        # Map friendly reason
-        friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
+            # Parse symbol
+            symbol = firebase_active_contract.get_active_contract()
+            if not symbol:
+                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
+                continue  # Skip processing this order
 
-        # Parse symbol
-        symbol = firebase_active_contract.get_active_contract()
-        if not symbol:
-            print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
-            continue  # Skip processing this order
+            # === BUILD PAYLOAD WITH PATCHED STATUS, TRADE_STATE, TRADE_TYPE ===
+            payload = {
+                "order_id": oid,
+                "symbol": symbol,
+                "action": str(getattr(order, 'action', '')).upper(),
+                "quantity": getattr(order, 'quantity', 0),
+                "filled": filled,
+                "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
+                "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
+                "reason": friendly_reason,
+                "liquidation": getattr(order, 'liquidation', False),
+                "timestamp": exit_time_iso,
+                "source": map_source(getattr(order, 'source', None)),
+                "is_open": getattr(order, 'is_open', False),
+                "is_ghost": is_ghost,
+                "exit_reason": friendly_reason,
+                # Trade State and Trade Type logic for downstream usage
+                "trade_state": "open" if status == "FILLED" else "closed",
+                "trade_type": None  # Will be assigned below
+            }
 
-        # === BUILD PAYLOAD WITH PATCHED STATUS, TRADE_STATE, TRADE_TYPE ===
-        payload = {
-            "order_id": oid,
-            "symbol": symbol,
-            "action": str(getattr(order, 'action', '')).upper(),
-            "quantity": getattr(order, 'quantity', 0),
-            "filled": filled,
-            "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
-            "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
-            "reason": friendly_reason,
-            "liquidation": getattr(order, 'liquidation', False),
-            "timestamp": exit_time_iso,
-            "source": map_source(getattr(order, 'source', None)),
-            "is_open": getattr(order, 'is_open', False),
-            "is_ghost": is_ghost,
-            "exit_reason": friendly_reason,
-            # Trade State and Trade Type logic for downstream usage
-            "trade_state": "open" if status == "FILLED" else "closed",
-            "trade_type": None  # Will be assigned below
-        }
+            # === CLASSIFY TRADE TYPE BASED ON POSITION ===
+            trigger_points, offset_points = load_trailing_tp_settings()
 
-        # === CLASSIFY TRADE TYPE BASED ON POSITION ===
-        trigger_points, offset_points = load_trailing_tp_settings()
+            def classify_trade(symbol, action, qty, pos_tracker, fb_db):
+                old_net = pos_tracker.get(symbol)
+                if old_net is None:
+                    data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
+                    old_net = int(data.get("position_count", 0))
+                    pos_tracker[symbol] = old_net
 
-        def classify_trade(symbol, action, qty, pos_tracker, fb_db):
-            old_net = pos_tracker.get(symbol)
-            if old_net is None:
-                data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-                old_net = int(data.get("position_count", 0))
-                pos_tracker[symbol] = old_net
+                buy = (action.upper() == "BUY")
 
-            buy = (action.upper() == "BUY")
-
-            if old_net == 0:
-                ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-            else:
-                if (old_net > 0 and buy) or (old_net < 0 and not buy):
+                if old_net == 0:
                     ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
                 else:
-                    ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
+                    if (old_net > 0 and buy) or (old_net < 0 and not buy):
+                        ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+                    else:
+                        ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
 
-            pos_tracker[symbol] = old_net  # No net update here, just classification
-            return ttype
+                pos_tracker[symbol] = old_net  # No net update here, just classification
+                return ttype
 
-        trade_type = classify_trade(symbol, payload["action"], payload["quantity"], pos_tracker, db)
-        payload["trade_type"] = trade_type
+            trade_type = classify_trade(symbol, payload["action"], payload["quantity"], pos_tracker, db)
+            payload["trade_type"] = trade_type
 
-        # ✅ Always push raw Tiger order into tiger_orders_log
-        tiger_orders_ref.child(oid).set(payload)
+            # ✅ Always push raw Tiger order into tiger_orders_log
+            tiger_orders_ref.child(oid).set(payload)
 
-        # Only push to open_active_trades if not ghost
-        if not is_ghost:
-            trade_id = oid
+            # Only push to open_active_trades if not ghost
+            if not is_ghost:
+                trade_id = oid
 
-            # VALIDATE trade_id
-            def is_valid_trade_id(tid):
-                return isinstance(tid, str) and tid.isdigit()
+                # VALIDATE trade_id
+                def is_valid_trade_id(tid):
+                    return isinstance(tid, str) and tid.isdigit()
 
-            if not is_valid_trade_id(trade_id):
-                print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-                continue
+                if not is_valid_trade_id(trade_id):
+                    print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
+                    continue
 
-            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
-            put = requests.put(endpoint, json=payload)
-            if put.status_code == 200:
-                print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
+                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+                put = requests.put(endpoint, json=payload)
+                if put.status_code == 200:
+                    print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
+                else:
+                    print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
             else:
-                print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
-        else:
-            print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
-
-# ====================== GREEN PATCH END ======================
+                print(f"⏭️ Skipping ghost trade {oid} for /open_active_trades/")
 
         except Exception as e:
             print(f"❌ Firebase push failed for {oid}: {e}")
+
+    # ====================== GREEN PATCH END ======================
 
     # === Tally Summary ===
     print(f"✅ FILLED: {filled_count}")
