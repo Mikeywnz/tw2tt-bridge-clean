@@ -156,6 +156,9 @@ def push_orders_main():
     tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
     open_trades_ref = db.reference("open_active_trades")
     pos_tracker = {}
+    now = datetime.utcnow()
+    start_time = now - timedelta(hours=48)
+    end_time = now
 
     # Initialize counters here, BEFORE the order loop:
     filled_count = 0
@@ -186,7 +189,7 @@ def push_orders_main():
     orders = client.get_orders(
         account="21807597867063647",
         seg_type=SegmentType.FUT,
-        symbol=active_symbol,  # <--- Add this line here
+        symbol=active_symbol,  # if you added this from patch
         start_time=start_time.strftime("%Y-%m-%d %H:%M:%S"),
         end_time=end_time.strftime("%Y-%m-%d %H:%M:%S"),
         limit=150
