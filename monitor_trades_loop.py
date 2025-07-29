@@ -274,10 +274,29 @@ def handle_zombie_and_ghost_trades(firebase_db):
             print(f"⚠️ Skipping trades for symbol {symbol} because it's not a dict")
             continue
 
+        # ==========================
+        # 🟩 GREEN PATCH: Remove entry_timestamp check for ghost trades in handle_zombie_and_ghost_trades()
+        # ==========================
         for trade_id, trade in trades_by_id.items():
             if not isinstance(trade, dict):
                 continue
 
+            status = trade.get("status", "").upper()
+            filled = trade.get("filled", 0)
+
+            # Skip if already archived
+            if trade_id in existing_zombies or trade_id in existing_ghosts:
+                continue
+
+            # Handle Ghost Trades first (no timestamp required)
+            if status in GHOST_STATUSES and filled == 0:
+                print(f"👻 Archiving ghost trade {trade_id} for symbol {symbol} (no timestamp needed)")
+                ghost_trades_ref.child(trade_id).set(trade)
+                open_trades_ref.child(symbol).child(trade_id).delete()
+                print(f"🗑️ Deleted ghost trade {trade_id} from /open_active_trades/")
+                continue
+
+            # From here on, entry_timestamp is required for other checks
             entry_ts_str = trade.get("entry_timestamp")
             if not entry_ts_str:
                 print(f"⚠️ No entry_timestamp for trade {trade_id}; skipping cooldown check")
@@ -291,22 +310,18 @@ def handle_zombie_and_ghost_trades(firebase_db):
 
             age_seconds = (now_utc - entry_ts).total_seconds()
 
-            status = trade.get("status", "").upper()
-            filled = trade.get("filled", 0)
-
-            # Skip if already archived
-            if trade_id in existing_zombies or trade_id in existing_ghosts:
-                continue
-
-            # Handle Ghost Trades
-            if status in GHOST_STATUSES and filled == 0:
-                if age_seconds < GHOST_GRACE_PERIOD_SECONDS:
-                    print(f"⏳ Ghost trade {trade_id} age {age_seconds:.1f}s < grace {GHOST_GRACE_PERIOD_SECONDS}s — skipping")
+            # Handle Zombie Trades
+            if status in ZOMBIE_STATUSES:
+                if age_seconds < ZOMBIE_COOLDOWN_SECONDS:
+                    print(f"⏳ Zombie trade {trade_id} age {age_seconds:.1f}s < cooldown {ZOMBIE_COOLDOWN_SECONDS}s — skipping")
                     continue
-                print(f"👻 Archiving ghost trade {trade_id} for symbol {symbol} (age {age_seconds:.1f}s)")
-                ghost_trades_ref.child(trade_id).set(trade)
+                print(f"🧟‍♂️ Archiving zombie trade {trade_id} for symbol {symbol} (age {age_seconds:.1f}s)")
+                zombie_trades_ref.child(trade_id).set({
+                    "symbol": symbol,
+                    "trade_data": trade
+                })
                 open_trades_ref.child(symbol).child(trade_id).delete()
-                print(f"🗑️ Deleted ghost trade {trade_id} from /open_active_trades/")
+                print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
                 continue
 
             # Handle Zombie Trades
