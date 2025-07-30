@@ -336,7 +336,7 @@ async def webhook(request: Request):
         "trail_trigger": trigger_points,
         "trail_offset": offset_points,
         "trail_hit": False,
-        "trail_peak": price,
+        "trail_peak": filled_price,
         "filled": True,
         "entry_timestamp": entry_timestamp,
         "trade_state": "open"  # Newly opened trade
