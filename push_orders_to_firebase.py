@@ -222,8 +222,8 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
-                if is_ghost_trade(oid, db):
-            print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+            if is_ghost_trade(oid, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
                 continue
             else:
                 print(f"✅ Order ID {oid} not a ghost, proceeding")
