@@ -149,10 +149,6 @@ async def webhook(request: Request):
             log_to_file("❌ Invalid price value received")
             return {"status": "error", "reason": "invalid price"}
 
-        filled_price = result.get("filled_price")
-        if filled_price is None or filled_price == 0.0:
-            filled_price = price  # fallback to live price if no filled_price
-
         utc_time = datetime.utcnow().isoformat() + "Z"
         payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
@@ -224,6 +220,33 @@ async def webhook(request: Request):
                 log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id
 
+                filled_price = result.get("filled_price") or 0.0
+
+                new_trade = {
+                    "trade_id": trade_id,
+                    "symbol": symbol,
+                    "entry_price": filled_price,
+                    "action": action,
+                    "trade_type": trade_type,
+                    "status": status,
+                    "contracts_remaining": 1,
+                    "trail_trigger": trigger_points,
+                    "trail_offset": offset_points,
+                    "trail_hit": False,
+                    "trail_peak": filled_price,
+                    "filled": True,
+                    "entry_timestamp": entry_timestamp,
+                    "trade_state": "open"  # Newly opened trade
+                }
+
+                endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+                log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
+                put = requests.put(endpoint, json=new_trade)
+                if put.status_code == 200:
+                    log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
+                else:
+                    log_to_file(f"❌ Firebase update failed: {put.text}")
+
             else:
                 log_to_file(f"[❌] Trade result: {result}")
                 return {"status": "error", "message": f"Trade result: {result}"}, 555
@@ -232,9 +255,6 @@ async def webhook(request: Request):
             log_to_file(f"❌ Exception in place_trade: {e}")
             return {"status": "error", "message": f"Exception in place_trade: {e}"}, 555
         # ======= END PATCH =======
-
-       #=====  END OF PART 2 =====
-
     # ========================= APP.PY - PART 3 (FINAL PART) ================================
 
     entry_timestamp = datetime.utcnow().isoformat() + "Z"
