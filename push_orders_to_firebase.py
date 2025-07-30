@@ -327,6 +327,14 @@ def push_orders_main():
             # ==========================
             # 🟩 GREEN PATCH END
             # ==========================
+            
+            status = payload.get("status", "").upper()
+            trade_state = payload.get("trade_state", "").lower()
+            trade_id = payload.get("order_id", "")
+
+            if status == "CLOSED" or trade_state == "closed":
+                print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
+                continue  # Skip pushing closed trades
 
             put = requests.put(endpoint, json=payload)
             if put.status_code == 200:
