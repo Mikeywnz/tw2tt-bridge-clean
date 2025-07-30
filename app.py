@@ -171,19 +171,31 @@ async def webhook(request: Request):
         trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
         log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
 
-        # ========================= GREEN PATCH START: MARKET ORDER PRICE FALLBACK & TRADE EXECUTION =========================
+        # Load trailing TP settings before trade execution
+        try:
+            fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
+            res = requests.get(fb_url)
+            cfg = res.json() if res.ok else {}
+            if cfg.get("enabled", False):
+                trigger_points = float(cfg.get("trigger_points", 14.0))
+                offset_points = float(cfg.get("offset_points", 5.0))
+            else:
+                trigger_points = 14.0
+                offset_points = 5.0
+        except Exception as e:
+            log_to_file(f"[WARN] Failed to fetch trailing settings, using defaults: {e}")
+            trigger_points = 14.0
+            offset_points = 5.0
 
         # No fallback price logic — pure market order flow
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
         log_to_file("[🧩] Entered trade execution block")
 
-        # ======= START PATCH: place_trade try/except block with status and filled extraction =======
         try:
             result = place_trade(symbol, action, quantity)
             log_to_file(f"🟢 place_trade result: {result}")
 
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
-                # === Simplified trade ID extraction and validation ===
                 def is_valid_trade_id(tid):
                     return isinstance(tid, str) and tid.isdigit()
 
@@ -199,11 +211,9 @@ async def webhook(request: Request):
                     log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
                     return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
 
-                # Extract status and filled quantity for ghost trade detection
                 status = result.get("trade_status", "UNKNOWN")
                 filled = result.get("filled_quantity", 0)
 
-                # 🟢 FILTER ARCHIVED AND ZOMBIE TRADES BEFORE PROCESSING
                 if is_archived_trade(trade_id, firebase_db):
                     log_to_file(f"⏭️ Ignoring archived trade {trade_id} in webhook")
                     return {"status": "skipped", "reason": "archived trade"}
@@ -211,11 +221,6 @@ async def webhook(request: Request):
                 if is_zombie_trade(trade_id, firebase_db):
                     log_to_file(f"⏭️ Ignoring zombie trade {trade_id} in webhook")
                     return {"status": "skipped", "reason": "zombie trade"}
-
-                # GHOST TRADE DETECTION (now safe to use status and filled)
-                # if is_ghost_trade(status, filled, trade_id, firebase_db):
-                #    log_to_file(f"⏭️ Ignoring ghost trade {trade_id} in webhook")
-                #    return {"status": "skipped", "reason": "ghost trade"}
 
                 log_to_file(f"[✅] Valid Tiger Order ID received: {trade_id}")
                 data["trade_id"] = trade_id
@@ -236,7 +241,7 @@ async def webhook(request: Request):
                     "trail_peak": filled_price,
                     "filled": True,
                     "entry_timestamp": entry_timestamp,
-                    "trade_state": "open"  # Newly opened trade
+                    "trade_state": "open"
                 }
 
                 endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
@@ -254,7 +259,8 @@ async def webhook(request: Request):
         except Exception as e:
             log_to_file(f"❌ Exception in place_trade: {e}")
             return {"status": "error", "message": f"Exception in place_trade: {e}"}, 555
-        # ======= END PATCH =======
+        # ======= END OF PART 2 =======
+
     # ========================= APP.PY - PART 3 (FINAL PART) ================================
 
     entry_timestamp = datetime.utcnow().isoformat() + "Z"
