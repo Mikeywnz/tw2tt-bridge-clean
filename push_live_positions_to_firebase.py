@@ -86,27 +86,6 @@ def push_live_positions():
             for tx in transactions:
                 print(vars(tx))
 
-            # --- Update Firebase open trades with accurate entry prices ---
-            for tx in transactions:
-                trade_key = getattr(tx, "order_id", None)  # Use order_id instead of transaction id
-                symbol = None
-                active_symbol = firebase_active_contract.get_active_contract()
-                symbol = active_symbol  # Use dynamic symbol, ignore contract in tx
-                entry_price = getattr(tx, "filled_price", None) or getattr(tx, "price", None)
-                if not (trade_key and symbol and entry_price):
-                    continue
-
-                open_trade_ref = open_trades_ref.child(symbol).child(str(trade_key))
-                existing_trade = open_trade_ref.get()
-                print(f"Checking Firebase for trade key {trade_key} under symbol {symbol}")
-                print(f"Existing trade data: {existing_trade}")
-                if existing_trade:
-                    existing_price = existing_trade.get("entry_price")
-                    # Update only if entry_price missing or different
-                    if existing_price != entry_price:
-                        open_trade_ref.update({"entry_price": entry_price})
-                        print(f"🔄 Updated entry price for trade {trade_key} on {symbol} to {entry_price}")
-
             # --- Keep /live_total_positions/ path alive ---
             if not live_ref.get():
                 live_ref.child("_heartbeat").set("alive")
