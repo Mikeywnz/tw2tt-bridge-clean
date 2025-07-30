@@ -159,6 +159,42 @@ def fifo_match_and_flatten(active_trades):
         print(f"🟢 Matched FLATTENING_BUY {buy_trade['trade_id']} with SHORT_ENTRY {short_trade['trade_id']}")
 
 # ==========================
+# 🟩 GREEN PATCH: Archive and Delete Matched Trades Immediately After FIFO Matching
+# ==========================
+
+def archive_and_delete_matched_trades(symbol, matched_trades):
+    for trade in matched_trades:
+        trade_id = trade.get('trade_id')
+        if not trade_id:
+            continue
+
+        # Mark trade as closed in-memory (if not already)
+        trade['exited'] = True
+        trade['status'] = 'closed'
+        trade['trade_state'] = 'closed'
+        trade['contracts_remaining'] = 0
+
+        # Archive to Firebase
+        archived_ref = db.reference(f"/archived_trades_log/{symbol}/{trade_id}")
+        try:
+            archived_ref.set(trade)
+            print(f"✅ Archived trade {trade_id} for symbol {symbol}")
+        except Exception as e:
+            print(f"❌ Failed to archive trade {trade_id}: {e}")
+
+        # Delete from open_active_trades
+        open_ref = db.reference(f"/open_active_trades/{symbol}/{trade_id}")
+        try:
+            open_ref.delete()
+            print(f"✅ Deleted trade {trade_id} from open_active_trades")
+        except Exception as e:
+            print(f"❌ Failed to delete trade {trade_id}: {e}")
+
+# Usage (example):
+# matched_trades = [list of trades matched in fifo_match_and_flatten()]
+# archive_and_delete_matched_trades(symbol, matched_trades)
+
+# ==========================
 # 🟩 END FIFO MATCHING PATCH
 # ==========================
 
