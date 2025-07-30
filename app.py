@@ -149,6 +149,10 @@ async def webhook(request: Request):
             log_to_file("❌ Invalid price value received")
             return {"status": "error", "reason": "invalid price"}
 
+        filled_price = result.get("filled_price")
+        if filled_price is None or filled_price == 0.0:
+            filled_price = price  # fallback to live price if no filled_price
+
         utc_time = datetime.utcnow().isoformat() + "Z"
         payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
@@ -310,7 +314,7 @@ async def webhook(request: Request):
     new_trade = {
         "trade_id": trade_id,
         "symbol": symbol,
-        "entry_price": price,
+        "entry_price": filled_price,
         "action": action,
         "trade_type": trade_type,
         "status": status,
