@@ -54,6 +54,9 @@ def load_trailing_tp_settings():
     except Exception as e:
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
+
+archived_trades_ref = db.reference("/archived_trades_log")
+archived_trade_ids = set(archived_trades_ref.get() or {})
     
 # === Setup Tiger API ===
 config = TigerOpenClientConfig()
@@ -316,6 +319,10 @@ def push_orders_main():
             filled = payload.get("filled", 0)
             order_id = payload.get("order_id", "")
 
+            if order_id in archived_trade_ids:
+                print(f"⏭️ ⛔ Skipping archived trade {order_id} during API push")
+                continue
+
             if filled == 0 and status in ghost_statuses:
                 print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
                 # Archive ghost trade
@@ -327,7 +334,7 @@ def push_orders_main():
             # ==========================
             # 🟩 GREEN PATCH END
             # ==========================
-            
+
             status = payload.get("status", "").upper()
             trade_state = payload.get("trade_state", "").lower()
             trade_id = payload.get("order_id", "")
