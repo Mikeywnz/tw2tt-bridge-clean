@@ -347,8 +347,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
                 print(f"🧟‍♂️ Archiving zombie trade {trade_id} for symbol {symbol} (age {age_seconds:.1f}s)")
                 trade["symbol"] = symbol
                 zombie_trades_ref.child(trade_id).set(trade)
-                
-                })
+
                 open_trades_ref.child(symbol).child(trade_id).delete()
                 print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
 
