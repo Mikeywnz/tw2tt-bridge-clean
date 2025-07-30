@@ -1,6 +1,6 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def main():
     config = TigerOpenClientConfig()
@@ -9,12 +9,16 @@ def main():
     account = "21807597867063647"
     symbol = "MGC2510"
 
-    # Define date range: last 7 days
-    start_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
-    end_date = datetime.utcnow().strftime("%Y-%m-%d")
+    # Timezone-aware dates for potential future use
+    now = datetime.now(timezone.utc)
+    start_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    end_date = now.strftime("%Y-%m-%d")
 
     try:
-        open_orders = client.get_open_orders(account=account, symbol=symbol, start_date=start_date, end_date=end_date)
+        # get_open_orders does NOT accept start_date/end_date; removed here
+        open_orders = client.get_open_orders(account=account, symbol=symbol)
+        if not open_orders:
+            print("No open orders found.")
         for order in open_orders:
             print("Open Order:")
             for key, value in vars(order).items():
