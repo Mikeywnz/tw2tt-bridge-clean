@@ -382,8 +382,13 @@ def monitor_trades():
             print(f"🔁 Skipping exited/closed trade {tid}")
             continue
 
-        if not t.get('filled'):
-            print(f"🧾 Skipping {tid} ⚠️ not filled")
+        # ==========================
+        # 🟩 GREEN PATCH: Modify filled skip logic in monitor_trades() to allow ghost trades through
+        # ==========================
+        GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+
+        if not t.get('filled') and t.get('status', '').upper() not in GHOST_STATUSES:
+            print(f"🧾 Skipping {tid} ⚠️ not filled and not a ghost trade")
             continue
 
         if t.get('contracts_remaining', 0) <= 0:
