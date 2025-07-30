@@ -78,10 +78,13 @@ def get_google_sheet():
     return sheet
 
     # === Helper to Check if Trade ID is a Known Ghost Trade ===
-#def is_ghost_trade(trade_id, firebase_db):
- #   ghost_ref = firebase_db.reference("/ghost_trades_log")
- #   ghosts = ghost_ref.get() or {}
- #   return trade_id in ghosts
+# ==========================
+# 🟩 GREEN PATCH: Uncomment and fix is_ghost_trade helper function
+# ==========================
+def is_ghost_trade(trade_id, firebase_db):
+    ghost_ref = firebase_db.reference("/ghost_trades_log")
+    ghosts = ghost_ref.get() or {}
+    return trade_id in ghosts
 
 # === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
 def is_zombie_trade(trade_id, firebase_db):
@@ -219,11 +222,11 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
-            #if is_ghost_trade(oid, db):
-            #    print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push")
-            #    continue
-            #else:
-            #    print(f"✅ Order ID {oid} not a ghost, proceeding")
+                if is_ghost_trade(oid, db):
+            print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+                continue
+            else:
+                print(f"✅ Order ID {oid} not a ghost, proceeding")
 
             tiger_ids.add(oid)
 

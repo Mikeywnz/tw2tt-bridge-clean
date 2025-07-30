@@ -383,7 +383,7 @@ def monitor_trades():
             continue
 
         # ==========================
-        # 🟩 GREEN PATCH: Modify filled skip logic in monitor_trades() to allow ghost trades through
+        # 🟩 GREEN PATCH: Modify filled and contracts_remaining skip logic in monitor_trades() to allow ghost trades through
         # ==========================
         GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 
@@ -391,40 +391,43 @@ def monitor_trades():
             print(f"🧾 Skipping {tid} ⚠️ not filled and not a ghost trade")
             continue
 
-        if t.get('contracts_remaining', 0) <= 0:
-            print(f"🧾 Skipping {tid} ⚠️ no contracts remaining")
+        status = t.get('status', '').upper()
+        if t.get('contracts_remaining', 0) <= 0 and status not in GHOST_STATUSES:
+            print(f"🧾 Skipping {tid} ⚠️ no contracts remaining and not a ghost trade")
             continue
 
-    active_trades = []
-    for t in all_trades:
-        if not t or not isinstance(t, dict):
-            continue
+        active_trades = []
+        for t in all_trades:
+            if not t or not isinstance(t, dict):
+                continue
 
-        tid = t.get('trade_id')
-        if not tid:
-            print("⚠️ Skipping trade with no trade_id")
-            continue
+            tid = t.get('trade_id')
+            if not tid:
+                print("⚠️ Skipping trade with no trade_id")
+                continue
 
-        if t.get('exited') or t.get('status') in ['failed', 'closed']:
-            print(f"⏭️ Skipping exited/closed trade {t.get('trade_id', 'unknown')}")
-            continue
+            if t.get('exited') or t.get('status') in ['failed', 'closed']:
+                print(f"⏭️ Skipping exited/closed trade {t.get('trade_id', 'unknown')}")
+                continue
 
-        if not t.get('filled') or t.get('contracts_remaining', 0) <= 0:
-            continue
+            # Adjusted skip to allow ghost trades through
+            status = t.get('status', '').upper()
+            if (not t.get('filled') and status not in GHOST_STATUSES) or (t.get('contracts_remaining', 0) <= 0 and status not in GHOST_STATUSES):
+                continue
 
-       # if t.get("is_ghost", False):
-        #    print(f"⏭️ Skipping ghost trade {tid}")
-         #   continue
+        # if t.get("is_ghost", False):
+            #    print(f"⏭️ Skipping ghost trade {tid}")
+            #    continue
 
-        if trigger_points < 0.01 or offset_points < 0.01:
-            print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
-            continue
-        active_trades.append(t)
+            if trigger_points < 0.01 or offset_points < 0.01:
+                print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
+                continue
+            active_trades.append(t)
 
-    if not active_trades:
-        print("⚠️ No active trades found — Trade Worker happy & awake.")
+        if not active_trades:
+            print("⚠️ No active trades found — Trade Worker happy & awake.")
 
-# ===== END OF PART 2 =====
+        # ===== END OF PART 2 =====
 
 #=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART)  ================================
 
@@ -457,9 +460,9 @@ def monitor_trades():
             updated_trades.append(trade)
             continue
 
-        entry = trade['entry_price']
-        if entry <= 0:
-            print(f"❌ Invalid entry price for {trade_id} — skipping.")
+        entry = trade.get('entry_price')
+        if entry is None:
+            print(f"❌ Trade {trade.get('trade_id', 'unknown')} missing entry_price, skipping.")
             continue
 
         # 🟢 Trailing TP Exit Handling with Archive & Delete
