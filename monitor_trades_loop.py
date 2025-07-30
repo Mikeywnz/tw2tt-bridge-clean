@@ -460,9 +460,9 @@ def monitor_trades():
             updated_trades.append(trade)
             continue
 
-        entry = trade.get('entry_price')
+        entry = trade.get('filled_price')
         if entry is None:
-            print(f"❌ Trade {trade.get('trade_id', 'unknown')} missing entry_price, skipping.")
+            print(f"❌ Trade {trade.get('trade_id', 'unknown')} missing filled_price, skipping.")
             continue
 
         # 🟢 Trailing TP Exit Handling with Archive & Delete

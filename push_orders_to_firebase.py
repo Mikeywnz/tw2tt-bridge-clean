@@ -273,7 +273,7 @@ def push_orders_main():
                 "action": str(getattr(order, 'action', '')).upper(),
                 "quantity": getattr(order, 'quantity', 0),
                 "filled": filled,
-                "avg_fill_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
+                "filled_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
                 "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
                 "reason": friendly_reason,
                 "liquidation": getattr(order, 'liquidation', False),
@@ -378,7 +378,7 @@ def log_closed_trade_to_google_sheet(trade):
             "closed",
             trade.get("action", ""),
             trade.get("trade_type", ""),  # preserve trade_type here
-            safe_float(trade.get("entry_price")),
+            safe_float(trade.get("filled_price")),
             exit_price,
             pnl_dollars,
             exit_reason,
