@@ -175,10 +175,10 @@ def archive_and_delete_matched_trades(symbol, matched_trades):
         trade['contracts_remaining'] = 0
 
         # Archive to Firebase
-        archived_ref = db.reference(f"/archived_trades_log/{symbol}/{trade_id}")
+        archived_ref = db.reference(f"/archived_trades_log/{trade_id}")
         try:
             archived_ref.set(trade)
-            print(f"✅ Archived trade {trade_id} for symbol {symbol}")
+            print(f"✅ Archived trade {trade_id}")
         except Exception as e:
             print(f"❌ Failed to archive trade {trade_id}: {e}")
 
@@ -345,9 +345,9 @@ def handle_zombie_and_ghost_trades(firebase_db):
                     print(f"⏳ Zombie trade {trade_id} age {age_seconds:.1f}s < cooldown {ZOMBIE_COOLDOWN_SECONDS}s — skipping")
                     continue
                 print(f"🧟‍♂️ Archiving zombie trade {trade_id} for symbol {symbol} (age {age_seconds:.1f}s)")
-                zombie_trades_ref.child(trade_id).set({
-                    "symbol": symbol,
-                    "trade_data": trade
+                trade["symbol"] = symbol
+                zombie_trades_ref.child(trade_id).set(trade)
+                
                 })
                 open_trades_ref.child(symbol).child(trade_id).delete()
                 print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
@@ -427,6 +427,13 @@ def monitor_trades():
     prices = load_live_prices()
 
     fifo_match_and_flatten(active_trades)
+
+    matched_trades = [t for t in active_trades if t.get('exited') or t.get('trade_state') == 'closed']
+    archive_and_delete_matched_trades(symbol, matched_trades)
+
+    active_trades = [t for t in active_trades if t not in matched_trades]
+
+    save_open_trades(symbol, active_trades)
 
     for trade in active_trades:
         if not trade or not isinstance(trade, dict):

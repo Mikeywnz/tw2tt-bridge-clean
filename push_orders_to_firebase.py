@@ -30,19 +30,6 @@ if not firebase_admin._apps:
         'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
     })
 
-# =========================
-# 🟢 PATCH 1: Define Trade Status Helpers
-# =========================
-def is_archived_trade(trade_id, firebase_db):
-    archived_ref = firebase_db.reference("/archived_trades_log")
-    archived_trades = archived_ref.get() or {}
-    return trade_id in archived_trades
-
-def is_zombie_trade(trade_id, firebase_db):
-    zombie_ref = firebase_db.reference("/zombie_trades_log")
-    zombie_trades = zombie_ref.get() or {}
-    return trade_id in zombie_trades
-
 # === Load Trailing Take Profit Settings from Firebase ===
 def load_trailing_tp_settings():
     try:
@@ -95,6 +82,11 @@ def is_zombie_trade(trade_id, firebase_db):
     zombies = zombie_ref.get() or {}
     return trade_id in zombies
 
+def is_archived_trade(trade_id, firebase_db):
+    archived_ref = firebase_db.reference("/archived_trades_log")
+    archived_trades = archived_ref.get() or {}
+    return trade_id in archived_trades
+
     # ===== Archived_trade() helper function =====
 def archive_trade(symbol, trade):
     trade_id = trade.get("trade_id")
@@ -113,7 +105,6 @@ def archive_trade(symbol, trade):
         print(f"❌ Failed to archive trade {trade_id}: {e}")
         return False
 
- 
 
 # === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
 def safe_float(val):

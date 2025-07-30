@@ -55,9 +55,9 @@ def archive_trade(symbol, trade):
         print(f"❌ Cannot archive trade without trade_id")
         return False
     try:
-        archive_ref = db.reference(f"/archived_trades_log/{symbol}/{trade_id}")
+        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")
         archive_ref.set(trade)
-        print(f"✅ Archived trade {trade_id} under {symbol}")
+        print(f"✅ Archived trade {trade_id}")
         return True
     except Exception as e:
         print(f"❌ Failed to archive trade {trade_id}: {e}")
