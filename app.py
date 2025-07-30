@@ -254,18 +254,6 @@ async def webhook(request: Request):
         trigger_points = 14.0
         offset_points = 5.0
 
-    try:
-        with open(PRICE_FILE, "r") as f:
-            prices = json.load(f)
-            price = float(prices.get(symbol, 0.0))
-    except Exception as e:
-        log_to_file(f"Price load error: {e}")
-        price = 0.0
-
-    if price <= 0:
-        log_to_file("❌ Invalid entry price (0.0) – aborting log.")
-        return {"status": "invalid entry price"}
-
     # ✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL
     trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
     log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
