@@ -103,62 +103,63 @@ def save_open_trades(symbol, trades):
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
 # ==========================
-# 🟩 GREEN PATCH 2: Improved fifo_match_and_flatten() Function
+# 🟩 GREEN PATCH 2: FIFO Matching for One-to-One Flattening Only
 # ==========================
 
 def fifo_match_and_flatten(active_trades):
     """
-    Robust FIFO matching for FLATTENING_BUY and FLATTENING_SELL trades.
-    Matches contracts fully across multiple scaled trades, marks exited trades.
+    Match each FLATTENING_SELL with the oldest LONG_ENTRY trade (1 contract).
+    Match each FLATTENING_BUY with the oldest SHORT_ENTRY trade (1 contract).
+    Mark both matched trades as exited and closed.
     """
-    buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and t.get('contracts_remaining', 0) > 0]
-    sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and t.get('contracts_remaining', 0) > 0]
 
-    # Sort by entry_timestamp, fallback to trade_id
-    def sort_key(trade):
-        return trade.get('entry_timestamp') or trade.get('trade_id')
+    # Get flattening sells and long entries
+    flattening_sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and not t.get('exited')]
+    long_entries = [t for t in active_trades if t.get('trade_type') == 'LONG_ENTRY' and not t.get('exited')]
 
-    buys.sort(key=sort_key)
-    sells.sort(key=sort_key)
+    # Get flattening buys and short entries
+    flattening_buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and not t.get('exited')]
+    short_entries = [t for t in active_trades if t.get('trade_type') == 'SHORT_ENTRY' and not t.get('exited')]
 
-    print(f"[DEBUG] FIFO Matching {len(buys)} buys and {len(sells)} sells")
+    # Sort all lists by entry_timestamp ascending or fallback trade_id
+    def sort_key(t):
+        return t.get('entry_timestamp') or t.get('trade_id')
 
-    i, j = 0, 0
-    while i < len(buys) and j < len(sells):
-        buy = buys[i]
-        sell = sells[j]
+    flattening_sells.sort(key=sort_key)
+    long_entries.sort(key=sort_key)
+    flattening_buys.sort(key=sort_key)
+    short_entries.sort(key=sort_key)
 
-        buy_remain = buy.get('contracts_remaining', 0)
-        sell_remain = sell.get('contracts_remaining', 0)
+    # Match flattening sells to long entries one-to-one
+    for sell_trade, long_trade in zip(flattening_sells, long_entries):
+        sell_trade['exited'] = True
+        sell_trade['status'] = 'closed'
+        sell_trade['trade_state'] = 'closed'
+        sell_trade['contracts_remaining'] = 0
 
-        if buy_remain <= 0:
-            i += 1
-            continue
-        if sell_remain <= 0:
-            j += 1
-            continue
+        long_trade['exited'] = True
+        long_trade['status'] = 'closed'
+        long_trade['trade_state'] = 'closed'
+        long_trade['contracts_remaining'] = 0
 
-        qty = min(buy_remain, sell_remain)
+        print(f"🟢 Matched FLATTENING_SELL {sell_trade['trade_id']} with LONG_ENTRY {long_trade['trade_id']}")
 
-        buy['contracts_remaining'] -= qty
-        sell['contracts_remaining'] -= qty
+    # Match flattening buys to short entries one-to-one
+    for buy_trade, short_trade in zip(flattening_buys, short_entries):
+        buy_trade['exited'] = True
+        buy_trade['status'] = 'closed'
+        buy_trade['trade_state'] = 'closed'
+        buy_trade['contracts_remaining'] = 0
 
-        print(f"🟢 FIFO flattening {qty} contracts: BUY {buy['trade_id']} with SELL {sell['trade_id']}")
+        short_trade['exited'] = True
+        short_trade['status'] = 'closed'
+        short_trade['trade_state'] = 'closed'
+        short_trade['contracts_remaining'] = 0
 
-        for trade in (buy, sell):
-            if trade['contracts_remaining'] == 0 and not trade.get('exited'):
-                trade['exited'] = True
-                trade['status'] = 'closed'
-                trade['trade_state'] = 'closed'
-                print(f"✅ Trade {trade['trade_id']} fully flattened and closed via FIFO match")
-
-        if buy['contracts_remaining'] == 0:
-            i += 1
-        if sell['contracts_remaining'] == 0:
-            j += 1
+        print(f"🟢 Matched FLATTENING_BUY {buy_trade['trade_id']} with SHORT_ENTRY {short_trade['trade_id']}")
 
 # ==========================
-# 🟩 FIFO MATCHING PATCH END
+# 🟩 END FIFO MATCHING PATCH
 # ==========================
 
 def delete_trade_from_firebase(symbol, trade_id):
