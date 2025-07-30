@@ -342,6 +342,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
 # ==========================
 
 def monitor_trades():
+    active_trades = []
     print(f"[DEBUG] Starting zombie check in monitor_trades at {datetime.now(timezone('Pacific/Auckland'))}")
 
     if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):

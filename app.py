@@ -175,7 +175,7 @@ async def webhook(request: Request):
         trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
         log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
 
-     # ========================= GREEN PATCH START: MARKET ORDER PRICE FALLBACK & TRADE EXECUTION =========================
+        # ========================= GREEN PATCH START: MARKET ORDER PRICE FALLBACK & TRADE EXECUTION =========================
 
         # No fallback price logic — pure market order flow
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
