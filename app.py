@@ -230,7 +230,7 @@ async def webhook(request: Request):
                 new_trade = {
                     "trade_id": trade_id,
                     "symbol": symbol,
-                    "entry_price": filled_price,
+                    "filled_price": filled_price,
                     "action": action,
                     "trade_type": trade_type,
                     "status": status,
@@ -294,7 +294,7 @@ async def webhook(request: Request):
                 symbol,             # 2. symbol
                 action,             # 3. action
                 trade_type,         # 4. Short or Long (new column)
-                price,              # 5. entry_price
+                price,              # 5. filled_price
                 trigger_points,     # 6. trail_trigger (pts)
                 offset_points,      # 7. trail_offset (pts)
                 trail_trigger_price,# 8. trigger_price
@@ -328,7 +328,7 @@ async def webhook(request: Request):
     new_trade = {
         "trade_id": trade_id,
         "symbol": symbol,
-        "entry_price": filled_price,
+        "filled_price": filled_price,
         "action": action,
         "trade_type": trade_type,
         "status": status,
