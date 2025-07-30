@@ -1,4 +1,4 @@
-#=========================  MONITOR_TRADES_LOOP - PART 1  ================================
+# ========================= MONITOR_TRADES_LOOP - 1 & 2 COMBINED ================================
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import time
@@ -39,7 +39,7 @@ def close_position(symbol, original_action):
             capture_output=True,
             text=True
         )
-        print(f"\U0001f4e4 Exit order sent: {exit_action} 1 {symbol}")
+        print(f"📤 Exit order sent: {exit_action} 1 {symbol}")
         print("stdout:", result.stdout.strip())
         print("stderr:", result.stderr.strip())
     except Exception as e:
@@ -60,7 +60,6 @@ def archive_trade(symbol, trade):
         return False
     try:
         archive_ref = db.reference(f"/archived_trades_log/{trade_id}")
-        # Preserve original trade_type; do NOT overwrite it with "closed"
         if "trade_type" not in trade or not trade["trade_type"]:
             trade["trade_type"] = "UNKNOWN"
         archive_ref.set(trade)
@@ -103,7 +102,9 @@ def save_open_trades(symbol, trades):
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
-# 🟩 FIFO MATCHING PATCH (using trade_type) — Insert into monitor_trades() before trailing TP loop
+# ==========================
+# 🟩 FIFO MATCHING PATCH START
+# ==========================
 
 def fifo_match_and_flatten(active_trades):
     """
@@ -113,22 +114,29 @@ def fifo_match_and_flatten(active_trades):
     buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and t.get('contracts_remaining', 0) > 0]
     sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and t.get('contracts_remaining', 0) > 0]
 
-    # Sort FIFO by entry timestamp or trade_id
     buys.sort(key=lambda x: x.get('entry_timestamp', x['trade_id']))
     sells.sort(key=lambda x: x.get('entry_timestamp', x['trade_id']))
+
+    print(f"[DEBUG] FIFO Matching {len(buys)} buys and {len(sells)} sells")
 
     i, j = 0, 0
     while i < len(buys) and j < len(sells):
         buy = buys[i]
         sell = sells[j]
 
+        print(f"[DEBUG] Considering BUY {buy['trade_id']} and SELL {sell['trade_id']}")
+
         buy_remain = buy.get('contracts_remaining', 0)
         sell_remain = sell.get('contracts_remaining', 0)
 
+        print(f"    Before flatten: BUY contracts_remaining={buy_remain}, SELL contracts_remaining={sell_remain}")
+
         if buy_remain <= 0:
+            print(f"    BUY {buy['trade_id']} depleted, moving to next buy.")
             i += 1
             continue
         if sell_remain <= 0:
+            print(f"    SELL {sell['trade_id']} depleted, moving to next sell.")
             j += 1
             continue
 
@@ -146,12 +154,16 @@ def fifo_match_and_flatten(active_trades):
                 trade['trade_state'] = 'closed'
                 print(f"✅ Trade {trade['trade_id']} fully flattened and closed via FIFO match")
 
+        print(f"    After flatten: BUY contracts_remaining={buy['contracts_remaining']}, SELL contracts_remaining={sell['contracts_remaining']}")
+
         if buy['contracts_remaining'] == 0:
             i += 1
         if sell['contracts_remaining'] == 0:
             j += 1
 
+# ==========================
 # 🟩 FIFO MATCHING PATCH END
+# ==========================
 
 def delete_trade_from_firebase(symbol, trade_id):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
@@ -178,61 +190,8 @@ def load_trailing_tp_settings():
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
 
-# ===== END OF PART 1 =====
-
-#=========================  MONITOR_TRADES_LOOP - PART 2  ================================
-
-# === MONITOR LOOP ===
-exit_in_progress = set()
-GRACE_PERIOD_SECONDS = 30
-
-# === Step 2a: Check Live Positions Freshness ===
-def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
-
-        live_ref = firebase_db.reference("/live_total_positions")
-        data = live_ref.get() or {}
-
-        position_count = data.get("position_count", None)
-        last_updated_str = data.get("last_updated", None)
-
-        if position_count is None or last_updated_str is None:
-            print("⚠️ /live_total_positions data incomplete or missing")
-            return False
-
-        try:
-            nz_tz = timezone("Pacific/Auckland")
-            last_updated_str = last_updated_str.replace(" NZST", "")
-            last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
-            last_updated = nz_tz.localize(last_updated)
-        except Exception as e:
-            print(f"⚠️ Failed to parse last_updated timestamp: {e}")
-            return False
-
-        now_nz = datetime.now(nz_tz)
-        delta_seconds = (now_nz - last_updated).total_seconds()
-
-        # 🟩 DEBUG LOGS - zombie detection timing start
-        print(f"[DEBUG] Current time: {datetime.now(timezone('Pacific/Auckland'))}")
-        print(f"[DEBUG] /live_total_positions last_updated: {last_updated} (NZST)")
-        print(f"[DEBUG] Data age (seconds): {delta_seconds:.1f}")
-        print(f"[DEBUG] Position count: {position_count}")
-        # 🟩 DEBUG LOGS - zombie detection timing end
-
-        if delta_seconds > grace_period_seconds:
-            print(f"⚠️ Firebase data too old ({delta_seconds:.1f}s), skipping zombie check")
-            return False
-
-        print(f"✅ Firebase data fresh ({delta_seconds:.1f}s ago), position_count = {position_count}")
-
-        if position_count == 0 or position_count == 0.0:
-            print("✅ Position count is zero, safe to run zombie trade detection")
-            return True
-        else:
-            print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
-            return False
-
 # ==========================
-# 🟩 GREEN PATCH START: Combined Zombie & Ghost Trade Handler with 30s Grace Period
+# 🟩 GREEN PATCH START: Zombie & Ghost Trade Handler with 30s Grace Period
 # ==========================
 
 ZOMBIE_COOLDOWN_SECONDS = 30
@@ -252,10 +211,6 @@ def handle_zombie_and_ghost_trades(firebase_db):
 
     now_nz = datetime.now(timezone("Pacific/Auckland"))
 
-    # Check current position count
-    # ==========================
-    # 🟩 GREEN PATCH 2: Safely cast position_count to int
-    # ==========================
     try:
         position_count = int(firebase_db.reference("/live_total_positions/position_count").get())
     except Exception:
@@ -274,9 +229,6 @@ def handle_zombie_and_ghost_trades(firebase_db):
             print(f"⚠️ Skipping trades for symbol {symbol} because it's not a dict")
             continue
 
-        # ==========================
-        # 🟩 GREEN PATCH: Remove entry_timestamp check for ghost trades in handle_zombie_and_ghost_trades()
-        # ==========================
         for trade_id, trade in trades_by_id.items():
             if not isinstance(trade, dict):
                 continue
@@ -284,11 +236,9 @@ def handle_zombie_and_ghost_trades(firebase_db):
             status = trade.get("status", "").upper()
             filled = trade.get("filled", 0)
 
-            # Skip if already archived
             if trade_id in existing_zombies or trade_id in existing_ghosts:
                 continue
 
-            # Handle Ghost Trades first (no timestamp required)
             if status in GHOST_STATUSES and filled == 0:
                 print(f"👻 Archiving ghost trade {trade_id} for symbol {symbol} (no timestamp needed)")
                 ghost_trades_ref.child(trade_id).set(trade)
@@ -296,7 +246,6 @@ def handle_zombie_and_ghost_trades(firebase_db):
                 print(f"🗑️ Deleted ghost trade {trade_id} from /open_active_trades/")
                 continue
 
-            # From here on, entry_timestamp is required for other checks
             entry_ts_str = trade.get("entry_timestamp")
             if not entry_ts_str:
                 print(f"⚠️ No entry_timestamp for trade {trade_id}; skipping cooldown check")
@@ -310,21 +259,6 @@ def handle_zombie_and_ghost_trades(firebase_db):
 
             age_seconds = (now_utc - entry_ts).total_seconds()
 
-            # Handle Zombie Trades
-            if status in ZOMBIE_STATUSES:
-                if age_seconds < ZOMBIE_COOLDOWN_SECONDS:
-                    print(f"⏳ Zombie trade {trade_id} age {age_seconds:.1f}s < cooldown {ZOMBIE_COOLDOWN_SECONDS}s — skipping")
-                    continue
-                print(f"🧟‍♂️ Archiving zombie trade {trade_id} for symbol {symbol} (age {age_seconds:.1f}s)")
-                zombie_trades_ref.child(trade_id).set({
-                    "symbol": symbol,
-                    "trade_data": trade
-                })
-                open_trades_ref.child(symbol).child(trade_id).delete()
-                print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
-                continue
-
-            # Handle Zombie Trades
             if status in ZOMBIE_STATUSES:
                 if age_seconds < ZOMBIE_COOLDOWN_SECONDS:
                     print(f"⏳ Zombie trade {trade_id} age {age_seconds:.1f}s < cooldown {ZOMBIE_COOLDOWN_SECONDS}s — skipping")
@@ -372,6 +306,7 @@ def monitor_trades():
         return
     all_trades = load_open_trades(symbol)
 
+    # Consolidated active_trades building
     for t in all_trades:
         tid = t.get('trade_id')
 
@@ -383,9 +318,6 @@ def monitor_trades():
             print(f"🔁 Skipping exited/closed trade {tid}")
             continue
 
-        # ==========================
-        # 🟩 GREEN PATCH: Modify filled and contracts_remaining skip logic in monitor_trades() to allow ghost trades through
-        # ==========================
         GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 
         if not t.get('filled') and t.get('status', '').upper() not in GHOST_STATUSES:
@@ -397,38 +329,68 @@ def monitor_trades():
             print(f"🧾 Skipping {tid} ⚠️ no contracts remaining and not a ghost trade")
             continue
 
-        active_trades = []
-        for t in all_trades:
-            if not t or not isinstance(t, dict):
-                continue
+        if trigger_points < 0.01 or offset_points < 0.01:
+            print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
+            continue
+        active_trades.append(t)
 
-            tid = t.get('trade_id')
-            if not tid:
-                print("⚠️ Skipping trade with no trade_id")
-                continue
+    if not active_trades:
+        print("⚠️ No active trades found — Trade Worker happy & awake.")
 
-            if t.get('exited') or t.get('status') in ['failed', 'closed']:
-                print(f"⏭️ Skipping exited/closed trade {t.get('trade_id', 'unknown')}")
-                continue
+    # === FIFO matching with detailed debug ===
+    def log_trade(trade):
+        print(f"    Trade {trade['trade_id']}: contracts_remaining={trade.get('contracts_remaining', 0)}, exited={trade.get('exited', False)}")
 
-            # Adjusted skip to allow ghost trades through
-            status = t.get('status', '').upper()
-            if (not t.get('filled') and status not in GHOST_STATUSES) or (t.get('contracts_remaining', 0) <= 0 and status not in GHOST_STATUSES):
-                continue
+    buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and t.get('contracts_remaining', 0) > 0]
+    sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and t.get('contracts_remaining', 0) > 0]
 
-        # if t.get("is_ghost", False):
-            #    print(f"⏭️ Skipping ghost trade {tid}")
-            #    continue
+    buys.sort(key=lambda x: x.get('entry_timestamp', x['trade_id']))
+    sells.sort(key=lambda x: x.get('entry_timestamp', x['trade_id']))
 
-            if trigger_points < 0.01 or offset_points < 0.01:
-                print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
-                continue
-            active_trades.append(t)
+    print(f"[DEBUG] FIFO Matching {len(buys)} buys and {len(sells)} sells")
 
-        if not active_trades:
-            print("⚠️ No active trades found — Trade Worker happy & awake.")
+    i, j = 0, 0
+    while i < len(buys) and j < len(sells):
+        buy = buys[i]
+        sell = sells[j]
 
-        # ===== END OF PART 2 =====
+        print(f"[DEBUG] Considering BUY {buy['trade_id']} and SELL {sell['trade_id']}")
+
+        buy_remain = buy.get('contracts_remaining', 0)
+        sell_remain = sell.get('contracts_remaining', 0)
+
+        log_trade(buy)
+        log_trade(sell)
+
+        if buy_remain <= 0:
+            print(f"    BUY {buy['trade_id']} contracts depleted, moving to next buy.")
+            i += 1
+            continue
+        if sell_remain <= 0:
+            print(f"    SELL {sell['trade_id']} contracts depleted, moving to next sell.")
+            j += 1
+            continue
+
+        qty = min(buy_remain, sell_remain)
+
+        buy['contracts_remaining'] -= qty
+        sell['contracts_remaining'] -= qty
+
+        print(f"🟢 FIFO flattening {qty} contracts: BUY {buy['trade_id']} with SELL {sell['trade_id']}")
+
+        for trade in (buy, sell):
+            if trade['contracts_remaining'] == 0 and not trade.get('exited'):
+                trade['exited'] = True
+                trade['status'] = 'closed'
+                trade['trade_state'] = 'closed'
+                print(f"✅ Trade {trade['trade_id']} fully flattened and closed via FIFO match")
+
+        if buy['contracts_remaining'] == 0:
+            i += 1
+        if sell['contracts_remaining'] == 0:
+            j += 1
+
+        # ===== END OF PART 1 & 2 =====
 
 #=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART)  ================================
 
