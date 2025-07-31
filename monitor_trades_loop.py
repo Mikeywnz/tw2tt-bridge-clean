@@ -298,7 +298,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
     ghost_trades_ref = firebase_db.reference("/ghost_trades_log")
 
-    all_open_trades = open_active_trades_ref.get() or {}
+    all_open_trades = open_trades_ref.get() or {}
     existing_zombies = set(zombie_trades_ref.get() or {})
     existing_ghosts = set(ghost_trades_ref.get() or {})
 
@@ -335,7 +335,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
             if status in GHOST_STATUSES and filled == 0:
                 print(f"👻 Archiving ghost trade {trade_id} for symbol {symbol} (no timestamp needed)")
                 ghost_trades_ref.child(trade_id).set(trade)
-                open_active_trades_ref.child(symbol).child(trade_id).delete()
+                open_trades_ref.child(symbol).child(trade_id).delete()
                 print(f"🗑️ Deleted ghost trade {trade_id} from /open_active_trades/")
                 continue
 
@@ -360,7 +360,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
                 trade["symbol"] = symbol
                 zombie_trades_ref.child(trade_id).set(trade)
 
-                open_active_trades_ref.child(symbol).child(trade_id).delete()
+                open_trades_ref.child(symbol).child(trade_id).delete()
                 print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
 
 # ==========================
@@ -486,8 +486,8 @@ def monitor_trades():
                 print(f"🎯 TP trigger hit for {trade_id} → trail activated at {current_price}")
 
                 # ✅ Update Firebase to reflect trail_hit immediately
-                open_active_trades_ref = firebase_db.reference("/open_active_trades")
-                open_active_trades_ref.child(symbol).child(trade_id).update({
+                open_trades_ref = firebase_db.reference("/open_active_trades")
+                open_trades_ref.child(symbol).child(trade_id).update({
                     "trail_hit": True,
                     "trail_peak": current_price
                 })
