@@ -86,29 +86,35 @@ def get_google_sheet():
     sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
 
-# Logic: FLATTENING occurs when action *reduces* net position or crosses 0
+# 🟩 FINAL – IRONCLAD TRADE CLASSIFIER (Handles all cases cleanly)
 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
-    ttype = None  # ✅ FIX: Prevent NameError if no branch sets it
+    ttype = None  # Prevent NameError fallback
 
+    # Fetch previous net position
     old_net = pos_tracker.get(symbol)
     if old_net is None:
         data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
         old_net = int(data.get("position_count", 0))
         pos_tracker[symbol] = old_net
 
+    # Determine direction
     buy = (action.upper() == "BUY")
     delta = qty if buy else -qty
     new_net = old_net + delta
 
-    # Logic: FLATTENING occurs when action *reduces* net position or crosses 0
-    # 🟩 GREEN PATCH: Force correct trade type and net position when flat
+    # 🧠 IRONCLAD LOGIC:
     if old_net == 0:
+        # When flat, any trade is an entry
         trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
         new_net = qty if buy else -qty
-    elif (old_net > 0 and not buy) or (old_net < 0 and buy):
-        trade_type = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
-    else:
-        trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+
+    elif old_net > 0:
+        # Currently long
+        trade_type = "LONG_ENTRY" if buy else "FLATTENING_SELL"
+
+    elif old_net < 0:
+        # Currently short
+        trade_type = "FLATTENING_BUY" if buy else "SHORT_ENTRY"
 
     # Clamp new_net to 0 if it crosses over
     if (old_net > 0 and new_net < 0) or (old_net < 0 and new_net > 0):
