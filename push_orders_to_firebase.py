@@ -200,12 +200,12 @@ def push_orders_main():
     for order in orders:
         try:
             # === 🧱 Liquidation Firewall & Cleanup ===
-            if order.get("liquidation") is True:
-                trade_id = str(order.get("order_id"))
-                symbol = order.get("symbol")
-                filled_price = order.get("filled_price")
-                quantity = order.get("filled", 1)
-                timestamp = order.get("timestamp")
+            if getattr(order, "liquidation", False) is True:
+                trade_id = str(getattr(order, "order_id", ""))
+                symbol = getattr(order, "symbol", "")
+                filled_price = getattr(order, "filled_price", 0.0)
+                quantity = getattr(order, "filled", 1)
+                timestamp = getattr(order, "timestamp", "")
                 
                 print(f"🔥 Detected TigerTrade liquidation for {trade_id} – skipping open push.")
 
@@ -328,6 +328,12 @@ def push_orders_main():
 
             # Push to open_active_trades unconditionally
             trade_id = oid
+
+            # === 🧱 Zombie Firewall: Skip if contracts_remaining missing or 0 === (COULD STOP ALL - SO THIS COULD CAUSE AND ISSUE)
+            contracts_remaining = payload.get("contracts_remaining", None)
+            if not str(contracts_remaining).isdigit() or int(contracts_remaining) == 0:
+                print(f"🧱 Skipping zombie trade {trade_id}: contracts_remaining={contracts_remaining}")
+                continue
 
             # VALIDATE trade_id
             def is_valid_trade_id(tid):
