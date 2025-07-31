@@ -244,4 +244,23 @@ def place_trade(symbol, action, quantity):
         "trade_type": "UNKNOWN"
     }
 
+def main():
+    if len(sys.argv) < 4:
+        print("❌ Usage: execute_trade_live.py SYMBOL ACTION QUANTITY")
+        sys.exit(1)
+
+    symbol = sys.argv[1].upper()
+    action = sys.argv[2].upper()
+    try:
+        quantity = int(sys.argv[3])
+    except ValueError:
+        print(f"❌ Invalid quantity '{sys.argv[3]}'; must be an integer")
+        sys.exit(1)
+
+    print(f"🚀 CLI launch: Placing trade with symbol={symbol}, action={action}, quantity={quantity}")
+    place_trade(symbol, action, quantity)
+
+if __name__ == "__main__":
+    main()
+
 #=====  END OF SCRIPT =====
