@@ -199,6 +199,45 @@ def push_orders_main():
     tiger_ids = set()
     for order in orders:
         try:
+            # === 🧱 Liquidation Firewall & Cleanup ===
+            if order.get("liquidation") is True:
+                trade_id = str(order.get("order_id"))
+                symbol = order.get("symbol")
+                filled_price = order.get("filled_price")
+                quantity = order.get("filled", 1)
+                timestamp = order.get("timestamp")
+                
+                print(f"🔥 Detected TigerTrade liquidation for {trade_id} – skipping open push.")
+
+                # ✅ Delete from open_trades if exists
+                open_trades_ref = firebase_db.reference(f"/open_trades/{symbol}")
+                open_trades = open_trades_ref.get() or {}
+                if trade_id in open_trades:
+                    print(f"🧹 Removing matching open trade {trade_id} due to liquidation.")
+                    open_trades_ref.child(trade_id).delete()
+
+                # ✅ Log to Google Sheets
+                trade_data = {
+                    "symbol": symbol,
+                    "direction": order.get("action"),
+                    "entry_price": filled_price,
+                    "exit_price": filled_price,
+                    "pnl_dollars": 0.0,
+                    "reason_for_exit": "Liquidation",
+                    "entry_time": timestamp,
+                    "exit_time": timestamp,
+                    "trail_triggered": "N/A",
+                    "order_id": trade_id,
+                    "exit_order_id": trade_id
+                }
+                try:
+                    log_closed_trade_to_sheets(trade_data)
+                    print(f"📄 Logged liquidation trade {trade_id} to Google Sheets.")
+                except Exception as e:
+                    print(f"❌ Failed to log liquidation {trade_id}: {e}")
+                
+                continue  # Skip pushing to /open_trades/
+
             oid = str(getattr(order, 'id', '')).strip()
             if not oid:
                 print("⚠️ Skipping order with empty or missing ID")
