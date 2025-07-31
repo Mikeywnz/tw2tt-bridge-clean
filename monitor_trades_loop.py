@@ -236,7 +236,7 @@ def load_trailing_tp_settings():
     return 14.0, 5.0
 
 # ==========================
-# 🟩 GREEN PATCH 3: Reintegrate check_live_positions_freshness() Function
+# 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ==========================
 
 def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
@@ -267,19 +267,20 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
     print(f"[DEBUG] Data age (seconds): {delta_seconds:.1f}")
     print(f"[DEBUG] Position count: {position_count}")
 
-    if delta_seconds > grace_period_seconds:
-        print(f"⚠️ Firebase data too old ({delta_seconds:.1f}s), skipping zombie check")
-        return False
-
+    # Inverted grace period logic:
     if position_count == 0 or position_count == 0.0:
-        print("✅ Position count is zero, safe to run zombie trade detection")
-        return True
+        if delta_seconds < grace_period_seconds:
+            print(f"⚠️ Position count zero but data only {delta_seconds:.1f}s old, skipping zombie check")
+            return False
+        else:
+            print(f"✅ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
+            return True
     else:
         print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
         return False
 
 # ==========================
-# 🟩 END PATCH 3
+# 🟩 END PATCH
 # ==========================
 
 # ==========================
