@@ -244,18 +244,4 @@ def place_trade(symbol, action, quantity):
         "trade_type": "UNKNOWN"
     }
 
-# Optional CLI support
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 execute_trade_live.py <buy/sell>")
-        sys.exit(1)
-
-    action = sys.argv[1].strip().upper()
-    if action not in ("BUY", "SELL"):
-        print("Invalid action argument; must be 'BUY' or 'SELL' (case insensitive)")
-        sys.exit(1)
-
-    quantity = 1
-    place_trade(None, action, quantity)
-
 #=====  END OF SCRIPT =====
