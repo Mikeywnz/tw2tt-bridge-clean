@@ -156,7 +156,7 @@ def place_trade(symbol, action, quantity):
             # ==========================
             # Determine trade_type based on action and position
             if filled_qty > 0:
-                trade_type = "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY"
+                trade_type = action  # Just "BUY" or "SELL"
             else:
                 trade_type = ""
 
