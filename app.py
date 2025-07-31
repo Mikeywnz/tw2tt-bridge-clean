@@ -86,17 +86,6 @@ def get_google_sheet():
     sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
 
-def classify_trade(symbol, action, qty, pos_tracker, fb_db):
-    old_net = pos_tracker.get(symbol)
-    if old_net is None:
-        data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-        old_net = int(data.get("position_count", 0))
-        pos_tracker[symbol] = old_net
-
-    buy = (action.upper() == "BUY")
-    delta = qty if buy else -qty
-    new_net = old_net + delta
-
 # Logic: FLATTENING occurs when action *reduces* net position or crosses 0
 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     ttype = None  # ✅ FIX: Prevent NameError if no branch sets it
@@ -121,7 +110,7 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     else:
         trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
 
-    # Clamp new_net to 0 if it crosses over (e.g., going from +1 to -1 via a 2-lot SELL)
+    # Clamp new_net to 0 if it crosses over
     if (old_net > 0 and new_net < 0) or (old_net < 0 and new_net > 0):
         new_net = 0
 
