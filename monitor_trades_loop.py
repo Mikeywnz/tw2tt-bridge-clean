@@ -125,6 +125,11 @@ def fifo_match_and_flatten(active_trades):
     flattening_buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and not t.get('exited')]
     short_entries = [t for t in active_trades if t.get('trade_type') == 'SHORT_ENTRY' and not t.get('exited')]
 
+    print(f"[DEBUG] FIFO Matching: flattening_sells={len(flattening_sells)}, long_entries={len(long_entries)}, flattening_buys={len(flattening_buys)}, short_entries={len(short_entries)}")
+
+    for t in flattening_sells + long_entries + flattening_buys + short_entries:
+        print(f"  Trade {t.get('trade_id')} type={t.get('trade_type')} exited={t.get('exited')}")
+
     # Sort all lists by entry_timestamp ascending or fallback trade_id
     def sort_key(t):
         return t.get('entry_timestamp') or t.get('trade_id')
