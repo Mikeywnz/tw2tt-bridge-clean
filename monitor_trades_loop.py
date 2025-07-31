@@ -506,45 +506,42 @@ def monitor_trades():
     filtered_trades = []
     for t in updated_trades:
         trade_id = t.get('trade_id', 'unknown')
-        exited = t.get('exited')
-        status = t.get('status')
-        trade_state = t.get('trade_state')
+        exited = t.get('exited', True)
+        status = t.get('status', 'closed')
+        trade_state = t.get('trade_state', 'closed')
         contracts_remaining = t.get('contracts_remaining', 0)
-        filled = t.get('filled')
+        filled = t.get('filled', False)
+        is_open = t.get('is_open', False)
+        liquidation = t.get('liquidation', False)
 
-        # Debug print per trade
-        print(f"[DEBUG] Evaluating trade {trade_id}: exited={exited}, status={status}, trade_state={trade_state}, contracts_remaining={contracts_remaining}, filled={filled}")
-
-        if not exited \
-        and status != 'closed' \
-        and trade_state != 'closed' \
-        and contracts_remaining > 0 \
-        and filled:
+        if (not exited
+            and status != 'closed'
+            and trade_state != 'closed'
+            and contracts_remaining > 0
+            and filled
+            and is_open
+            and not liquidation):
             filtered_trades.append(t)
-            print(f"[DEBUG] Keeping trade {trade_id}")
-        else:
-            print(f"[DEBUG] Filtering out trade {trade_id}")
 
     save_open_trades(symbol, filtered_trades)
-    print(f"[DEBUG] Saved {len(filtered_trades)} trades back to Firebase open trades.")
 
     # ✅ Only save valid open trades back to Firebase
-#    filtered_trades = [
-#        t for t in updated_trades
-#        if not t.get('exited')
-#        and t.get('status') != 'closed'
-#        and t.get('trade_state') != 'closed'
-#        and t.get('contracts_remaining', 0) > 0
-#        and t.get('filled')
-#    ]
-#    save_open_trades(symbol, filtered_trades)
+    # filtered_trades = [
+    #     t for t in updated_trades
+    #     if not t.get('exited')
+    #     and t.get('status') != 'closed'
+    #     and t.get('trade_state') != 'closed'
+    #     and t.get('contracts_remaining', 0) > 0
+    #     and t.get('filled')
+    # ]
+    # save_open_trades(symbol, filtered_trades)
 
-if __name__ == '__main__':
-    while True:
-        try:
-            monitor_trades()
-        except Exception as e:
-            print(f"❌ ERROR in monitor_trades(): {e}")
-        time.sleep(10)
+    if __name__ == '__main__':
+        while True:
+            try:
+                monitor_trades()
+            except Exception as e:
+                print(f"❌ ERROR in monitor_trades(): {e}")
+            time.sleep(10)
 
-#=====  END OF PART 3 (END OF SCRIPT)  =====
+    #=====  END OF PART 3 (END OF SCRIPT)  =====
