@@ -32,13 +32,17 @@ def load_live_prices():
 
 # === Helper to execute exit trades ===
 def close_position(symbol, original_action):
+    print(f"[DEBUG] close_position() called with original_action='{original_action}'")
     exit_action = "SELL" if original_action == "BUY" else "BUY"
+    print(f"[DEBUG] close_position() using exit_action='{exit_action}'")
     try:
         result = subprocess.run(
             ["python3", "execute_trade_live.py", symbol, exit_action, "1"],
             capture_output=True,
             text=True
         )
+        print(f"[DEBUG] CLI subprocess stdout: {result.stdout.strip()}")
+        print(f"[DEBUG] CLI subprocess stderr: {result.stderr.strip()}")
         print(f"📤 Exit order sent: {exit_action} 1 {symbol}")
         print("stdout:", result.stdout.strip())
         print("stderr:", result.stderr.strip())
@@ -482,6 +486,7 @@ def monitor_trades():
                 exit_in_progress.add(trade_id)
 
                 # Send exit order but DO NOT archive/delete yet
+                print(f"[DEBUG] Trailing TP exit triggered for trade {trade_id} with action '{trade['action']}'")
                 close_position(symbol, trade['action'])
 
                 # Mark trade as exit in progress

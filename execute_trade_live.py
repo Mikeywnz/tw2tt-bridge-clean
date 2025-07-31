@@ -249,11 +249,13 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python3 execute_trade_live.py <buy/sell>")
         sys.exit(1)
-    action = sys.argv[1].lower()
-    if action not in ("buy", "sell"):
-        print("Invalid action argument; must be 'buy' or 'sell'")
+
+    action = sys.argv[1].strip().upper()
+    if action not in ("BUY", "SELL"):
+        print("Invalid action argument; must be 'BUY' or 'SELL' (case insensitive)")
         sys.exit(1)
+
     quantity = 1
-    place_trade(None, action.upper(), quantity)
+    place_trade(None, action, quantity)
 
 #=====  END OF SCRIPT =====
