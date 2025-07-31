@@ -482,6 +482,12 @@ def monitor_trades():
                 trade['trail_peak'] = current_price
                 print(f"🎯 TP trigger hit for {trade_id} → trail activated at {current_price}")
 
+                # ✅ Update Firebase to reflect trail_hit immediately
+                open_trades_ref.child(symbol).child(trade_id).update({
+                    "trail_hit": True,
+                    "trail_peak": current_price
+                })
+
         if trade.get('trail_hit'):
             if (direction == 1 and current_price > trade['trail_peak']) or (direction == -1 and current_price < trade['trail_peak']):
                 trade['trail_peak'] = current_price
