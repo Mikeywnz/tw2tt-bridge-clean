@@ -536,12 +536,12 @@ def monitor_trades():
     # ]
     # save_open_trades(symbol, filtered_trades)
 
-    if __name__ == '__main__':
-        while True:
-            try:
-                monitor_trades()
-            except Exception as e:
-                print(f"❌ ERROR in monitor_trades(): {e}")
-            time.sleep(10)
+if __name__ == '__main__':
+    while True:
+        try:
+            monitor_trades()
+        except Exception as e:
+            print(f"❌ ERROR in monitor_trades(): {e}")
+        time.sleep(10)
 
     #=====  END OF PART 3 (END OF SCRIPT)  =====
