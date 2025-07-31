@@ -463,7 +463,7 @@ def monitor_trades():
             print(f"❌ Trade {trade.get('trade_id', 'unknown')} missing filled_price, skipping.")
             continue
 
-        # 🟢 Trailing TP Exit Handling with Archive & Delete
+        # 🟢 Trailing TP Exit Handling with exit_in_progress flag (deferred archive/delete)
         tp_trigger = trigger_points
 
         if not trade.get('trail_hit'):
@@ -480,42 +480,54 @@ def monitor_trades():
             if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
                 print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
                 exit_in_progress.add(trade_id)
+
+                # Send exit order but DO NOT archive/delete yet
                 close_position(symbol, trade['action'])
 
-                # Archive then delete trade
-                try:
-                    archived = archive_trade(symbol, trade)
-                    if archived:
-                        success = delete_trade_from_firebase(symbol, trade_id)
-                        if success:
-                            print(f"✅ Trade {trade_id} archived and deleted from open trades.")
-                            trade['exited'] = True
-                            trade['status'] = "closed"
-                            trade['trade_state'] = "closed"
-                        else:
-                            print(f"❌ Trade {trade_id} deletion failed after archiving.")
-                    else:
-                        print(f"❌ Trade {trade_id} archiving failed, skipping deletion.")
-                except Exception as e:
-                    import traceback
-                    print(f"❌ Exception during archive/delete for trade {trade_id}: {e}")
-                    traceback.print_exc()
+                # Mark trade as exit in progress
+                trade['exit_in_progress'] = True
+                updated_trades.append(trade)
                 continue
 
         print(f"📌 Keeping trade {trade.get('trade_id')} OPEN – trail_hit={trade.get('trail_hit')}, exited={trade.get('exited')}, status={trade.get('status')}")
         updated_trades.append(trade)
 
+    # ✅ Only save valid open trades back to Firebase (IF LIGIT TRADES NO LONGER WORK REMOVE THIS AND OPEN tHE COMMENtED OUt VERSION BELOW)
+    filtered_trades = []
+    for t in updated_trades:
+        trade_id = t.get('trade_id', 'unknown')
+        exited = t.get('exited')
+        status = t.get('status')
+        trade_state = t.get('trade_state')
+        contracts_remaining = t.get('contracts_remaining', 0)
+        filled = t.get('filled')
+
+        # Debug print per trade
+        print(f"[DEBUG] Evaluating trade {trade_id}: exited={exited}, status={status}, trade_state={trade_state}, contracts_remaining={contracts_remaining}, filled={filled}")
+
+        if not exited \
+        and status != 'closed' \
+        and trade_state != 'closed' \
+        and contracts_remaining > 0 \
+        and filled:
+            filtered_trades.append(t)
+            print(f"[DEBUG] Keeping trade {trade_id}")
+        else:
+            print(f"[DEBUG] Filtering out trade {trade_id}")
+
+    save_open_trades(symbol, filtered_trades)
+    print(f"[DEBUG] Saved {len(filtered_trades)} trades back to Firebase open trades.")
 
     # ✅ Only save valid open trades back to Firebase
-    filtered_trades = [
-        t for t in updated_trades
-        if not t.get('exited')
-        and t.get('status') != 'closed'
-        and t.get('trade_state') != 'closed'
-        and t.get('contracts_remaining', 0) > 0
-        and t.get('filled')
-    ]
-    save_open_trades(symbol, filtered_trades)
+#    filtered_trades = [
+#        t for t in updated_trades
+#        if not t.get('exited')
+#        and t.get('status') != 'closed'
+#        and t.get('trade_state') != 'closed'
+#        and t.get('contracts_remaining', 0) > 0
+#        and t.get('filled')
+#    ]
+#    save_open_trades(symbol, filtered_trades)
 
 if __name__ == '__main__':
     while True:
