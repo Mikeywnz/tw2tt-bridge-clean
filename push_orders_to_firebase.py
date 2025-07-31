@@ -209,12 +209,12 @@ def push_orders_main():
                 
                 print(f"🔥 Detected TigerTrade liquidation for {trade_id} – skipping open push.")
 
-                # ✅ Delete from open_trades if exists
-                open_trades_ref = firebase_db.reference(f"/open_trades/{symbol}")
-                open_trades = open_trades_ref.get() or {}
-                if trade_id in open_trades:
+                # ✅ Delete from open_active_trades if exists
+                open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+                open_active_trades = open_active_trades_ref.get() or {}
+                if trade_id in open_active_trades:
                     print(f"🧹 Removing matching open trade {trade_id} due to liquidation.")
-                    open_trades_ref.child(trade_id).delete()
+                    open_active_trades_ref.child(trade_id).delete()
 
                 # ✅ Log to Google Sheets
                 trade_data = {
@@ -236,7 +236,7 @@ def push_orders_main():
                 except Exception as e:
                     print(f"❌ Failed to log liquidation {trade_id}: {e}")
                 
-                continue  # Skip pushing to /open_trades/
+                continue  # Skip pushing to /open_active_trades/
 
             oid = str(getattr(order, 'id', '')).strip()
             if not oid:
@@ -398,11 +398,11 @@ def push_orders_main():
 
     # === Ensure /open_active_trades/ path stays alive, even if no trades written ===
     try:
-        open_trades_root = db.reference("/open_active_trades")
-        snapshot = open_trades_root.get() or {}
+        open_active_trades_root = db.reference("/open_active_trades")
+        snapshot = open_active_trades_root.get() or {}
         if not snapshot:
             print("🫀 Writing /open_active_trades/_heartbeat to keep path alive")
-            open_trades_root.child("_heartbeat").set("alive")
+            open_active_trades_root.child("_heartbeat").set("alive")
     except Exception as e:
         print(f"❌ Failed to write /open_active_trades/_heartbeat: {e}")
 
