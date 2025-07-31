@@ -15,6 +15,7 @@ from firebase_admin import credentials, initialize_app, db
 import firebase_active_contract
 import firebase_admin
 
+
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
@@ -28,6 +29,48 @@ if not firebase_admin._apps:
 
 # Firebase database reference
 firebase_db = db
+
+# ==========================
+# 🟩 HELPER: Update Trade on Exit Fill (Exit Order Confirmation Handler)
+# ==========================
+def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, filled_qty):
+    print(f"[DEBUG] update_trade_on_exit_fill() called for exit_order_id={exit_order_id}")
+
+    # Load all open trades for symbol
+    open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+    open_trades = open_active_trades_ref.get() or {}
+
+    # Find the matching open trade that corresponds to the opposite action
+    opposite_action = "BUY" if exit_action == "SELL" else "SELL"
+    matching_trade_id = None
+
+    for trade_id, trade in open_trades.items():
+        if trade.get("action") == opposite_action and not trade.get("exited"):
+            matching_trade_id = trade_id
+            break
+
+    if not matching_trade_id:
+        print(f"[WARN] No matching open trade found for exit action {exit_action} on symbol {symbol}")
+        return False
+
+    # Update matched trade: mark as exited, update contracts remaining
+    trade_ref = open_active_trades_ref.child(matching_trade_id)
+    print(f"[DEBUG] Marking trade {matching_trade_id} as exited with filled_qty={filled_qty}")
+
+    try:
+        trade_ref.update({
+            "exited": True,
+            "contracts_remaining": 0,
+            "exit_order_id": exit_order_id,
+            "exit_action": exit_action,
+            "exit_filled_qty": filled_qty,
+            "trade_state": "closed"
+        })
+        print(f"[INFO] Updated trade {matching_trade_id} as exited in Firebase")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to update trade {matching_trade_id}: {e}")
+        return False
 
 # 🟢 ARCHIVED TRADE CHECK FUNCTION (updated path and logic)
 def is_archived_trade(trade_id: str, firebase_db) -> bool:
@@ -232,6 +275,18 @@ async def webhook(request: Request):
 
         try:
             result = place_trade(symbol, action, quantity)
+
+            # =========================
+            # 🟩 PATCH 2: Update trade on exit fills in webhook POST route
+            # =========================
+
+            if action.upper() in ["BUY", "SELL"]:
+                if "exit_order_id" in result and result["exit_order_id"]:
+                    exit_order_id = result["exit_order_id"]
+                    exit_action = action
+                    filled_qty = result.get("filled_quantity", 0)
+                    update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, filled_qty)
+            
             log_to_file(f"🟢 place_trade result: {result}")
 
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
