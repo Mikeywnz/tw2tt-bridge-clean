@@ -28,6 +28,9 @@ def archive_ghost_trade(trade_id, trade_data):
 # ==========================
 
 def place_trade(symbol, action, quantity):
+    action = action.upper()
+    if action not in ("BUY", "SELL"):
+        raise ValueError(f"Invalid action passed to place_trade: {action}")
     # Initialize status to avoid unbound local variable error
     status = None  # <<< GREEN PATCH: Initialize status early to avoid error
     
@@ -246,8 +249,11 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python3 execute_trade_live.py <buy/sell>")
         sys.exit(1)
-    action = sys.argv[1]
+    action = sys.argv[1].lower()
+    if action not in ("buy", "sell"):
+        print("Invalid action argument; must be 'buy' or 'sell'")
+        sys.exit(1)
     quantity = 1
-    place_trade(None, action, quantity)
+    place_trade(None, action.upper(), quantity)
 
 #=====  END OF SCRIPT =====
