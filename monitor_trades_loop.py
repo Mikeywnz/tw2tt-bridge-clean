@@ -10,6 +10,7 @@ import firebase_active_contract
 import os
 from firebase_admin import db
 
+firebase_db = db
 
 # Trade fields usage:
 # - trade_type: LONG_ENTRY, SHORT_ENTRY, FLATTENING_BUY, FLATTENING_SELL, etc. (Classification of trade)
