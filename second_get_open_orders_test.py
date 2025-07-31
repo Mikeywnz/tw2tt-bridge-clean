@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 
@@ -9,8 +9,8 @@ def main():
     account = "21807597867063647"
     symbol = "MGC2510"
 
-    # 24 hours ago in milliseconds UTC
-    start_time_ms = int((datetime.utcnow() - timedelta(hours=24)).timestamp() * 1000)
+    # 24 hours ago in milliseconds UTC (timezone-aware)
+    start_time_ms = int((datetime.now(timezone.utc) - timedelta(hours=24)).timestamp() * 1000)
 
     try:
         open_orders = client.get_open_orders(account=account, symbol=symbol, start_time=start_time_ms)
