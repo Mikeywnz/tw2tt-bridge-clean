@@ -100,7 +100,7 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
 # Logic: FLATTENING occurs when action *reduces* net position or crosses 0
 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     ttype = None  # ✅ FIX: Prevent NameError if no branch sets it
-    
+
     old_net = pos_tracker.get(symbol)
     if old_net is None:
         data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
@@ -112,8 +112,10 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     new_net = old_net + delta
 
     # Logic: FLATTENING occurs when action *reduces* net position or crosses 0
+    # 🟩 GREEN PATCH: Force correct trade type and net position when flat
     if old_net == 0:
         trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+        new_net = qty if buy else -qty
     elif (old_net > 0 and not buy) or (old_net < 0 and buy):
         trade_type = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
     else:
