@@ -28,9 +28,9 @@ def archive_ghost_trade(trade_id, trade_data):
 # ==========================
 
 def place_trade(symbol, action, quantity):
-    action = action.upper()
-    if action not in ("BUY", "SELL"):
-        raise ValueError(f"Invalid action passed to place_trade: {action}")
+   # action = action.upper()
+   # if action not in ("BUY", "SELL"):
+   #     raise ValueError(f"Invalid action passed to place_trade: {action}")
     # Initialize status to avoid unbound local variable error
     status = None  # <<< GREEN PATCH: Initialize status early to avoid error
     

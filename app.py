@@ -86,7 +86,6 @@ def get_google_sheet():
     sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
 
-    # 🟢 classify_trade: Determine trade type and update net position
 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     old_net = pos_tracker.get(symbol)
     if old_net is None:
@@ -95,24 +94,55 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
         pos_tracker[symbol] = old_net
 
     buy = (action.upper() == "BUY")
+    delta = qty if buy else -qty
+    new_net = old_net + delta
 
+    # Logic: FLATTENING occurs when action *reduces* net position or crosses 0
     if old_net == 0:
-        ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-        new_net = qty if buy else -qty
+        trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+    elif (old_net > 0 and not buy) or (old_net < 0 and buy):
+        trade_type = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
     else:
-        if (old_net > 0 and buy) or (old_net < 0 and not buy):
-            ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
-            new_net = old_net + (qty if buy else -qty)
-        else:
-            ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
-            new_net = old_net + (qty if buy else -qty)
-            if (buy and new_net > 0) or (not buy and new_net < 0):
-                new_net = 0
+        trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+
+    # Clamp new_net to 0 if it crosses over (e.g., going from +1 to -1 via a 2-lot SELL)
+    if (old_net > 0 and new_net < 0) or (old_net < 0 and new_net > 0):
+        new_net = 0
 
     print(f"[DEBUG] {symbol}: action={action}, qty={qty}, old_net={old_net}, new_net={new_net}, trade_type={ttype}") #DUBUG
 
     pos_tracker[symbol] = new_net
     return ttype, new_net
+
+    # 🟢 classify_trade: Determine trade type and update net position
+
+    #OLD VERSION INCASE NEW VERSION BREAKS EVRYTHIGN (HOWEVER THIS VERSION NOT CURRENTLY WORKING)
+#def classify_trade(symbol, action, qty, pos_tracker, fb_db):
+ #   old_net = pos_tracker.get(symbol)
+  #  if old_net is None:
+   #     data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
+    #    old_net = int(data.get("position_count", 0))
+     #   pos_tracker[symbol] = old_net
+
+  #  buy = (action.upper() == "BUY")
+
+ #   if old_net == 0:
+ #      ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+ #       new_net = qty if buy else -qty
+ #   else:
+ #       if (old_net > 0 and buy) or (old_net < 0 and not buy):
+ #           ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
+ #           new_net = old_net + (qty if buy else -qty)
+ #       else:
+ #           ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
+ #           new_net = old_net + (qty if buy else -qty)
+ #           if (buy and new_net > 0) or (not buy and new_net < 0):
+ #               new_net = 0
+
+ #   print(f"[DEBUG] {symbol}: action={action}, qty={qty}, old_net={old_net}, new_net={new_net}, trade_type={ttype}") #DUBUG
+
+ #   pos_tracker[symbol] = new_net
+ #   return ttype, new_net
 
         #=====  END OF PART 1 =====
 
