@@ -343,8 +343,7 @@ async def webhook(request: Request):
                 data["trade_id"] = trade_id
 
                 filled_price = result.get("filled_price") or 0.0
-                "executed_timestamp": datetime.utcnow().isoformat() + "Z"
-
+                
                 new_trade = {
                     "trade_id": trade_id,
                     "symbol": symbol,
