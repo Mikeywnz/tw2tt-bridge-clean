@@ -124,54 +124,44 @@ def fifo_match_and_flatten(active_trades):
     Mark both matched trades as exited and closed.
     """
 
-    # Get flattening sells and long entries
-    flattening_sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and not t.get('exited')]
-    long_entries = [t for t in active_trades if t.get('trade_type') == 'LONG_ENTRY' and not t.get('exited')]
+    # Filter out trades already marked exited or closed
+    flattening_sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
+    long_entries = [t for t in active_trades if t.get('trade_type') == 'LONG_ENTRY' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
 
-    # Get flattening buys and short entries
-    flattening_buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and not t.get('exited')]
-    short_entries = [t for t in active_trades if t.get('trade_type') == 'SHORT_ENTRY' and not t.get('exited')]
+    flattening_buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
+    short_entries = [t for t in active_trades if t.get('trade_type') == 'SHORT_ENTRY' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
 
     print(f"[DEBUG] FIFO Matching: flattening_sells={len(flattening_sells)}, long_entries={len(long_entries)}, flattening_buys={len(flattening_buys)}, short_entries={len(short_entries)}")
 
     for t in flattening_sells + long_entries + flattening_buys + short_entries:
-        print(f"  Trade {t.get('trade_id')} type={t.get('trade_type')} exited={t.get('exited')}")
+        print(f"  Trade {t.get('trade_id')} type={t.get('trade_type')} exited={t.get('exited')} contracts_remaining={t.get('contracts_remaining')}")
 
-    # Sort all lists by entry_timestamp ascending or fallback trade_id
     def sort_key(t):
-        return t.get('entry_timestamp') or t.get('trade_id')
+        # Prefer ISO timestamp if valid, fallback to trade_id string for sort stability
+        ts = t.get('entry_timestamp')
+        return ts if ts else t.get('trade_id')
 
     flattening_sells.sort(key=sort_key)
     long_entries.sort(key=sort_key)
     flattening_buys.sort(key=sort_key)
     short_entries.sort(key=sort_key)
 
-    # Match flattening sells to long entries one-to-one
+    # Match flattening sells to long entries (1:1)
     for sell_trade, long_trade in zip(flattening_sells, long_entries):
-        sell_trade['exited'] = True
-        sell_trade['status'] = 'closed'
-        sell_trade['trade_state'] = 'closed'
-        sell_trade['contracts_remaining'] = 0
-
-        long_trade['exited'] = True
-        long_trade['status'] = 'closed'
-        long_trade['trade_state'] = 'closed'
-        long_trade['contracts_remaining'] = 0
-
+        for trade in (sell_trade, long_trade):
+            trade['exited'] = True
+            trade['status'] = 'closed'
+            trade['trade_state'] = 'closed'
+            trade['contracts_remaining'] = 0
         print(f"🟢 Matched FLATTENING_SELL {sell_trade['trade_id']} with LONG_ENTRY {long_trade['trade_id']}")
 
-    # Match flattening buys to short entries one-to-one
+    # Match flattening buys to short entries (1:1)
     for buy_trade, short_trade in zip(flattening_buys, short_entries):
-        buy_trade['exited'] = True
-        buy_trade['status'] = 'closed'
-        buy_trade['trade_state'] = 'closed'
-        buy_trade['contracts_remaining'] = 0
-
-        short_trade['exited'] = True
-        short_trade['status'] = 'closed'
-        short_trade['trade_state'] = 'closed'
-        short_trade['contracts_remaining'] = 0
-
+        for trade in (buy_trade, short_trade):
+            trade['exited'] = True
+            trade['status'] = 'closed'
+            trade['trade_state'] = 'closed'
+            trade['contracts_remaining'] = 0
         print(f"🟢 Matched FLATTENING_BUY {buy_trade['trade_id']} with SHORT_ENTRY {short_trade['trade_id']}")
 
 # ==========================
@@ -184,7 +174,7 @@ def archive_and_delete_matched_trades(symbol, matched_trades):
         if not trade_id:
             continue
 
-        # Mark trade as closed in-memory (if not already)
+        # Mark trade as closed in-memory
         trade['exited'] = True
         trade['status'] = 'closed'
         trade['trade_state'] = 'closed'
@@ -206,8 +196,8 @@ def archive_and_delete_matched_trades(symbol, matched_trades):
         except Exception as e:
             print(f"❌ Failed to delete trade {trade_id}: {e}")
 
-# Usage (example):
-# matched_trades = [list of trades matched in fifo_match_and_flatten()]
+# Usage:
+# matched_trades = [t for t in active_trades if t.get('exited') or t.get('trade_state') == 'closed']
 # archive_and_delete_matched_trades(symbol, matched_trades)
 
 # ==========================

@@ -43,26 +43,24 @@ def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, f
     processed_exit_order_ids.add(exit_order_id)
 
     print(f"[DEBUG] update_trade_on_exit_fill() called for exit_order_id={exit_order_id}")
-    # ... rest of the function unchanged ...
 
-    # Load all open trades for symbol
     open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
     open_trades = open_active_trades_ref.get() or {}
 
-    # Find the matching open trade that corresponds to the opposite action
     opposite_action = "BUY" if exit_action == "SELL" else "SELL"
     matching_trade_id = None
 
     for trade_id, trade in open_trades.items():
+        print(f"[DEBUG] Checking trade {trade_id} with action {trade.get('action')} exited={trade.get('exited')}")
         if trade.get("action") == opposite_action and not trade.get("exited"):
             matching_trade_id = trade_id
+            print(f"[DEBUG] Found matching trade {trade_id} for exit_action {exit_action}")
             break
 
     if not matching_trade_id:
         print(f"[WARN] No matching open trade found for exit action {exit_action} on symbol {symbol}")
         return False
 
-    # Update matched trade: mark as exited, update contracts remaining
     trade_ref = open_active_trades_ref.child(matching_trade_id)
     print(f"[DEBUG] Marking trade {matching_trade_id} as exited with filled_qty={filled_qty}")
 
@@ -75,6 +73,9 @@ def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, f
             "exit_filled_qty": filled_qty,
             "trade_state": "closed"
         })
+        # Confirm update by reading back
+        updated_trade = trade_ref.get()
+        print(f"[DEBUG] After update, trade state: exited={updated_trade.get('exited')}, trade_state={updated_trade.get('trade_state')}")
         print(f"[INFO] Updated trade {matching_trade_id} as exited in Firebase")
         return True
     except Exception as e:
