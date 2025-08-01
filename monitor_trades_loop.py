@@ -534,7 +534,13 @@ def monitor_trades():
                 open_trades_ref.child(symbol).child(trade_id).update({
                     "exit_in_progress": True
                 })
-
+                trade['exited'] = True
+                trade['trade_state'] = 'closed'
+                open_trades_ref.child(symbol).child(trade_id).update({
+                    "exit_in_progress": True,
+                    "exited": True,
+                    "trade_state": "closed"
+                })
                 updated_trades.append(trade)
                 continue
 
