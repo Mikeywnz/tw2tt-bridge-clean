@@ -343,6 +343,7 @@ async def webhook(request: Request):
                 data["trade_id"] = trade_id
 
                 filled_price = result.get("filled_price") or 0.0
+                "executed_timestamp": datetime.utcnow().isoformat() + "Z"
 
                 new_trade = {
                     "trade_id": trade_id,
@@ -358,7 +359,9 @@ async def webhook(request: Request):
                     "trail_peak": filled_price,
                     "filled": True,
                     "entry_timestamp": entry_timestamp,
-                    "trade_state": "open"
+                    "trade_state": "open",
+                    "just_executed": True,
+                    "executed_timestamp": datetime.utcnow().isoformat() + "Z"
                 }
 
                 endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
@@ -456,7 +459,9 @@ async def webhook(request: Request):
         "trail_peak": filled_price,
         "filled": True,
         "entry_timestamp": entry_timestamp,
-        "trade_state": "open"  # Newly opened trade
+        "trade_state": "open",
+        "just_executed": True,
+        "executed_timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
     endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"

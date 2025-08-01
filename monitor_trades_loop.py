@@ -105,7 +105,7 @@ def save_open_trades(symbol, trades):
                 continue
             firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
             requests.put(firebase_url, json=t).raise_for_status()
-            print(f"✅ Saved trade {trade_id} to Firebase.")
+            print(f"✅ Open Active Trade {trade_id} saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
@@ -273,7 +273,7 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
             print(f"⚠️ Position count zero but data only {delta_seconds:.1f}s old, skipping zombie check")
             return False
         else:
-            print(f"✅ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
+            print(f"⚠️ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
             return True
     else:
         print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
