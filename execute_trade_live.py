@@ -9,13 +9,14 @@ from tigeropen.trade.trade_client import TradeClient
 from tigeropen.trade.domain.contract import Contract
 from tigeropen.trade.domain.order import Order
 import firebase_active_contract
+import firebase_admin
+from firebase_admin import db
+
+exit_cooldowns = {}
 
 # ==========================
 # 🟩 GREEN PATCH START: Archive Ghost Trade Immediately
 # ==========================
-import firebase_admin
-from firebase_admin import db
-
 def archive_ghost_trade(trade_id, trade_data):
     try:
         ghost_ref = db.reference("/ghost_trades_log")
@@ -89,28 +90,50 @@ def place_trade(symbol, action, quantity):
             order_id = str(response)
 
         print(f"📛 Parsed order_id: {order_id}")
+        global exit_cooldowns
+        symbol_action_key = f"{symbol}_{action}"
+        now_ts = time.time()
+        cooldown_until = exit_cooldowns.get(symbol_action_key, 0)
+        if now_ts < cooldown_until:
+            wait_sec = int(cooldown_until - now_ts)
+            print(f"⚠️ Cooldown active for {symbol_action_key}, skipping trade. Wait {wait_sec}s")
+            return {
+                "status": "skipped",
+                "reason": f"Cooldown active, skip placing {action} on {symbol}",
+                "trade_state": "closed"
+            }
 
-        # 🟢 PATCH: Retry loop to fetch matching transaction, polling every 3 sec up to 3 times
         matched_tx = None
         if order_id:
-            for attempt in range(3):  # Retry 3 times
+            for attempt in range(10):  # retry 10 times
                 transactions = client.get_transactions(account=config.account, symbol=symbol, limit=20)
                 matched_tx = next((tx for tx in transactions if str(tx.order_id) == str(order_id)), None)
                 if matched_tx:
                     print(f"✅ Found matching transaction on attempt {attempt+1}")
                     break
                 else:
-                    print(f"⏳ Transaction not found on attempt {attempt+1}, retrying...")
-                    time.sleep(3)  # Wait 3 seconds before next attempt
+                    print(f"⏳ Transaction not found on attempt {attempt+1}, retrying in 3s...")
+                    time.sleep(3)
         else:
             print("🛑 No order_id parsed from response → rejecting trade")
-            # Assign status here before returning
             status = "REJECTED"
             return {
                 "status": "REJECTED",
                 "order_id": None,
                 "reason": "No order ID from Tiger response",
                 "trade_status": status,
+                "trade_state": "closed",
+                "trade_type": ""
+            }
+
+        if not matched_tx:
+            exit_cooldowns[symbol_action_key] = time.time() + 60  # 60s cooldown
+            print(f"🛑 No matching transaction found after 10 attempts; entering cooldown for 60s on {symbol_action_key}")
+            return {
+                "status": "REJECTED",
+                "order_id": order_id,
+                "reason": "No matching transaction found after retries",
+                "trade_status": "REJECTED",
                 "trade_state": "closed",
                 "trade_type": ""
             }
