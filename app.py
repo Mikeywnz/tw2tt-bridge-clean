@@ -14,7 +14,9 @@ import os
 from firebase_admin import credentials, initialize_app, db
 import firebase_active_contract
 import firebase_admin
+import time  # if not already imported
 
+processed_exit_order_ids = set()
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -34,7 +36,14 @@ firebase_db = db
 # 🟩 HELPER: Update Trade on Exit Fill (Exit Order Confirmation Handler)
 # ==========================
 def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, filled_qty):
+    global processed_exit_order_ids
+    if exit_order_id in processed_exit_order_ids:
+        print(f"[DEBUG] Exit order {exit_order_id} already processed, skipping update.")
+        return True
+    processed_exit_order_ids.add(exit_order_id)
+
     print(f"[DEBUG] update_trade_on_exit_fill() called for exit_order_id={exit_order_id}")
+    # ... rest of the function unchanged ...
 
     # Load all open trades for symbol
     open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
@@ -281,7 +290,7 @@ async def webhook(request: Request):
             # Find matching trade with same action & not exited (simplified logic)
             matching_trade_id = None
             for tid, trade in open_trades.items():
-                if trade.get("action") == action and not trade.get("exited"):
+                if trade.get("action") == action and not trade.get("exited") and not trade.get("exit_in_progress"):
                     matching_trade_id = tid
                     break
 
@@ -293,11 +302,26 @@ async def webhook(request: Request):
 
             result = place_trade(symbol, action, quantity)
 
-            # After successful exit order placement, set exit_in_progress flag
+            # After successful exit order placement, set exit_in_progress fl
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
                 if matching_trade_id:
-                    open_trades_ref.child(matching_trade_id).update({"exit_in_progress": True})
-                    log_to_file(f"🟢 Set exit_in_progress=True for trade {matching_trade_id}")
+                    # Retry updating exit_in_progress flag until confirmed or timeout (5 seconds max)
+                    max_retries = 5
+                    retry_count = 0
+                    while retry_count < max_retries:
+                        try:
+                            open_trades_ref.child(matching_trade_id).update({"exit_in_progress": True})
+                            # Verify update by reading back
+                            updated_trade = open_trades_ref.child(matching_trade_id).get()
+                            if updated_trade and updated_trade.get("exit_in_progress") == True:
+                                log_to_file(f"🟢 Confirmed exit_in_progress=True for trade {matching_trade_id}")
+                                break
+                        except Exception as e:
+                            log_to_file(f"⚠️ Retry {retry_count+1}: Failed to set exit_in_progress: {e}")
+                        retry_count += 1
+                        time.sleep(1)
+                    else:
+                        log_to_file(f"❌ Failed to confirm exit_in_progress flag for trade {matching_trade_id} after {max_retries} retries")
 
             # =========================
             # 🟩 PATCH 2: Update trade on exit fills in webhook POST route

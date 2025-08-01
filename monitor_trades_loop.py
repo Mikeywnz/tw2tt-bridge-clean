@@ -1,14 +1,14 @@
-# ========================= MONITOR_TRADES_LOOP - 1 & 2 COMBINED ================================
+# ========================= MONITOR_TRADES_LOOP - Part 1 ================================
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import time
-from datetime import datetime, timezone
-from pytz import timezone
+from datetime import datetime, timezone, timedelta
 import requests
 import subprocess
 import firebase_active_contract
 import os
-from firebase_admin import db
+
+NZ_TZ = timezone(timedelta(hours=12))
 
 firebase_db = db
 
@@ -108,6 +108,10 @@ def save_open_trades(symbol, trades):
             print(f"✅ Open Active Trade {trade_id} saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
+
+         # ========================= End of Part 1  ================================
+
+        # ========================= MONITOR_TRADES_LOOP - part 2 ================================
 
 # ==========================
 # 🟩 GREEN PATCH 2: FIFO Matching for One-to-One Flattening Only
@@ -239,6 +243,8 @@ def load_trailing_tp_settings():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ==========================
 
+
+
 def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
@@ -251,29 +257,37 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
         return False
 
     try:
-        nz_tz = timezone("Pacific/Auckland")
+        # Convert position_count to float explicitly to avoid type mismatch
+        position_count_val = float(position_count)
+    except Exception:
+        print(f"⚠️ Invalid position_count value: {position_count}")
+        return False
+
+    try:
+        # Parse last_updated using your existing timezone setup
+        nz_tz = timezone(timedelta(hours=12))  # NZST fixed offset; adjust manually if needed
         last_updated_str = last_updated_str.replace(" NZST", "")
         last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
-        last_updated = nz_tz.localize(last_updated)
+        last_updated = last_updated.replace(tzinfo=nz_tz)
     except Exception as e:
         print(f"⚠️ Failed to parse last_updated timestamp: {e}")
         return False
 
-    now_nz = datetime.now(nz_tz)
+    now_nz = datetime.now(NZ_TZ)
     delta_seconds = (now_nz - last_updated).total_seconds()
 
-    print(f"[DEBUG] Current time: {datetime.now(timezone('Pacific/Auckland'))}")
+    print(f"[DEBUG] Current time: {datetime.now(timezone(timedelta(hours=12)))}")
     print(f"[DEBUG] /live_total_positions last_updated: {last_updated} (NZST)")
     print(f"[DEBUG] Data age (seconds): {delta_seconds:.1f}")
-    print(f"[DEBUG] Position count: {position_count}")
+    print(f"[DEBUG] Position count (float): {position_count_val}")
 
     # Inverted grace period logic:
-    if position_count == 0 or position_count == 0.0:
+    if position_count_val == 0:
         if delta_seconds < grace_period_seconds:
             print(f"⚠️ Position count zero but data only {delta_seconds:.1f}s old, skipping zombie check")
             return False
         else:
-            print(f"⚠️ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
+            print(f"✅ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
             return True
     else:
         print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
@@ -294,7 +308,7 @@ GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 GRACE_PERIOD_SECONDS = 140 
 
 def handle_zombie_and_ghost_trades(firebase_db):
-    now_utc = datetime.now(timezone("UTC"))
+    now_utc = datetime.now(timezone.utc)
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
     ghost_trades_ref = firebase_db.reference("/ghost_trades_log")
@@ -303,7 +317,8 @@ def handle_zombie_and_ghost_trades(firebase_db):
     existing_zombies = set(zombie_trades_ref.get() or {})
     existing_ghosts = set(ghost_trades_ref.get() or {})
 
-    now_nz = datetime.now(timezone("Pacific/Auckland"))
+    NZ_TZ = timezone(timedelta(hours=12))  # NZST fixed offset, adjust if needed
+    now_nz = datetime.now(NZ_TZ)
 
     try:
         position_count = int(firebase_db.reference("/live_total_positions/position_count").get())
@@ -346,7 +361,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
                 continue
 
             try:
-                entry_ts = datetime.fromisoformat(entry_ts_str.replace("Z", "+00:00")).astimezone(timezone("UTC"))
+                entry_ts = datetime.fromisoformat(entry_ts_str.replace("Z", "+00:00")).astimezone(timezone.utc)
             except Exception as e:
                 print(f"⚠️ Failed to parse entry_timestamp for {trade_id}: {e}; skipping cooldown check")
                 continue
@@ -364,14 +379,15 @@ def handle_zombie_and_ghost_trades(firebase_db):
                 open_trades_ref.child(symbol).child(trade_id).delete()
                 print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
 
-# ==========================
-# 🟩 GREEN PATCH END
-# ==========================
+
+         # ========================= End of Part 2  ================================
+
+        # ========================= MONITOR_TRADES_LOOP - part 3 ================================
 
 def monitor_trades():
     exit_in_progress = set()
     active_trades = []
-    print(f"[DEBUG] Starting zombie check in monitor_trades at {datetime.now(timezone('Pacific/Auckland'))}")
+    print(f"[DEBUG] Starting zombie check in monitor_trades at {datetime.now(NZ_TZ)}")
 
     if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
         print("[DEBUG] Skipping zombie trade check due to stale data or non-zero positions")
@@ -430,10 +446,6 @@ def monitor_trades():
 
     if not active_trades:
         print("⚠️ No active trades found — Trade Worker happy & awake.")
-
-        # ===== END OF PART 1 & 2 =====
-
-#=========================  MONITOR_TRADES_LOOP - PART 3 (FINAL PART)  ================================
 
     updated_trades = []
     prices = load_live_prices()
