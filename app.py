@@ -274,7 +274,30 @@ async def webhook(request: Request):
         log_to_file("[🧩] Entered trade execution block")
 
         try:
+            # === CHECK exit_in_progress FLAG BEFORE PLACING EXIT ORDER ===
+            open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+            open_trades = open_trades_ref.get() or {}
+
+            # Find matching trade with same action & not exited (simplified logic)
+            matching_trade_id = None
+            for tid, trade in open_trades.items():
+                if trade.get("action") == action and not trade.get("exited"):
+                    matching_trade_id = tid
+                    break
+
+            if matching_trade_id:
+                trade_data = open_trades[matching_trade_id]
+                if trade_data.get("exit_in_progress"):
+                    log_to_file(f"⚠️ Exit already in progress for trade {matching_trade_id}, skipping exit order placement")
+                    return {"status": "skipped", "reason": "exit_in_progress"}
+
             result = place_trade(symbol, action, quantity)
+
+            # After successful exit order placement, set exit_in_progress flag
+            if isinstance(result, dict) and result.get("status") == "SUCCESS":
+                if matching_trade_id:
+                    open_trades_ref.child(matching_trade_id).update({"exit_in_progress": True})
+                    log_to_file(f"🟢 Set exit_in_progress=True for trade {matching_trade_id}")
 
             # =========================
             # 🟩 PATCH 2: Update trade on exit fills in webhook POST route
