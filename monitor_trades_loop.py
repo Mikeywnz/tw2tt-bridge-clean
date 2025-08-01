@@ -507,8 +507,14 @@ def monitor_trades():
                 print(f"[DEBUG] Trailing TP exit triggered for trade {trade_id} with action '{trade['action']}'")
                 close_position(symbol, trade['action'])
 
-                # Mark trade as exit in progress
+                # Mark the trade as exit in progress and update Firebase immediately
                 trade['exit_in_progress'] = True
+
+                open_trades_ref = firebase_db.reference("/open_active_trades")
+                open_trades_ref.child(symbol).child(trade_id).update({
+                    "exit_in_progress": True
+                })
+
                 updated_trades.append(trade)
                 continue
 
