@@ -124,12 +124,32 @@ def fifo_match_and_flatten(active_trades):
     Mark both matched trades as exited and closed.
     """
 
-    # Filter out trades already marked exited or closed
-    flattening_sells = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_SELL' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
-    long_entries = [t for t in active_trades if t.get('trade_type') == 'LONG_ENTRY' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
+    # Filter trades including those with exit_in_progress True
+    flattening_sells = [
+        t for t in active_trades
+        if t.get('trade_type') == 'FLATTENING_SELL'
+        and (not t.get('exited') or t.get('exit_in_progress') == True)
+        and t.get('contracts_remaining', 1) > 0
+    ]
+    long_entries = [
+        t for t in active_trades
+        if t.get('trade_type') == 'LONG_ENTRY'
+        and (not t.get('exited') or t.get('exit_in_progress') == True)
+        and t.get('contracts_remaining', 1) > 0
+    ]
 
-    flattening_buys = [t for t in active_trades if t.get('trade_type') == 'FLATTENING_BUY' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
-    short_entries = [t for t in active_trades if t.get('trade_type') == 'SHORT_ENTRY' and not t.get('exited') and t.get('contracts_remaining', 1) > 0]
+    flattening_buys = [
+        t for t in active_trades
+        if t.get('trade_type') == 'FLATTENING_BUY'
+        and (not t.get('exited') or t.get('exit_in_progress') == True)
+        and t.get('contracts_remaining', 1) > 0
+    ]
+    short_entries = [
+        t for t in active_trades
+        if t.get('trade_type') == 'SHORT_ENTRY'
+        and (not t.get('exited') or t.get('exit_in_progress') == True)
+        and t.get('contracts_remaining', 1) > 0
+    ]
 
     print(f"[DEBUG] FIFO Matching: flattening_sells={len(flattening_sells)}, long_entries={len(long_entries)}, flattening_buys={len(flattening_buys)}, short_entries={len(short_entries)}")
 
