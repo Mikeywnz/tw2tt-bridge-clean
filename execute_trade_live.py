@@ -73,84 +73,90 @@ def place_trade(symbol, action, quantity):
     order.order_type = 'MKT'  # 🔒 Must be 'MKT' — Tiger's required market order code
     order.quantity = quantity
 
-    # === Submit Order ===
-    try:
-        response = client.place_order(order)
-        print("🐯 Full Tiger order response:", response)
+ # === Submit Order ===
+try:
+    response = client.place_order(order)
+    print("🐯 Full Tiger order response:", response)
 
-        # Extract order ID robustly
-        order_id = None
-        if isinstance(response, dict):
-            order_id = response.get("id", None)
-        elif isinstance(response, str) and response.isdigit():
-            order_id = response
-        elif isinstance(response, int):
-            order_id = response
+    # Extract order ID robustly
+    order_id = None
+    if isinstance(response, dict):
+        order_id = response.get("id", None)
+    elif isinstance(response, str) and response.isdigit():
+        order_id = response
+    elif isinstance(response, int):
+        order_id = response
 
-        print(f"📛 Parsed order_id: {order_id}")
+    print(f"📛 Parsed order_id: {order_id}")
 
-        global exit_cooldowns
-        symbol_action_key = f"{symbol}_{action}"
-        now_ts = time.time()
+    global exit_cooldowns
+    symbol_action_key = f"{symbol}_{action}"
+    now_ts = time.time()
 
-        # Set cooldown immediately on order_id received
-        if order_id:
-            cooldown_seconds = 60  # or your preferred cooldown duration
-            exit_cooldowns[symbol_action_key] = now_ts + cooldown_seconds
-        else:
-            print("🛑 No order_id parsed from response → rejecting trade")
-            return {
-                "status": "REJECTED",
-                "order_id": None,
-                "reason": "No order ID from Tiger response",
-                "trade_status": "REJECTED",
-                "trade_state": "closed",
-                "trade_type": ""
-            }
+    if order_id:
+        # Immediately mark trade as exited and closed for FIFO matching
+        open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
 
-        matched_tx = None
-        for attempt in range(10):  # retry 10 times to get transaction info
-            transactions = client.get_transactions(account=config.account, symbol=symbol, limit=20)
-            matched_tx = next((tx for tx in transactions if str(tx.order_id) == str(order_id)), None)
-            if matched_tx:
-                print(f"✅ Found matching transaction on attempt {attempt+1}")
+        # Find the oldest open trade opposite in direction (simplified here, adjust as needed)
+        open_trades = open_trades_ref.get() or {}
+        for trade_id, trade in open_trades.items():
+            if trade.get('action') != action and not trade.get('exited'):
+                # Mark it closed & exited
+                open_trades_ref.child(trade_id).update({
+                    "exited": True,
+                    "trade_state": "closed",
+                    "contracts_remaining": 0,
+                    "exit_order_id": order_id,
+                    "exit_action": action,
+                    "exit_filled_qty": 1
+                })
+                print(f"[INFO] Marked trade {trade_id} as exited and closed for FIFO matching")
                 break
-            else:
-                print(f"⏳ Transaction not found on attempt {attempt+1}, retrying in 3s...")
-                time.sleep(3)
 
-        if not matched_tx:
-            print(f"⚠️ No matching transaction found after retries for order {order_id}, not resending order")
-            return {
-                "status": "UNKNOWN_FILL",
-                "order_id": order_id,
-                "reason": "No transaction fill info found after retries",
-                "trade_status": "UNKNOWN",
-                "trade_state": "open",  # keep open until confirmed filled
-                "trade_type": ""
-            }
+        # Set cooldown immediately on order_id received to skip retries of placing new order
+        cooldown_seconds = 60  # or your preferred cooldown duration
+        exit_cooldowns[symbol_action_key] = now_ts + cooldown_seconds
+    else:
+        print("🛑 No order_id parsed from response → rejecting trade")
+        return {
+            "status": "REJECTED",
+            "order_id": None,
+            "reason": "No order ID from Tiger response",
+            "trade_status": "REJECTED",
+            "trade_state": "closed",
+            "trade_type": ""
+        }
 
-
-        if not matched_tx:
-            print(f"⚠️ No matching transaction found after retries for order {order_id}, not resending order")
-            return {
-                "status": "UNKNOWN_FILL",
-                "order_id": order_id,
-                "reason": "No transaction fill info found after retries",
-                "trade_status": "UNKNOWN",
-                "trade_state": "open",  # keep trade open until fill confirmed
-                "trade_type": ""
-            }
-
+    # Retry ONLY to get transaction info (not to resend orders)
+    matched_tx = None
+    for attempt in range(10):  # retry 10 times to get transaction info
+        transactions = client.get_transactions(account=config.account, symbol=symbol, limit=20)
+        matched_tx = next((tx for tx in transactions if str(tx.order_id) == str(order_id)), None)
         if matched_tx:
-            filled_qty = getattr(matched_tx, "filled_quantity", 0)
-            # Determine status and trade_state
-            status = "FILLED" if filled_qty > 0 else "REJECTED"
-            trade_state = "open" if filled_qty > 0 else "closed"
+            print(f"✅ Found matching transaction on attempt {attempt+1}")
+            break
+        else:
+            print(f"⏳ Transaction not found on attempt {attempt+1}, retrying in 3s...")
+            time.sleep(3)
 
-            # ==========================
-            # 🟩 GREEN PATCH START: Strict Ghost Trade Rejection in place_trade()
-            # ==========================
+    if not matched_tx:
+        print(f"⚠️ No matching transaction found after retries for order {order_id}, not resending order")
+        return {
+            "status": "UNKNOWN_FILL",
+            "order_id": order_id,
+            "reason": "No transaction fill info found after retries",
+            "trade_status": "UNKNOWN",
+            "trade_state": "open",  # keep trade open until fill confirmed
+            "trade_type": ""
+        }
+
+    if matched_tx:
+        filled_qty = getattr(matched_tx, "filled_quantity", 0)
+        # Determine status and trade_state
+        status = "FILLED" if filled_qty > 0 else "REJECTED"
+        trade_state = "open" if filled_qty > 0 else "closed"
+
+        # Continue with rest of your logic here...
 
             # Place this inside place_trade(), right after you retrieve matched_tx and filled_qty:
 

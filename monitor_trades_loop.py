@@ -124,30 +124,26 @@ def fifo_match_and_flatten(active_trades):
     Mark both matched trades as exited and closed.
     """
 
-    # Filter trades including those with exit_in_progress True
+    # Filter trades only by type and contracts_remaining
     flattening_sells = [
         t for t in active_trades
         if t.get('trade_type') == 'FLATTENING_SELL'
-        and (not t.get('exited') or t.get('exit_in_progress') == True)
         and t.get('contracts_remaining', 1) > 0
     ]
     long_entries = [
         t for t in active_trades
         if t.get('trade_type') == 'LONG_ENTRY'
-        and (not t.get('exited') or t.get('exit_in_progress') == True)
         and t.get('contracts_remaining', 1) > 0
     ]
 
     flattening_buys = [
         t for t in active_trades
         if t.get('trade_type') == 'FLATTENING_BUY'
-        and (not t.get('exited') or t.get('exit_in_progress') == True)
         and t.get('contracts_remaining', 1) > 0
     ]
     short_entries = [
         t for t in active_trades
         if t.get('trade_type') == 'SHORT_ENTRY'
-        and (not t.get('exited') or t.get('exit_in_progress') == True)
         and t.get('contracts_remaining', 1) > 0
     ]
 
@@ -187,7 +183,6 @@ def fifo_match_and_flatten(active_trades):
 # ==========================
 # 🟩 GREEN PATCH: Archive and Delete Matched Trades Immediately After FIFO Matching
 # ==========================
-
 def archive_and_delete_matched_trades(symbol, matched_trades):
     for trade in matched_trades:
         trade_id = trade.get('trade_id')
