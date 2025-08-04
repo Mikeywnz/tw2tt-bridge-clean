@@ -104,7 +104,7 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
     print(f"✅ Entry order placed with order_id: {order_id}")
 
     # ==========================
-    # 🟩 GRACE PERIOD BEFORE ARCHIVING GHOST TRADES
+    # 🟩 GRACE PERIOD BEFORE ARCHIVING GHOST TRADES (COMMENTED OUT FOR TEST)
     # ==========================
     trade_status = getattr(response, "status", "").upper() if hasattr(response, "status") else ""
     ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
@@ -116,33 +116,34 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
         filled_qty = response.get("filled_quantity", 0)
 
     # Wait for a few seconds before deciding it's a ghost trade
-    if filled_qty == 0 and trade_status in ghost_statuses:
-        print("⏳ Waiting 5 seconds before confirming ghost trade...")
-        time.sleep(5)  # Grace period delay
+    # if filled_qty == 0 and trade_status in ghost_statuses:
+    #     print("⏳ Waiting 5 seconds before confirming ghost trade...")
+    #     time.sleep(5)  # Grace period delay
 
-        # Re-check the trade status and filled qty (pseudo code, replace with actual API call)
-        updated_response = client.get_order_status(order_id)  # You may need to implement this
-        updated_filled_qty = updated_response.get("filled_quantity", 0)
-        updated_trade_status = updated_response.get("status", "").upper()
+    #     # Re-check the trade status and filled qty (pseudo code, replace with actual API call)
+    #     updated_response = client.get_order_status(order_id)  # You may need to implement this
+    #     updated_filled_qty = updated_response.get("filled_quantity", 0)
+    #     updated_trade_status = updated_response.get("status", "").upper()
 
-        if updated_filled_qty == 0 and updated_trade_status in ghost_statuses:
-            print(f"⏭️ Confirmed ghost trade detected after grace: status={updated_trade_status}, filled_qty=0")
-            archive_ghost_trade(order_id, {
-                "trade_status": updated_trade_status,
-                "filled_quantity": updated_filled_qty,
-                "trade_state": "closed",
-                "trade_type": "",
-                "raw_response": updated_response
-            })
-            return {
-                "status": "skipped",
-                "reason": "ghost trade - zero fill with bad status after grace",
-                "trade_status": updated_trade_status,
-                "trade_state": "closed",
-                "trade_type": ""
-            }
+    #     if updated_filled_qty == 0 and updated_trade_status in ghost_statuses:
+    #         print(f"⏭️ Confirmed ghost trade detected after grace: status={updated_trade_status}, filled_qty=0")
+    #         archive_ghost_trade(order_id, {
+    #             "trade_status": updated_trade_status,
+    #             "filled_quantity": updated_filled_qty,
+    #             "trade_state": "closed",
+    #             "trade_type": "",
+    #             "raw_response": updated_response
+    #         })
+    #         return {
+    #             "status": "skipped",
+    #             "reason": "ghost trade - zero fill with bad status after grace",
+    #             "trade_status": updated_trade_status,
+    #             "trade_state": "closed",
+    #             "trade_type": ""
+    #         }
 
     # If not ghost, continue normal processing
+
     return {
         "status": "SUCCESS",
         "order_id": order_id,
@@ -151,7 +152,6 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
         "action": action,
         "quantity": quantity
     }
-
 # ==========================
 # 🟩 EXIT TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
