@@ -172,6 +172,7 @@ def execute_exit_trade(client, contract, symbol, action, quantity, db, order_coo
 # 🟩 DISPATCHER FUNCTION (No cooldowns passed)
 # ==========================
 def place_trade(symbol, action, quantity, trade_type, db):
+    global client  # Ensure we use the globally initialized client
     symbol = symbol.upper()
     action = action.upper()
     contract = get_contract(symbol)
