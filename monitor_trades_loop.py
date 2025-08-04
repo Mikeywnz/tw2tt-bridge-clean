@@ -152,8 +152,9 @@ def monitor_trades():
     if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
         print("[DEBUG] Skipping zombie trade check due to stale data or non-zero positions")
     else:
-     #   print("[DEBUG] Passing zombie trade check, handling zombies")
-     #   handle_zombie_and_ghost_trades(db)
+        pass  # Ghost/zombie logic disabled for debugging
+            #   print("[DEBUG] Passing zombie trade check, handling zombies")
+            #   handle_zombie_and_ghost_trades(db)
 
     # Load trailing TP settings
     trigger_points, offset_points = load_trailing_tp_settings()
