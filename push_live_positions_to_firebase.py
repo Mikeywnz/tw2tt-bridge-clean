@@ -42,7 +42,7 @@ def fetch_trade_transactions(account_id):
         if not active_symbol:
             print("❌ No active contract symbol found in Firebase; aborting fetch_trade_transactions")
             return []
-        transactions = client.get_transactions(account=account_id, symbol=active_symbol, limit=20)
+        transactions = client.get_transactions(account=account_id, symbol=active_symbol, limit=10)
         return transactions or []
     except Exception as e:
         print(f"❌ Failed to fetch trade transactions: {e}")
@@ -93,7 +93,7 @@ def push_live_positions():
         except Exception as e:
             print(f"❌ Error pushing live positions: {e}")
 
-        time.sleep(10)  # Pause 10 seconds before next update
+        time.sleep(20)  # Pause 10 seconds before next update
 
 
 if __name__ == "__main__":
