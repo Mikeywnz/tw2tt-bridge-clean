@@ -256,10 +256,12 @@ def monitor_trades():
 
         if not trade.get('trail_hit'):
             trade['trail_peak'] = entry
-            if (direction == 1 and current_price >= entry + tp_trigger) or (direction == -1 and current_price <= entry - tp_trigger):
+            trigger_price = entry + tp_trigger if direction == 1 else entry - tp_trigger
+            print(f"[DEBUG] TP trigger price for trade {trade_id} set at {trigger_price:.2f}")
+            if (direction == 1 and current_price >= trigger_price) or (direction == -1 and current_price <= trigger_price):
                 trade['trail_hit'] = True
                 trade['trail_peak'] = current_price
-                print(f"🎯 TP trigger hit for {trade_id} → trail activated at {current_price}")
+                print(f"[INFO] TP trigger HIT for trade {trade_id} at price {current_price:.2f}")
 
                 open_trades_ref = firebase_db.reference("/open_active_trades")
                 open_trades_ref.child(symbol).child(trade_id).update({
@@ -273,6 +275,7 @@ def monitor_trades():
             buffer_amt = offset_points
             if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
                 print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
+                print(f"[INFO] Trailing TP EXIT triggered for trade {trade_id}: current price={current_price:.2f}, trail peak={trade['trail_peak']:.2f}, buffer={buffer_amt}")
                 exit_in_progress.add(trade_id)
 
                 print(f"[DEBUG] Trailing TP exit triggered for trade {trade_id} with action '{trade['action']}'")
