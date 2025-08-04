@@ -12,8 +12,6 @@ import firebase_admin
 from firebase_admin import db
 
 # ---------------------------
-# Global cooldown tracker for orders
-exit_cooldowns = {}
 
 # Firebase DB reference shortcut
 firebase_db = db
@@ -61,16 +59,10 @@ def archive_ghost_trade(trade_id, trade_data):
 
 
 # ==========================
-# 🟩 ENTRY TRADE LOGIC BLOCK
+# 🟩 ENTRY TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_entry_trade(client, contract, symbol, action, quantity, db, order_cooldowns):
+def execute_entry_trade(client, contract, symbol, action, quantity, db, order_cooldowns=None):
     print(f"🚀 Starting ENTRY trade logic for {symbol} {action} x {quantity}")
-
-    cooldown_key = f"{symbol}_{action}_entry"
-    now_ts = time.time()
-    if order_cooldowns.get(cooldown_key, 0) > now_ts:
-        print(f"⏳ Entry trade cooldown active for {cooldown_key}, skipping trade")
-        return {"status": "COOLDOWN_SKIPPED", "reason": "Entry trade cooldown active"}
 
     order = Order(
         account=client.config.account,
@@ -100,10 +92,7 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db, order_co
 
     print(f"✅ Entry order placed with order_id: {order_id}")
 
-    # Set entry cooldown
-    order_cooldowns[cooldown_key] = now_ts + 60  # 60 seconds cooldown
-
-    # Place for ghost trade archiving logic if needed, ONLY for entry trades
+    # Ghost trade archiving logic can be placed here if needed, ONLY for entry trades
 
     return {
         "status": "SUCCESS",
@@ -116,9 +105,9 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db, order_co
 
 
 # ==========================
-# 🟩 EXIT TRADE LOGIC BLOCK
+# 🟩 EXIT TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_exit_trade(client, contract, symbol, action, quantity, db, order_cooldowns):
+def execute_exit_trade(client, contract, symbol, action, quantity, db, order_cooldowns=None):
     print(f"🚀 Starting EXIT trade logic for {symbol} {action} x {quantity}")
 
     # No ghost trade logic on exits
@@ -169,10 +158,6 @@ def execute_exit_trade(client, contract, symbol, action, quantity, db, order_coo
     except Exception as e:
         print(f"⚠️ Failed to update exit_in_progress in Firebase: {e}")
 
-    cooldown_key = f"{symbol}_{action}_exit"
-    now_ts = time.time()
-    order_cooldowns[cooldown_key] = now_ts + 60  # 60 seconds cooldown
-
     return {
         "status": "SUCCESS",
         "order_id": order_id,
@@ -184,24 +169,24 @@ def execute_exit_trade(client, contract, symbol, action, quantity, db, order_coo
 
 
 # ==========================
-# 🟩 DISPATCHER FUNCTION
+# 🟩 DISPATCHER FUNCTION (No cooldowns passed)
 # ==========================
-def place_trade(symbol, action, quantity, trade_type, db, order_cooldowns):
+def place_trade(symbol, action, quantity, trade_type, db):
     symbol = symbol.upper()
     action = action.upper()
     contract = get_contract(symbol)
 
     if trade_type.upper() == "ENTRY":
-        return execute_entry_trade(client, contract, symbol, action, quantity, db, order_cooldowns)
+        return execute_entry_trade(client, contract, symbol, action, quantity, db)
     elif trade_type.upper() == "EXIT":
-        return execute_exit_trade(client, contract, symbol, action, quantity, db, order_cooldowns)
+        return execute_exit_trade(client, contract, symbol, action, quantity, db)
     else:
         print(f"❌ Unknown trade_type: {trade_type}")
         return {"status": "ERROR", "reason": f"Unknown trade_type {trade_type}"}
 
 
 # ==========================
-# 🟩 CLI MAIN ENTRYPOINT
+# 🟩 CLI MAIN ENTRYPOINT (No cooldown dictionary)
 # ==========================
 def main():
     if len(sys.argv) < 5:
@@ -220,7 +205,7 @@ def main():
 
     print(f"🚀 CLI launch: Placing {trade_type} trade with symbol={symbol}, action={action}, quantity={quantity}")
 
-    result = place_trade(symbol, action, quantity, trade_type, firebase_db, exit_cooldowns)
+    result = place_trade(symbol, action, quantity, trade_type, firebase_db)
 
     print(f"🚀 Trade result: {result}")
 

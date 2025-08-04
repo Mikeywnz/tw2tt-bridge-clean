@@ -173,7 +173,7 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     delta = qty if buy else -qty
     new_net = old_net + delta
 
-    # 🧠 IRONCLAD LOGIC:
+    # 🧠 IRONCLAD LOGIC: 
     if old_net == 0:
         # When flat, any trade is an entry
         trade_type = "LONG_ENTRY" if buy else "SHORT_ENTRY"
@@ -237,6 +237,24 @@ async def webhook(request: Request):
         return {"status": "invalid json", "error": str(e)}
 
     log_to_file(f"Webhook received: {data}")
+    symbol = firebase_active_contract.get_active_contract()
+    action = data.get("action")
+    quantity = int(data.get("quantity", 1))
+
+    # 🟩 PATCH START: classify trade and map trade_type
+    trade_type_detailed, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
+    print(f"[DEBUG] Classified trade_type: {trade_type_detailed} | Updated position: {updated_position}")
+
+    if trade_type_detailed in ["LONG_ENTRY", "SHORT_ENTRY"]:
+        trade_type = "ENTRY"
+    else:
+        trade_type = "EXIT"
+
+    print(f"[DEBUG] Mapped trade_type for execution: {trade_type}")
+
+    result = place_trade(symbol, action, quantity, trade_type, firebase_db)
+    print(f"[INFO] place_trade() result: {result}")
+    
     sheet = get_google_sheet()
 
     if data.get("liquidation", False):
@@ -319,7 +337,22 @@ async def webhook(request: Request):
                     log_to_file(f"⚠️ Exit already in progress for trade {matching_trade_id}, skipping exit order placement")
                     return {"status": "skipped", "reason": "exit_in_progress"}
 
-            result = place_trade(symbol, action, quantity)
+                    
+            # ==========================
+            # 🟩 PATCH: Pass Explicit Trade Type to place_trade() with Logging
+            # ==========================
+            trade_type_detailed, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
+            print(f"[DEBUG] Classified trade_type: {trade_type_detailed} | Updated position: {updated_position}")
+
+            if trade_type_detailed in ["LONG_ENTRY", "SHORT_ENTRY"]:
+                trade_type = "ENTRY"
+            else:
+                trade_type = "EXIT"
+
+            print(f"[DEBUG] Mapped trade_type for execution: {trade_type}")
+
+            result = place_trade(symbol, action, quantity, trade_type, firebase_db)
+            print(f"[INFO] place_trade() result: {result}")
 
             # After successful exit order placement, set exit_in_progress fl
             if isinstance(result, dict) and result.get("status") == "SUCCESS":
