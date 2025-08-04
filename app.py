@@ -241,6 +241,14 @@ async def webhook(request: Request):
     action = data.get("action")
     quantity = int(data.get("quantity", 1))
 
+    if not action or not isinstance(action, str):
+        log_to_file("⚠️ Invalid or missing 'action' in webhook payload")
+        return {"status": "error", "message": "Invalid or missing 'action'"}
+
+    if not quantity or not isinstance(quantity, int):
+        log_to_file("⚠️ Invalid or missing 'quantity' in webhook payload")
+        return {"status": "error", "message": "Invalid or missing 'quantity'"}
+
     # 🟩 PATCH START: classify trade and map trade_type
     trade_type_detailed, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
     print(f"[DEBUG] Classified trade_type: {trade_type_detailed} | Updated position: {updated_position}")
@@ -254,7 +262,7 @@ async def webhook(request: Request):
 
     result = place_trade(symbol, action, quantity, trade_type, firebase_db)
     print(f"[INFO] place_trade() result: {result}")
-    
+
     sheet = get_google_sheet()
 
     if data.get("liquidation", False):
