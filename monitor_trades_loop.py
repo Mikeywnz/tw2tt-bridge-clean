@@ -181,7 +181,7 @@ def monitor_trades():
 
     # Filter active trades
     active_trades = []
-    GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+    # GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 
     for t in all_trades:
         tid = t.get('trade_id')
@@ -191,13 +191,13 @@ def monitor_trades():
         if t.get('exited') or t.get('status') in ['failed', 'closed']:
             print(f"🔁 Skipping exited/closed trade {tid}")
             continue
-        if not t.get('filled') and t.get('status', '').upper() not in GHOST_STATUSES:
-            print(f"🧾 Skipping {tid} ⚠️ not filled and not a ghost trade")
-            continue
+        # if not t.get('filled') and t.get('status', '').upper() not in GHOST_STATUSES:
+        #     print(f"🧾 Skipping {tid} ⚠️ not filled and not a ghost trade")
+        #     continue
         status = t.get('status', '').upper()
-        if t.get('contracts_remaining', 0) <= 0 and status not in GHOST_STATUSES:
-            print(f"🧾 Skipping {tid} ⚠️ no contracts remaining and not a ghost trade")
-            continue
+        # if t.get('contracts_remaining', 0) <= 0 and status not in GHOST_STATUSES:
+        #     print(f"🧾 Skipping {tid} ⚠️ no contracts remaining and not a ghost trade")
+        #     continue
         if trigger_points < 0.01 or offset_points < 0.01:
             print(f"⚠️ Skipping trade {tid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
             continue
@@ -442,7 +442,7 @@ def handle_zombie_and_ghost_trades(firebase_db):
     now_utc = datetime.now(timezone.utc)
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
-    ghost_trades_ref = firebase_db.reference("/ghost_trades_log")
+   # ghost_trades_ref = firebase_db.reference("/ghost_trades_log")
 
     all_open_trades = open_trades_ref.get() or {}
     existing_zombies = set(zombie_trades_ref.get() or {})

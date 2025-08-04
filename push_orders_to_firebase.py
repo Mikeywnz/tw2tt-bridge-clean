@@ -76,10 +76,10 @@ def get_google_sheet():
 # ==========================
 # 🟩 GREEN PATCH: Uncomment and fix is_ghost_trade helper function
 # ==========================
-def is_ghost_trade(trade_id, firebase_db):
-    ghost_ref = firebase_db.reference("/ghost_trades_log")
-    ghosts = ghost_ref.get() or {}
-    return trade_id in ghosts
+#def is_ghost_trade(trade_id, firebase_db):
+    #ghost_ref = firebase_db.reference("/ghost_trades_log")
+    #ghosts = ghost_ref.get() or {}
+   # return trade_id in ghosts
 
 # === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
 def is_zombie_trade(trade_id, firebase_db):
@@ -155,7 +155,7 @@ def safe_int(value):
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
 
-    tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
+    #tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
     open_trades_ref = db.reference("open_active_trades")
     pos_tracker = {}
     now = datetime.utcnow()
