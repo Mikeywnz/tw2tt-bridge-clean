@@ -155,7 +155,7 @@ def safe_int(value):
 # === MAIN FUNCTION WRAPPED HERE ===
 def push_orders_main():
 
-    #tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
+    tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
     open_trades_ref = db.reference("open_active_trades")
     pos_tracker = {}
     now = datetime.utcnow()
