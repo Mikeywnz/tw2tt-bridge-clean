@@ -147,7 +147,7 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
 # ==========================
 # 🟩 EXIT TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_entry_trade(client, contract, symbol, action, quantity, db):
+def execute_exit_trade(client, contract, symbol, action, quantity, db):
     print(f"🚀 Starting EXIT trade logic for {symbol} {action} x {quantity}")
     print(f"[DEBUG] execute_exit_trade client id: {id(client)}")
     print(f"[DEBUG] execute_exit_trade client type: {type(client)}")
