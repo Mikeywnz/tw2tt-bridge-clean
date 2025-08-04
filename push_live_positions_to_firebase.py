@@ -93,7 +93,7 @@ def push_live_positions():
         except Exception as e:
             print(f"❌ Error pushing live positions: {e}")
 
-        time.sleep(5)  # Pause 5 seconds before next update
+        time.sleep(10)  # Pause 10 seconds before next update
 
 
 if __name__ == "__main__":
