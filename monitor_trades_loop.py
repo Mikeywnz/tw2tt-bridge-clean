@@ -40,15 +40,13 @@ def close_position(symbol, original_action):
     print(f"[DEBUG] close_position() using exit_action='{exit_action}'")
     try:
         result = subprocess.run(
-            ["python3", "execute_trade_live.py", symbol, exit_action, "1"],
+            ["python3", "execute_trade_live.py", symbol, exit_action, "1", "EXIT"],
             capture_output=True,
             text=True
         )
         print(f"[DEBUG] CLI subprocess stdout: {result.stdout.strip()}")
         print(f"[DEBUG] CLI subprocess stderr: {result.stderr.strip()}")
         print(f"📤 Exit order sent: {exit_action} 1 {symbol}")
-        print("stdout:", result.stdout.strip())
-        print("stderr:", result.stderr.strip())
     except Exception as e:
         print(f"❌ Failed to execute exit order: {e}")
 

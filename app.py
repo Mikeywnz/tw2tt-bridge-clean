@@ -33,7 +33,7 @@ if not firebase_admin._apps:
 firebase_db = db
 
 # ==========================
-# 🟩 HELPER: Update Trade on Exit Fill (Exit Order Confirmation Handler)
+# 🟩 HELPER: Update Trade on Exit Fill (Exit Order Confirmation Handler) with P&L Calculation
 # ==========================
 def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, filled_qty, fill_price=None, fill_time=None):
     global processed_exit_order_ids
@@ -67,13 +67,34 @@ def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, f
     if fill_time is not None:
         update_data["exit_fill_time"] = fill_time
 
+    # === Calculate Realized P&L ===
+    try:
+        entry_price = trade.get("filled_price")
+        entry_qty = trade.get("filled_quantity")
+        if entry_price is None or entry_qty is None:
+            print(f"[WARN] Missing entry price or quantity for trade {matching_trade_id}; skipping P&L calculation.")
+        else:
+            # Calculate P&L depending on exit action
+            # Assume simple formula: (Exit - Entry) * Qty for long, reversed for short
+            if exit_action == "SELL":
+                pnl = (fill_price - entry_price) * filled_qty
+            elif exit_action == "BUY":
+                pnl = (entry_price - fill_price) * filled_qty
+            else:
+                pnl = 0.0
+                print(f"[WARN] Unknown exit_action '{exit_action}' for P&L calculation.")
+            
+            update_data["realized_pnl"] = pnl
+            print(f"[INFO] Calculated realized P&L for trade {matching_trade_id}: {pnl:.2f}")
+    except Exception as e:
+        print(f"[ERROR] Exception during P&L calculation for trade {matching_trade_id}: {e}")
+
     trade_ref = open_active_trades_ref.child(matching_trade_id)
-    print(f"[DEBUG] Updating fill details for trade {matching_trade_id}")
+    print(f"[DEBUG] Updating fill details and P&L for trade {matching_trade_id}")
 
     try:
         trade_ref.update(update_data)
-        updated_trade = trade_ref.get()
-        print(f"[INFO] Updated trade {matching_trade_id} with fill data in Firebase")
+        print(f"[INFO] Updated trade {matching_trade_id} with fill data and P&L in Firebase")
         return True
     except Exception as e:
         print(f"[ERROR] Failed to update trade {matching_trade_id}: {e}")
