@@ -13,6 +13,7 @@ import firebase_admin
 from firebase_admin import db
 
 exit_cooldowns = {}
+firebase_db = db
 
 # ==========================
 # 🟩 GREEN PATCH START: Archive Ghost Trade Immediately
@@ -94,23 +95,22 @@ def place_trade(symbol, action, quantity):
         now_ts = time.time()
 
         if order_id:
-            # Immediately mark trade as exited and closed for FIFO matching
-            open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+            # Immediately mark trade as exit in progress for FIFO matching
+            open_trades_ref = db.reference(f"/open_active_trades/{symbol}")
 
             # Find the oldest open trade opposite in direction (simplified here, adjust as needed)
             open_trades = open_trades_ref.get() or {}
             for trade_id, trade in open_trades.items():
                 if trade.get('action') != action and not trade.get('exited'):
-                    # Mark it closed & exited
+                    # Mark it exit in progress (not fully exited yet)
                     open_trades_ref.child(trade_id).update({
-                        "exited": True,
-                        "trade_state": "closed",
+                        "exit_in_progress": True,
                         "contracts_remaining": 0,
                         "exit_order_id": order_id,
                         "exit_action": action,
                         "exit_filled_qty": 1
                     })
-                    print(f"[INFO] Marked trade {trade_id} as exited and closed for FIFO matching")
+                    print(f"[INFO] Marked trade {trade_id} as exit in progress for FIFO matching")
                     break
 
             # Set cooldown immediately on order_id received to skip retries of placing new order
