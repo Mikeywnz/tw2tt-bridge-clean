@@ -57,13 +57,13 @@ def get_contract(symbol: str):
 # ==========================
 # 🟩 ARCHIVE GHOST TRADE UTILITY
 # ==========================
-def archive_ghost_trade(trade_id, trade_data):
-    try:
-        ghost_ref = db.reference("/ghost_trades_log")
-        ghost_ref.child(trade_id).set(trade_data)
-        print(f"✅ Archived ghost trade {trade_id} to ghost_trades_log")
-    except Exception as e:
-        print(f"❌ Failed to archive ghost trade {trade_id}: {e}")
+#def archive_ghost_trade(trade_id, trade_data):
+#    try:
+#        ghost_ref = db.reference("/ghost_trades_log")
+#        ghost_ref.child(trade_id).set(trade_data)
+#        print(f"✅ Archived ghost trade {trade_id} to ghost_trades_log")
+#    except Exception as e:
+#        print(f"❌ Failed to archive ghost trade {trade_id}: {e}")
 
 
 # ==========================
