@@ -213,10 +213,10 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
 
 
 # ==========================
-# 🟩 DISPATCHER FUNCTION (No cooldowns passed)
+# 🟩 DISPATCHER FUNCTION (Detailed trade type routing)
 # ==========================
 def place_trade(symbol, action, quantity, trade_type, db):
-    global client  # Ensure we use the globally initialized client
+    global client  # Use the globally initialized client
     print(f"[DEBUG] place_trade called with client id: {id(client)}")
     print(f"[DEBUG] place_trade client type: {type(client)}")
 
@@ -224,9 +224,10 @@ def place_trade(symbol, action, quantity, trade_type, db):
     action = action.upper()
     contract = get_contract(symbol)
 
-    if trade_type.upper() == "ENTRY":
+    # Use detailed trade_type strings for routing
+    if trade_type in ["LONG_ENTRY", "SHORT_ENTRY"]:
         return execute_entry_trade(client, contract, symbol, action, quantity, db)
-    elif trade_type.upper() == "EXIT":
+    elif trade_type in ["FLATTENING_BUY", "FLATTENING_SELL"]:
         return execute_exit_trade(client, contract, symbol, action, quantity, db)
     else:
         print(f"❌ Unknown trade_type: {trade_type}")
