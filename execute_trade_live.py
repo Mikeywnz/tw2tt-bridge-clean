@@ -32,6 +32,11 @@ try:
 except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
+    print(f"[DEBUG] Initialized client object: {client}")
+    print(f"[DEBUG] client type: {type(client)}")
+    print(f"[DEBUG] client has config: {'config' in dir(client)}")
+    print(f"[DEBUG] client.config.account: {getattr(client.config, 'account', None)}")
+    print(f"[DEBUG] client id: {id(client)}")
 
 
 # ==========================
@@ -61,8 +66,11 @@ def archive_ghost_trade(trade_id, trade_data):
 # ==========================
 # 🟩 ENTRY TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_entry_trade(client, contract, symbol, action, quantity, db, order_cooldowns=None):
+def execute_entry_trade(client, contract, symbol, action, quantity, db):
     print(f"🚀 Starting ENTRY trade logic for {symbol} {action} x {quantity}")
+    print(f"[DEBUG] execute_entry_trade client id: {id(client)}")  # or execute_exit_trade similarly
+    print(f"[DEBUG] execute_entry_trade client type: {type(client)}")
+    print(f"[DEBUG] execute_entry_trade has config: {'config' in dir(client)}")
 
     order = Order(
         account=client.config.account,
@@ -92,7 +100,36 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db, order_co
 
     print(f"✅ Entry order placed with order_id: {order_id}")
 
-    # Ghost trade archiving logic can be placed here if needed, ONLY for entry trades
+    # ==========================
+    # 🟩 GHOST TRADE DOOR: Archive ghost trades immediately after order placement
+    # ==========================
+
+    # Determine if the trade is a ghost trade (e.g., rejected, expired, no fill)
+    trade_status = getattr(response, "status", "").upper() if hasattr(response, "status") else ""
+    ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+
+    filled_qty = 0
+    if hasattr(response, "filled_quantity"):
+        filled_qty = response.filled_quantity
+    elif isinstance(response, dict):
+        filled_qty = response.get("filled_quantity", 0)
+
+    if filled_qty == 0 and trade_status in ghost_statuses:
+        print(f"⏭️ Rejected ghost trade detected: status={trade_status}, filled_qty=0")
+        archive_ghost_trade(order_id, {
+            "trade_status": trade_status,
+            "filled_quantity": filled_qty,
+            "trade_state": "closed",
+            "trade_type": "",
+            "raw_response": response
+        })
+        return {
+            "status": "skipped",
+            "reason": "ghost trade - zero fill with bad status",
+            "trade_status": trade_status,
+            "trade_state": "closed",
+            "trade_type": ""
+        }
 
     return {
         "status": "SUCCESS",
@@ -107,8 +144,12 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db, order_co
 # ==========================
 # 🟩 EXIT TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_exit_trade(client, contract, symbol, action, quantity, db, order_cooldowns=None):
+def execute_entry_trade(client, contract, symbol, action, quantity, db):
     print(f"🚀 Starting EXIT trade logic for {symbol} {action} x {quantity}")
+    print(f"[DEBUG] execute_exit_trade client id: {id(client)}")
+    print(f"[DEBUG] execute_exit_trade client type: {type(client)}")
+    print(f"[DEBUG] execute_exit_trade has config: {'config' in dir(client)}")
+   
 
     # No ghost trade logic on exits
 
@@ -173,6 +214,9 @@ def execute_exit_trade(client, contract, symbol, action, quantity, db, order_coo
 # ==========================
 def place_trade(symbol, action, quantity, trade_type, db):
     global client  # Ensure we use the globally initialized client
+    print(f"[DEBUG] place_trade called with client id: {id(client)}")
+    print(f"[DEBUG] place_trade client type: {type(client)}")
+
     symbol = symbol.upper()
     action = action.upper()
     contract = get_contract(symbol)
