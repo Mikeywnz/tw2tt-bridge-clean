@@ -1,4 +1,4 @@
-tigeropen==3.3.2
+tigeropen==3.4.4
 setuptools
 flask
 gunicorn
