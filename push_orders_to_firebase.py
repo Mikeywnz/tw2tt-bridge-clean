@@ -392,15 +392,15 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {order_id} during API push")
                 continue
 
-            if filled == 0 and status in ghost_statuses:
-                print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
-                print(f"    Full payload: {json.dumps(payload)}")
+           # if filled == 0 and status in ghost_statuses:
+            #     print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
+            #     print(f"    Full payload: {json.dumps(payload)}")
 
-                # Archive ghost trade
-                ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(order_id).set(payload)
-                # Skip pushing this trade to open_active_trades
-                continue
+            #     # Archive ghost trade
+            #     ghost_ref = db.reference("/ghost_trades_log")
+            #     ghost_ref.child(order_id).set(payload)
+            #     # Skip pushing this trade to open_active_trades
+            #     continue
 
             # ==========================
             # 🟩 GREEN PATCH END
