@@ -260,11 +260,11 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
-            #if is_ghost_trade(oid, db):
-             #   print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
-              #  continue
-            #else:
-            #    print(f"✅ Order ID {oid} not a ghost, proceeding")
+            if is_ghost_trade(oid, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+                continue
+            else:
+                print(f"✅ Order ID {oid} not a ghost, proceeding")
 
             tiger_ids.add(oid)
 
@@ -371,11 +371,22 @@ def push_orders_main():
 
             endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
-            # 🟩 GREEN PATCH START: Skip if ghost trade already archived this run
-          #  if order_id in archived_trade_ids:
-           #     print(f"⏭️ ⛔ Ghost trade {order_id} already archived this run; skipping duplicate archive")
-            #    continue
-           # archived_trade_ids.add(order_id)
+            # 🟩 GREEN PATCH START: Skip if trade already archived or ghosted this run
+            if order_id in archived_trade_ids:
+                print(f"⏭️ ⛔ Archived trade {order_id} already processed this run; skipping duplicate archive")
+                continue
+
+            # Check if trade is already in ghost archive in Firebase DB
+            def is_ghost_trade(trade_id, db):
+                ghost_ref = db.reference("/ghost_trades_log")
+                ghosts = ghost_ref.get() or {}
+                return trade_id in ghosts
+
+            if is_ghost_trade(order_id, db):
+                print(f"⏭️ ⛔ Trade {order_id} already in ghost_trades_log; skipping open trades push")
+                continue
+
+            archived_trade_ids.add(order_id)
             # 🟩 GREEN PATCH END
 
             # ==========================
@@ -387,10 +398,6 @@ def push_orders_main():
            # status = payload.get("status", "").upper()
            # filled = payload.get("filled", 0)
            # order_id = payload.get("order_id", "")
-
-            if order_id in archived_trade_ids:
-                print(f"⏭️ ⛔ Skipping archived trade {order_id} during API push")
-                continue
 
            # if filled == 0 and status in ghost_statuses:
             #     print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
