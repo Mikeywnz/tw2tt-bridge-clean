@@ -194,38 +194,6 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     pos_tracker[symbol] = new_net
     return trade_type, new_net
 
-    # 🟢 classify_trade: Determine trade type and update net position
-
-    #OLD VERSION INCASE NEW VERSION BREAKS EVRYTHIGN (HOWEVER THIS VERSION NOT CURRENTLY WORKING)
-#def classify_trade(symbol, action, qty, pos_tracker, fb_db):
- #   old_net = pos_tracker.get(symbol)
-  #  if old_net is None:
-   #     data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-    #    old_net = int(data.get("position_count", 0))
-     #   pos_tracker[symbol] = old_net
-
-  #  buy = (action.upper() == "BUY")
-
- #   if old_net == 0:
- #      ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
- #       new_net = qty if buy else -qty
- #   else:
- #       if (old_net > 0 and buy) or (old_net < 0 and not buy):
- #           ttype = "LONG_ENTRY" if buy else "SHORT_ENTRY"
- #           new_net = old_net + (qty if buy else -qty)
- #       else:
- #           ttype = "FLATTENING_BUY" if buy else "FLATTENING_SELL"
- #           new_net = old_net + (qty if buy else -qty)
- #           if (buy and new_net > 0) or (not buy and new_net < 0):
- #               new_net = 0
-
- #   print(f"[DEBUG] {symbol}: action={action}, qty={qty}, old_net={old_net}, new_net={new_net}, trade_type={ttype}") #DUBUG
-
- #   pos_tracker[symbol] = new_net
- #   return ttype, new_net
-
-        #=====  END OF PART 1 =====
-
 # ========================= APP.PY - PART 2 ================================  
 
 @app.post("/webhook")
@@ -255,8 +223,11 @@ async def webhook(request: Request):
 
     if trade_type_detailed in ["LONG_ENTRY", "SHORT_ENTRY"]:
         trade_type = "ENTRY"
-    else:
+    elif trade_type_detailed in ["FLATTENING_BUY", "FLATTENING_SELL"]:
         trade_type = "EXIT"
+    else:
+        # Handle unexpected types or ignore
+        return {"status": "error", "message": "Unrecognized trade type"}
 
     print(f"[DEBUG] Mapped trade_type for execution: {trade_type}")
 
