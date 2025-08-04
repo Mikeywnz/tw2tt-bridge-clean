@@ -260,11 +260,11 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
-            if is_ghost_trade(oid, db):
-                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
-                continue
-            else:
-                print(f"✅ Order ID {oid} not a ghost, proceeding")
+            #if is_ghost_trade(oid, db):
+             #   print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+              #  continue
+            #else:
+            #    print(f"✅ Order ID {oid} not a ghost, proceeding")
 
             tiger_ids.add(oid)
 
@@ -372,21 +372,21 @@ def push_orders_main():
             endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
 
             # 🟩 GREEN PATCH START: Skip if ghost trade already archived this run
-            if order_id in archived_trade_ids:
-                print(f"⏭️ ⛔ Ghost trade {order_id} already archived this run; skipping duplicate archive")
-                continue
-            archived_trade_ids.add(order_id)
+          #  if order_id in archived_trade_ids:
+           #     print(f"⏭️ ⛔ Ghost trade {order_id} already archived this run; skipping duplicate archive")
+            #    continue
+           # archived_trade_ids.add(order_id)
             # 🟩 GREEN PATCH END
 
             # ==========================
             # 🟩 GREEN PATCH START: Ghost Trade Filtering and Archiving
             # ==========================
 
-            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+           # ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 
-            status = payload.get("status", "").upper()
-            filled = payload.get("filled", 0)
-            order_id = payload.get("order_id", "")
+           # status = payload.get("status", "").upper()
+           # filled = payload.get("filled", 0)
+           # order_id = payload.get("order_id", "")
 
             if order_id in archived_trade_ids:
                 print(f"⏭️ ⛔ Skipping archived trade {order_id} during API push")
