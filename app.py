@@ -198,6 +198,7 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
 
 @app.post("/webhook")
 async def webhook(request: Request):
+    print(f"[{time.time()}] Webhook called")
     try:
         data = await request.json()
     except Exception as e:
