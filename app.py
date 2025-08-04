@@ -217,17 +217,8 @@ async def webhook(request: Request):
         log_to_file("⚠️ Invalid or missing 'quantity' in webhook payload")
         return {"status": "error", "message": "Invalid or missing 'quantity'"}
 
-    # 🟩 PATCH START: classify trade and use detailed trade type directly
-    trade_type_detailed, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
-    print(f"[DEBUG] Classified trade_type: {trade_type_detailed} | Updated position: {updated_position}")
-
-    # Pass the detailed trade type directly, no generic mapping
-    trade_type = trade_type_detailed
-
-    print(f"[DEBUG] Using detailed trade_type for execution: {trade_type}")
-
-    result = place_trade(symbol, action, quantity, trade_type, firebase_db)
-    print(f"[INFO] place_trade() result: {result}")
+    # Removed early place_trade call to avoid duplicate trades
+    print(f"[DEBUG] Classified trade_type: {classify_trade(symbol, action, quantity, position_tracker, firebase_db)[0]} | Skipping early place_trade call")
 
     sheet = get_google_sheet()
     # (rest of your webhook code unchanged)
