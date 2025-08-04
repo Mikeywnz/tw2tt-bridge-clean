@@ -12,6 +12,9 @@ import firebase_admin
 from firebase_admin import db
 
 # ---------------------------
+# your Tiger Trade account number
+ACCOUNT = "21807597867063647"  
+
 
 # Firebase DB reference shortcut
 firebase_db = db
@@ -73,7 +76,7 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
     print(f"[DEBUG] execute_entry_trade has config: {'config' in dir(client)}")
 
     order = Order(
-        account=client.config.account,
+        account=ACCOUNT,
         contract=contract,
         action=action,
         order_type='MKT',
@@ -154,7 +157,7 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
     # No ghost trade logic on exits
 
     order = Order(
-        account=client.config.account,
+        account=ACCOUNT,
         contract=contract,
         action=action,
         order_type='MKT',
