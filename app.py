@@ -314,17 +314,15 @@ async def webhook(request: Request):
 
                     
             # ==========================
-            # 🟩 PATCH: Pass Explicit Trade Type to place_trade() with Logging
+            # 🟩 PATCH: Pass Detailed Trade Type to place_trade() with Logging
             # ==========================
             trade_type_detailed, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
             print(f"[DEBUG] Classified trade_type: {trade_type_detailed} | Updated position: {updated_position}")
 
-            if trade_type_detailed in ["LONG_ENTRY", "SHORT_ENTRY"]:
-                trade_type = "ENTRY"
-            else:
-                trade_type = "EXIT"
+            # Pass the detailed trade type directly, no generic mapping
+            trade_type = trade_type_detailed
 
-            print(f"[DEBUG] Mapped trade_type for execution: {trade_type}")
+            print(f"[DEBUG] Using detailed trade_type for execution: {trade_type}")
 
             result = place_trade(symbol, action, quantity, trade_type, firebase_db)
             print(f"[INFO] place_trade() result: {result}")
