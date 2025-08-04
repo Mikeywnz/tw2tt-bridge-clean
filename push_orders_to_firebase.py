@@ -17,6 +17,11 @@ import firebase_active_contract
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import os
+# 🟩 GREEN PATCH START: Grace period cache for zero contracts trades
+import time
+
+grace_cache = {}
+# 🟩 GREEN PATCH END
 
 FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
@@ -193,6 +198,8 @@ def push_orders_main():
     print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
 
     # ====================== GREEN PATCH START: Push Orders Processing Fixes ======================
+    # 🟩 GREEN PATCH START: Refresh archived trades cache inside main loop
+    archived_trade_ids = set(archived_trades_ref.get() or {})
 
     tiger_ids = set()
     for order in orders:
@@ -328,10 +335,31 @@ def push_orders_main():
             trade_id = oid
 
             # === 🧱 Zombie Firewall: Skip if contracts_remaining missing or 0 === (COULD STOP ALL - SO THIS COULD CAUSE AND ISSUE)
-            contracts_remaining = payload.get("contracts_remaining", None)
-            if not str(contracts_remaining).isdigit() or int(contracts_remaining) == 0:
-                print(f"🧱 Skipping zombie trade {trade_id}: contracts_remaining={contracts_remaining}")
-                continue
+               # 🟩 GREEN PATCH START: Contracts remaining check with 5-second grace period
+            now = time.time()
+            order_id = payload.get("order_id")
+
+            contracts_remaining = payload.get("contracts_remaining")
+
+            if contracts_remaining is None or contracts_remaining == 0:
+                first_seen = grace_cache.get(order_id, now)
+                grace_cache[order_id] = first_seen  # Set if new
+
+                if now - first_seen < 5:  # 5 seconds grace period
+                    print(f"⚠️ Grace period active for order {order_id}, allowing trade to be processed")
+                    # Allow processing — do not skip
+                else:
+                    print(f"⏭️ Grace period expired for order {order_id}, archiving as zombie trade")
+                    archived_ref = db.reference("/archive_trade_log")
+                    archived_ref.child(order_id).set(payload)
+                    continue  # Skip pushing to open trades
+            else:
+                # Clear cache for trades with contracts > 0
+                if order_id in grace_cache:
+                    del grace_cache[order_id]
+
+                # Normal processing for trades with contracts_remaining > 0
+            # 🟩 GREEN PATCH END
 
             # VALIDATE trade_id
             def is_valid_trade_id(tid):
@@ -342,6 +370,13 @@ def push_orders_main():
                 continue
 
             endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+
+            # 🟩 GREEN PATCH START: Skip if ghost trade already archived this run
+            if order_id in archived_trade_ids:
+                print(f"⏭️ ⛔ Ghost trade {order_id} already archived this run; skipping duplicate archive")
+                continue
+            archived_trade_ids.add(order_id)
+            # 🟩 GREEN PATCH END
 
             # ==========================
             # 🟩 GREEN PATCH START: Ghost Trade Filtering and Archiving
@@ -359,6 +394,8 @@ def push_orders_main():
 
             if filled == 0 and status in ghost_statuses:
                 print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
+                print(f"    Full payload: {json.dumps(payload)}")
+
                 # Archive ghost trade
                 ghost_ref = db.reference("/ghost_trades_log")
                 ghost_ref.child(order_id).set(payload)
