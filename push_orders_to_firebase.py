@@ -20,6 +20,7 @@ import os
 # 🟩 GREEN PATCH START: Grace period cache for zero contracts trades
 import time
 
+firebase_db = db
 grace_cache = {}
 # 🟩 GREEN PATCH END
 
