@@ -205,30 +205,33 @@ DEDUP_WINDOW = 10  # seconds
 
 @app.post("/webhook")
 async def webhook(request: Request):
-    raw_body = await request.body()
-    payload_hash = hashlib.sha256(raw_body).hexdigest()
-    current_time = time.time()
-
-    # Clean old entries
-    for key in list(recent_payloads.keys()):
-        if current_time - recent_payloads[key] > DEDUP_WINDOW:
-            del recent_payloads[key]
-
-    # Check for duplicate
-    if payload_hash in recent_payloads:
-        print(f"⚠️ Duplicate webhook call detected; ignoring.")
-        return {"status": "duplicate_skipped"}
-
-    recent_payloads[payload_hash] = current_time
-
-    print(f"[{time.time()}] Webhook called")
     try:
         data = await request.json()
     except Exception as e:
         log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
 
-    # The rest of your existing webhook code unchanged...
+    # Skip deduplication for price updates to ensure all are processed
+    if data.get("type") == "price_update":
+        print("ℹ️ Price update received — skipping deduplication check")
+    else:
+        raw_body = await request.body()
+        payload_hash = hashlib.sha256(raw_body).hexdigest()
+        current_time = time.time()
+
+        # Clean old entries
+        for key in list(recent_payloads.keys()):
+            if current_time - recent_payloads[key] > DEDUP_WINDOW:
+                del recent_payloads[key]
+
+        # Check for duplicate
+        if payload_hash in recent_payloads:
+            print(f"⚠️ Duplicate webhook call detected; ignoring.")
+            return {"status": "duplicate_skipped"}
+
+        recent_payloads[payload_hash] = current_time
+
+    print(f"[{time.time()}] Webhook called")
     log_to_file(f"Webhook received: {data}")
     symbol = firebase_active_contract.get_active_contract()
     action = data.get("action")
@@ -246,7 +249,6 @@ async def webhook(request: Request):
     print(f"[DEBUG] Classified trade_type: {classify_trade(symbol, action, quantity, position_tracker, firebase_db)[0]} | Skipping early place_trade call")
 
     sheet = get_google_sheet()
-    # ...rest of your webhook code...
 
     if data.get("liquidation", False):
         source = "Liquidation"
