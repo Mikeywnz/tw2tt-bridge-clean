@@ -298,7 +298,7 @@ def monitor_trades():
             not t.get('exited', True) and
             t.get('status') != 'closed' and
             t.get('trade_state') != 'closed' and
-            t.get('contracts_remaining', 0) > 0 and
+            ('contracts_remaining' not in t or t.get('contracts_remaining', 0) > 0) and
             t.get('filled') and
             t.get('is_open', False) and
             not t.get('liquidation', False)
