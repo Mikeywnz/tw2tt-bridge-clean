@@ -199,55 +199,37 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
 import hashlib
 import time
 
-# In-memory cache for recent payload hashes
 recent_payloads = {}
 DEDUP_WINDOW = 10  # seconds
 
 @app.post("/webhook")
 async def webhook(request: Request):
+    raw_body = await request.body()
+    payload_hash = hashlib.sha256(raw_body).hexdigest()
+    current_time = time.time()
+
+    # Clean old entries
+    for key in list(recent_payloads.keys()):
+        if current_time - recent_payloads[key] > DEDUP_WINDOW:
+            del recent_payloads[key]
+
+    # Parse JSON early to check type
     try:
         data = await request.json()
     except Exception as e:
         log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
 
-    # Skip deduplication for price updates to ensure all are processed
-    if data.get("type") == "price_update":
-        print("ℹ️ Price update received — skipping deduplication check")
-    else:
-        raw_body = await request.body()
-        payload_hash = hashlib.sha256(raw_body).hexdigest()
-        current_time = time.time()
-
-        # Clean old entries
-        for key in list(recent_payloads.keys()):
-            if current_time - recent_payloads[key] > DEDUP_WINDOW:
-                del recent_payloads[key]
-
-        # Check for duplicate
+    # Always allow price updates through, no dedupe block on them
+    if data.get("type") != "price_update":
+        # Check for duplicate payload hash for non-price updates
         if payload_hash in recent_payloads:
             print(f"⚠️ Duplicate webhook call detected; ignoring.")
             return {"status": "duplicate_skipped"}
 
-        recent_payloads[payload_hash] = current_time
+    recent_payloads[payload_hash] = current_time
 
-    print(f"[{time.time()}] Webhook called")
     log_to_file(f"Webhook received: {data}")
-    symbol = firebase_active_contract.get_active_contract()
-    action = data.get("action")
-    quantity = int(data.get("quantity", 1))
-
-    if not action or not isinstance(action, str):
-        log_to_file("⚠️ Invalid or missing 'action' in webhook payload")
-        return {"status": "error", "message": "Invalid or missing 'action'"}
-
-    if not quantity or not isinstance(quantity, int):
-        log_to_file("⚠️ Invalid or missing 'quantity' in webhook payload")
-        return {"status": "error", "message": "Invalid or missing 'quantity'"}
-
-    # Removed early place_trade call to avoid duplicate trades
-    print(f"[DEBUG] Classified trade_type: {classify_trade(symbol, action, quantity, position_tracker, firebase_db)[0]} | Skipping early place_trade call")
-
     sheet = get_google_sheet()
 
     if data.get("liquidation", False):
@@ -258,18 +240,31 @@ async def webhook(request: Request):
         source = "OpGo"
 
     if data.get("type") == "price_update":
-        symbol = firebase_active_contract.get_active_contract()
-        if not symbol:
-            log_to_file("❌ No active contract symbol found in Firebase; aborting price update")
-            return {"status": "error", "message": "No active contract symbol configured"}
-
-        # Price update block removed fallback price loading for market order
+        symbol = data.get("symbol")
+        symbol = symbol.split("@")[0] if symbol else "UNKNOWN"
         try:
-            price = float(data.get("price", 0.0))
-        except Exception as e:
+            raw_price = data.get("price", "")
+            if str(raw_price).upper() in ["MARKET", "MKT"]:
+                try:
+                    with open(PRICE_FILE, "r") as f:
+                        prices = json.load(f)
+                    price = float(prices.get(data.get("symbol", ""), 0.0))
+                except Exception as e:
+                    log_to_file(f"Price file fallback error: {e}")
+                    price = 0.0
+            else:
+                price = float(raw_price)
+        except (ValueError, TypeError):
             log_to_file("❌ Invalid price value received")
             return {"status": "error", "reason": "invalid price"}
-
+        try:
+            with open(PRICE_FILE, "r") as f:
+                prices = json.load(f)
+        except FileNotFoundError:
+            prices = {}
+        prices[symbol] = price
+        with open(PRICE_FILE, "w") as f:
+            json.dump(prices, f, indent=2)
         utc_time = datetime.utcnow().isoformat() + "Z"
         payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
