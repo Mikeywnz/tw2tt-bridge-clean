@@ -144,6 +144,8 @@ async def webhook(request: Request):
     payload_hash = hashlib.sha256(raw_body).hexdigest()
     current_time = time.time()
 
+    data = json.loads(raw_body)
+
     # -----------------------------------
     # SPECIAL FLAGS: Liquidation & Manual
     # -----------------------------------

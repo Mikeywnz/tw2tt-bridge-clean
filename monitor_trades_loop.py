@@ -23,6 +23,8 @@ firebase_db = db
 # FIREBASE INITIALIZATION 
 #=========================
 
+FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
