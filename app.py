@@ -33,7 +33,6 @@ if not firebase_admin._apps:
 firebase_db = db
 
 
-
 # 🟢 ARCHIVED TRADE CHECK FUNCTION (updated path and logic)
 def is_archived_trade(trade_id: str, firebase_db) -> bool:
     archived_ref = firebase_db.reference("/archived_trades_log")  # updated path
@@ -237,6 +236,7 @@ async def webhook(request: Request):
     # =========================================
     # 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
     # =========================================
+    result = None
     if isinstance(result, dict) and result.get("status") == "SUCCESS":
         def is_valid_trade_id(tid):
             return isinstance(tid, str) and tid.isdigit()
