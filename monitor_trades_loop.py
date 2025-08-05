@@ -13,10 +13,6 @@ NZ_TZ = timezone(timedelta(hours=12))
 
 firebase_db = db
 
-# Trade fields usage:
-# - trade_type: LONG_ENTRY, SHORT_ENTRY, FLATTENING_BUY, FLATTENING_SELL, etc. (Classification of trade)
-# - status: FILLED, CANCELLED, EXPIRED, CLOSED, etc. (Order execution status)
-# - trade_state: "open" or "closed" (Used for filtering trades in Firebase)
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
 #=========================

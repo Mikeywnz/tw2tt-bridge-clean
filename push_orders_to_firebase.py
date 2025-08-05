@@ -364,7 +364,7 @@ def push_orders_main():
                     # Allow processing — do not skip
                 else:
                     print(f"⏭️ Grace period expired for order {order_id}, archiving as zombie trade")
-                    archived_ref = db.reference("/archive_trade_log")
+                    archived_ref = db.reference("/archived_trades_log")
                     archived_ref.child(order_id).set(payload)
                     continue  # Skip pushing to open trades
             else:

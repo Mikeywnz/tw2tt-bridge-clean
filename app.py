@@ -50,7 +50,7 @@ def is_zombie_trade(trade_id: str, firebase_db) -> bool:
     #def is_ghost_trade(status: str, filled: int) -> bool:
         #ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
         #return filled == 0 and status in ghost_statuses
-        #ghost_ref = firebase_db.reference(f"/ghost_trades_log/{symbol}/{trade_id}")
+        #ghost_ref = firebase_db.reference(f"/ghost_trades_log/{trade_id}")
         #ghost_ref.set(trade_data)
 
     # Archive_trade helper
@@ -233,17 +233,7 @@ async def webhook(request: Request):
         log_to_file("🟢 [LOG] Received action from webhook: " + action)
         quantity = int(data.get("quantity", 1))
 
-    # ==========================
-    # 🟩 ENTRY LOGIC: Classify Trade and Update Position
-    # ==========================
-    trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
-    log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
-
-    # ===============================
-    # 🟩 ORDER SENT TO EXECUTE TRADES
-    # ===============================
-    result = place_entry_trade(symbol, action, quantity, trade_type, firebase_db)
-
+   
     # =========================================
     # 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
     # =========================================
@@ -339,12 +329,13 @@ def webhook_handler(data, firebase_db):
     entry_timestamp = datetime.utcnow().isoformat() + "Z"
     print(f"[DEBUG] Entry timestamp for trade: {entry_timestamp}")
 
+    # ============================================
+    # 🟩 ENTRY LOGIC: ORDER SENT TO EXECUTE TRADES
+    # ============================================
+
     print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
-    result = place_entry_trade(symbol, action, quantity, trade_type, firebase_db)
-
+    result = place_entry_trade(symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
-
-    # You can add more detailed logging here for Firebase updates if needed
 
     return result
 
