@@ -1,4 +1,4 @@
-# ========================= MONITOR_TRADES_LOOP - Part 1 ================================
+# ========================= MONITOR_TRADES_LOOP - Segment 1 ================================
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import time
@@ -7,6 +7,7 @@ import requests
 import subprocess
 import firebase_active_contract
 import os
+from execute_trade_live import place_exit_trade
 
 NZ_TZ = timezone(timedelta(hours=12))
 
@@ -16,48 +17,147 @@ firebase_db = db
 # - trade_type: LONG_ENTRY, SHORT_ENTRY, FLATTENING_BUY, FLATTENING_SELL, etc. (Classification of trade)
 # - status: FILLED, CANCELLED, EXPIRED, CLOSED, etc. (Order execution status)
 # - trade_state: "open" or "closed" (Used for filtering trades in Firebase)
-#
-# Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
+#Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
+
+#=========================
+# FIREBASE INITIALIZATION 
+#=========================
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
-# === FIREBASE INITIALIZATION ===
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred, {
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-# === Load live prices from Firebase ===
+# === Helper Load live prices from Firebase ===
 def load_live_prices():
     return db.reference("live_prices").get() or {}
 
-# === Helper to execute exit trades ===
+# =====================================================================
+# 🟩 HELPER UPDATED close_position() TO USE place_exit_trade() DIRECTLY
+# =====================================================================
+
 def close_position(symbol, original_action):
     print(f"[DEBUG] close_position() called with original_action='{original_action}'")
     exit_action = "SELL" if original_action == "BUY" else "BUY"
     print(f"[DEBUG] close_position() using exit_action='{exit_action}'")
     try:
-        result = subprocess.run(
-            ["python3", "execute_trade_live.py", symbol, exit_action, "1", "EXIT"],
-            capture_output=True,
-            text=True
-        )
-        print(f"[DEBUG] CLI subprocess stdout: {result.stdout.strip()}")
-        print(f"[DEBUG] CLI subprocess stderr: {result.stderr.strip()}")
-        print(f"📤 Exit order sent: {exit_action} 1 {symbol}")
+        result = place_exit_trade(symbol, exit_action, 1, firebase_db)
+        print(f"[DEBUG] place_exit_trade result: {result}")
+        if result.get("status") != "SUCCESS":
+            print(f"❌ Exit order failed: {result}")
+        else:
+            print(f"📤 Exit order placed successfully: {exit_action} 1 {symbol}")
     except Exception as e:
         print(f"❌ Failed to execute exit order: {e}")
 
+# ===========================================================================================
+# 🟩 HELPER: Update Trade on Exit Fill (Exit Order Confirmation Handler) with P&L Calculation
+# ===========================================================================================
+def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, filled_qty, fill_price=None, fill_time=None):
+    global processed_exit_order_ids
+    if exit_order_id in processed_exit_order_ids:
+        print(f"[DEBUG] Exit order {exit_order_id} already processed, skipping update.")
+        return True
+    processed_exit_order_ids.add(exit_order_id)
 
-# === Helper: Check if trade is archived ===
+    print(f"[DEBUG] update_trade_on_exit_fill() called for exit_order_id={exit_order_id}")
+
+    open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+    open_trades = open_active_trades_ref.get() or {}
+
+    # Find trade with matching exit_order_id
+    matching_trade_id = None
+    for trade_id, trade in open_trades.items():
+        if trade.get("exit_order_id") == exit_order_id:
+            matching_trade_id = trade_id
+            print(f"[DEBUG] Found matching trade {trade_id} for exit_order_id {exit_order_id}")
+            break
+
+    if not matching_trade_id:
+        print(f"[WARN] No matching trade found with exit_order_id {exit_order_id} on symbol {symbol}")
+        return False
+
+    update_data = {
+        "exit_filled_qty": filled_qty,
+    }
+    if fill_price is not None:
+        update_data["exit_fill_price"] = fill_price
+    if fill_time is not None:
+        update_data["exit_fill_time"] = fill_time
+
+    # === Calculate Realized P&L ===
+    try:
+        entry_price = trade.get("filled_price")
+        entry_qty = trade.get("filled_quantity")
+        if entry_price is None or entry_qty is None:
+            print(f"[WARN] Missing entry price or quantity for trade {matching_trade_id}; skipping P&L calculation.")
+        else:
+            # Calculate P&L depending on exit action
+            # Assume simple formula: (Exit - Entry) * Qty for long, reversed for short
+            if exit_action == "SELL":
+                pnl = (fill_price - entry_price) * filled_qty
+            elif exit_action == "BUY":
+                pnl = (entry_price - fill_price) * filled_qty
+            else:
+                pnl = 0.0
+                print(f"[WARN] Unknown exit_action '{exit_action}' for P&L calculation.")
+            
+            update_data["realized_pnl"] = pnl
+            print(f"[INFO] Calculated realized P&L for trade {matching_trade_id}: {pnl:.2f}")
+    except Exception as e:
+        print(f"[ERROR] Exception during P&L calculation for trade {matching_trade_id}: {e}")
+
+    trade_ref = open_active_trades_ref.child(matching_trade_id)
+    print(f"[DEBUG] Updating fill details and P&L for trade {matching_trade_id}")
+
+    try:
+        trade_ref.update(update_data)
+        print(f"[INFO] Updated trade {matching_trade_id} with fill data and P&L in Firebase")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to update trade {matching_trade_id}: {e}")
+        return False
+
+# ========================================================
+# 🟩 Helper: Load_trailing_tp_settings() 
+# ========================================================
+
+def load_trailing_tp_settings():
+    # Example: Fetch settings from Firebase or return defaults
+    try:
+        fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
+        res = requests.get(fb_url)
+        cfg = res.json() if res.ok else {}
+        if cfg.get("enabled", False):
+            trigger_points = float(cfg.get("trigger_points", 14.0))
+            offset_points = float(cfg.get("offset_points", 5.0))
+        else:
+            trigger_points = 14.0
+            offset_points = 5.0
+    except Exception as e:
+        print(f"[WARN] Failed to fetch trailing settings, using defaults: {e}")
+        trigger_points = 14.0
+        offset_points = 5.0
+
+    return trigger_points, offset_points
+
+#=======================================
+# Helper: Check if trade is archived
+#=======================================
+
 def is_archived_trade(trade_id, firebase_db):
     archived_ref = firebase_db.reference("/archived_trades_log")
     archived_trades = archived_ref.get() or {}
     return trade_id in archived_trades
 
-# 🟢 Archive trade HELPER to /archived_trades/ before deletion
+#=============================================
+# 🟢  HELPER: to Archive trade before deletion
+#=============================================
+
 def archive_trade(symbol, trade):
     trade_id = trade.get("trade_id")
     if not trade_id:
@@ -74,7 +174,43 @@ def archive_trade(symbol, trade):
         print(f"❌ Failed to archive trade {trade_id}: {e}")
         return False
 
-# === Firebase open trades handlers ===
+# ==============================================
+# 🟩 HELPER: archive_and_delete_matched_trades()
+# ==============================================
+
+def archive_and_delete_matched_trades(symbol, matched_trades):
+    """
+    Archive matched trades and delete them from open_active_trades in Firebase.
+
+    Args:
+        symbol (str): Symbol of the trades (e.g., "MGC2508")
+        matched_trades (list): List of trade dicts to archive and delete
+    """
+    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+
+    for trade in matched_trades:
+        trade_id = trade.get("trade_id")
+        if not trade_id:
+            print("⚠️ Skipping trade with no trade_id during archive/delete")
+            continue
+
+        # Archive the trade first
+        success = archive_trade(symbol, trade)
+        if not success:
+            print(f"❌ Failed to archive trade {trade_id}; skipping deletion")
+            continue
+
+        # Delete from open trades
+        try:
+            open_trades_ref.child(trade_id).delete()
+            print(f"✅ Archived and deleted trade {trade_id} for symbol {symbol}")
+        except Exception as e:
+            print(f"❌ Failed to delete trade {trade_id} from Firebase: {e}")
+
+#=============================
+# Firebase open trades handler
+#=============================
+
 def load_open_trades(symbol):
     firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}.json"
     try:
@@ -107,20 +243,98 @@ def save_open_trades(symbol, trades):
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
-        # ==========================
-        # 🟩 GREEN PATCH: Add fifo_match_and_flatten() FIFO Matching Function with Debug Logging
-        # ==========================
+# ==========================================================
+# 🟩 TRAILING TP AND EXIT PROCESSING WITH place_exit_trade()
+# ==========================================================
+
+def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points, exit_in_progress):
+    updated_trades = []
+
+    for trade in active_trades:
+        if not trade or not isinstance(trade, dict):
+            continue
+        if trade.get("status") == "closed":
+            print(f"🔒 Skipping closed trade {trade.get('trade_id')}")
+            continue
+        trade_id = trade.get('trade_id', 'unknown')
+        print(f"🔄 Processing trade {trade_id}")
+        if trade.get('exited') or trade_id in exit_in_progress:
+            continue
+
+        symbol = trade['symbol']
+        direction = 1 if trade['action'] == 'BUY' else -1
+        current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+
+        if current_price is None:
+            print(f"⚠️ No price for {symbol} — skipping {trade_id}")
+            updated_trades.append(trade)
+            continue
+
+        entry = trade.get('filled_price')
+        if entry is None:
+            print(f"❌ Trade {trade_id} missing filled_price, skipping.")
+            continue
+
+        if not trade.get('trail_hit'):
+            trade['trail_peak'] = entry
+            trigger_price = entry + trigger_points if direction == 1 else entry - trigger_points
+            print(f"[DEBUG] TP trigger price for trade {trade_id} set at {trigger_price:.2f}")
+            if (direction == 1 and current_price >= trigger_price) or (direction == -1 and current_price <= trigger_price):
+                trade['trail_hit'] = True
+                trade['trail_peak'] = current_price
+                print(f"[INFO] TP trigger HIT for trade {trade_id} at price {current_price:.2f}")
+
+                try:
+                    open_trades_ref = firebase_db.reference("/open_active_trades")
+                    open_trades_ref.child(symbol).child(trade_id).update({
+                        "trail_hit": True,
+                        "trail_peak": current_price
+                    })
+                except Exception as e:
+                    print(f"❌ Failed to update trail_hit in Firebase for trade {trade_id}: {e}")
+
+        if trade.get('trail_hit'):
+            if (direction == 1 and current_price > trade['trail_peak']) or (direction == -1 and current_price < trade['trail_peak']):
+                trade['trail_peak'] = current_price
+            buffer_amt = offset_points
+            if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
+                print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
+                print(f"[INFO] Trailing TP EXIT triggered for trade {trade_id}: current price={current_price:.2f}, trail peak={trade['trail_peak']:.2f}, buffer={buffer_amt}")
+
+                try:
+                    result = place_exit_trade(symbol, 'SELL' if trade['action']=='BUY' else 'BUY', 1, firebase_db)
+                    if result.get("status") == "SUCCESS":
+                        print(f"📤 Exit order placed successfully for trade {trade_id}")
+                        exit_in_progress.add(trade_id)
+                        trade['exit_in_progress'] = True
+                        open_trades_ref = firebase_db.reference("/open_active_trades")
+                        open_trades_ref.child(symbol).child(trade_id).update({
+                            "exit_in_progress": True
+                        })
+                    else:
+                        print(f"❌ Exit order failed for trade {trade_id}: {result}")
+                except Exception as e:
+                    print(f"❌ Exception placing exit trade for {trade_id}: {e}")
+
+                updated_trades.append(trade)
+                continue
+
+        print(f"📌 Keeping trade {trade_id} OPEN – trail_hit={trade.get('trail_hit')}, exited={trade.get('exited')}, status={trade.get('status')}")
+        updated_trades.append(trade)
+
+    return updated_trades
+
+# ==============================================
+# 🟩 FIFO MATCH AND FLATTEN WITH FIREBASE UPDATE
+# ==============================================
+
 def fifo_match_and_flatten(active_trades):
     print(f"[DEBUG] fifo_match_and_flatten() called with {len(active_trades)} active trades")
 
-    # Separate exit trades and open trades
     exit_trades = [t for t in active_trades if t.get('exit_in_progress') and not t.get('exited')]
     open_trades = [t for t in active_trades if not t.get('exited') and not t.get('exit_in_progress')]
 
     print(f"[DEBUG] Found {len(exit_trades)} exit trades and {len(open_trades)} open trades for matching")
-
-    # Sort open trades by entry timestamp or trade_id ascending (oldest first)
-    open_trades.sort(key=lambda x: x.get('entry_timestamp') or x.get('trade_id'))
 
     for exit_trade in exit_trades:
         matched = False
@@ -130,19 +344,26 @@ def fifo_match_and_flatten(active_trades):
                 open_trade['trade_state'] = 'closed'
                 open_trade['contracts_remaining'] = 0
 
-                print(f"[INFO] FIFO matched exit trade {exit_trade.get('trade_id')} to open trade {open_trade.get('trade_id')}")
+                # Update Firebase to reflect trade exit
+                try:
+                    open_trades_ref = firebase_db.reference(f"/open_active_trades/{open_trade['symbol']}")
+                    open_trades_ref.child(open_trade['trade_id']).update({
+                        "exited": True,
+                        "trade_state": "closed",
+                        "contracts_remaining": 0
+                    })
+                    print(f"[INFO] FIFO matched exit trade {exit_trade.get('trade_id')} to open trade {open_trade.get('trade_id')} and updated Firebase")
+                except Exception as e:
+                    print(f"❌ Failed to update Firebase for trade {open_trade.get('trade_id')}: {e}")
+
                 matched = True
-                break  # Move to next exit trade
+                break
         if not matched:
             print(f"[WARN] No matching open trade found for exit trade {exit_trade.get('trade_id')}")
 
-         # ========================= End of Part 1  ================================
-
-        # ========================= MONITOR_TRADES_LOOP - part 2 ================================
-
-# ==========================
+# ========================================================
 # MONITOR TRADES LOOP with FIFO Matching and Debug Logging
-# ==========================
+# ========================================================
 
 def monitor_trades():
     exit_in_progress = set()
@@ -223,159 +444,19 @@ def monitor_trades():
     # Save remaining active trades
     save_open_trades(symbol, active_trades)
 
+     # Inside monitor_trades(), after saving open trades:
+    active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points, exit_in_progress)
+
     updated_trades = []
 
-    # Trailing TP and exit processing
-    for trade in active_trades:
-        if not trade or not isinstance(trade, dict):
-            continue
-        if trade.get("status") == "closed":
-            print(f"🔒 Skipping closed trade {trade.get('trade_id')}")
-            continue
-        trade_id = trade.get('trade_id', 'unknown')
-        print(f"🔄 Processing trade {trade_id}")
-        if trade.get('exited') or trade_id in exit_in_progress:
-            continue
+ # ========================= MONITOR_TRADES_LOOP - END OF SEGMENT 2 ================================
 
-        symbol = trade['symbol']
-        direction = 1 if trade['action'] == 'BUY' else -1
-        current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+ # ========================= MONITOR_TRADES_LOOP - Segment 3 =======================================
 
-        if current_price is None:
-            print(f"⚠️ No price for {symbol} — skipping {trade_id}")
-            updated_trades.append(trade)
-            continue
 
-        entry = trade.get('filled_price')
-        if entry is None:
-            print(f"❌ Trade {trade_id} missing filled_price, skipping.")
-            continue
-
-        tp_trigger = trigger_points
-
-        if not trade.get('trail_hit'):
-            trade['trail_peak'] = entry
-            trigger_price = entry + tp_trigger if direction == 1 else entry - tp_trigger
-            print(f"[DEBUG] TP trigger price for trade {trade_id} set at {trigger_price:.2f}")
-            if (direction == 1 and current_price >= trigger_price) or (direction == -1 and current_price <= trigger_price):
-                trade['trail_hit'] = True
-                trade['trail_peak'] = current_price
-                print(f"[INFO] TP trigger HIT for trade {trade_id} at price {current_price:.2f}")
-
-                open_trades_ref = firebase_db.reference("/open_active_trades")
-                open_trades_ref.child(symbol).child(trade_id).update({
-                    "trail_hit": True,
-                    "trail_peak": current_price
-                })
-
-        if trade.get('trail_hit'):
-            if (direction == 1 and current_price > trade['trail_peak']) or (direction == -1 and current_price < trade['trail_peak']):
-                trade['trail_peak'] = current_price
-            buffer_amt = offset_points
-            if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
-                print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
-                print(f"[INFO] Trailing TP EXIT triggered for trade {trade_id}: current price={current_price:.2f}, trail peak={trade['trail_peak']:.2f}, buffer={buffer_amt}")
-                exit_in_progress.add(trade_id)
-
-                print(f"[DEBUG] Trailing TP exit triggered for trade {trade_id} with action '{trade['action']}'")
-                close_position(symbol, trade['action'])
-
-                trade['exit_in_progress'] = True
-                open_trades_ref = firebase_db.reference("/open_active_trades")
-                open_trades_ref.child(symbol).child(trade_id).update({
-                    "exit_in_progress": True
-                })
-                updated_trades.append(trade)
-                continue
-
-        print(f"📌 Keeping trade {trade_id} OPEN – trail_hit={trade.get('trail_hit')}, exited={trade.get('exited')}, status={trade.get('status')}")
-        updated_trades.append(trade)
-
-    # Filter valid open trades before saving
-    filtered_trades = []
-    for t in updated_trades:
-        if (
-            not t.get('exited', True) and
-            t.get('status') != 'closed' and
-            t.get('trade_state') != 'closed' and
-            ('contracts_remaining' not in t or t.get('contracts_remaining', 0) > 0) and
-            t.get('filled') and
-            t.get('is_open', False) and
-            not t.get('liquidation', False)
-        ):
-            filtered_trades.append(t)
-
-    save_open_trades(symbol, filtered_trades)
-
-# ==========================
-# 🟩 GREEN PATCH: Archive and Delete Matched Trades Immediately After FIFO Matching with Debug Logs
-# ==========================
-def archive_and_delete_matched_trades(symbol, matched_trades):
-    print(f"[DEBUG] Starting archive_and_delete_matched_trades for symbol {symbol} with {len(matched_trades)} trades")
-    for trade in matched_trades:
-        trade_id = trade.get('trade_id')
-        if not trade_id:
-            print("[WARN] Skipping trade with missing trade_id")
-            continue
-
-        print(f"[DEBUG] Processing trade {trade_id} for archiving and deletion")
-
-        # Mark trade as closed in-memory
-        trade['exited'] = True
-        trade['status'] = 'closed'
-        trade['trade_state'] = 'closed'
-        trade['contracts_remaining'] = 0
-
-        # Archive to Firebase
-        archived_ref = db.reference(f"/archived_trades_log/{trade_id}")
-        try:
-            archived_ref.set(trade)
-            print(f"✅ Archived trade {trade_id}")
-        except Exception as e:
-            print(f"❌ Failed to archive trade {trade_id}: {e}")
-
-        # Delete from open_active_trades
-        open_ref = db.reference(f"/open_active_trades/{symbol}/{trade_id}")
-        try:
-            open_ref.delete()
-            print(f"✅ Deleted trade {trade_id} from open_active_trades")
-        except Exception as e:
-            print(f"❌ Failed to delete trade {trade_id}: {e}")
-
-    print(f"[DEBUG] Completed archive_and_delete_matched_trades for symbol {symbol}")
-
-# ==========================
-# 🟩 END FIFO MATCHING PATCH
-# ==========================
-
-def delete_trade_from_firebase(symbol, trade_id):
-    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
-    try:
-        resp = requests.delete(firebase_url)
-        resp.raise_for_status()
-        print(f"✅ Deleted trade {trade_id} from Firebase.")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to delete trade {trade_id} from Firebase: {e}")
-        return False
-
-def load_trailing_tp_settings():
-    try:
-        fb_url = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/trailing_tp_settings.json"
-        res = requests.get(fb_url)
-        cfg = res.json() if res.ok else {}
-        if cfg.get("enabled", False):
-            trigger = float(cfg.get("trigger_points", 14.0))
-            offset = float(cfg.get("offset_points", 5.0))
-            print(f"📐 Loaded trailing TP config: trigger={trigger}, offset={offset}")
-            return trigger, offset
-    except Exception as e:
-        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
-    return 14.0, 5.0
-
-# ==========================
+# ============================================================================
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
-# ==========================
+# ============================================================================
 
 def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
     live_ref = firebase_db.reference("/live_total_positions")
@@ -425,13 +506,13 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
         print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
         return False
 
-# ==========================
-# 🟩 END PATCH
-# ==========================
+ # ========================= MONITOR_TRADES_LOOP - END OF SEGMENT 3 ================================
 
-# ==========================
+ # ========================= MONITOR_TRADES_LOOP - Segment 4 =======================================
+
+# ============================================================================================
 # 🟩 GREEN PATCH START: Zombie & Ghost Trade Handler with 30s Grace Period (DISABLED FOR TEST)
-# ==========================
+# ============================================================================================
 
 ZOMBIE_COOLDOWN_SECONDS = 30
 GHOST_GRACE_PERIOD_SECONDS = 30
@@ -511,12 +592,127 @@ def handle_zombie_and_ghost_trades(firebase_db):
             #     open_trades_ref.child(symbol).child(trade_id).delete()
             #     print(f"🗑️ Deleted zombie trade {trade_id} from /open_active_trades()")
 
+# ========================================================
+# 🟩 REFACTORED handle_exit_order() FOR EXITS ONLY
+# ========================================================
 
-         # ========================= End of Part 2  ================================
+def handle_exit_order(symbol, action, quantity):
+    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+    open_trades = open_trades_ref.get() or {}
 
-        # ========================= MONITOR_TRADES_LOOP - part 3 ================================
+    matching_trade_id = None
+    for tid, trade in open_trades.items():
+        if trade.get("action") == action and not trade.get("exited") and not trade.get("exit_in_progress"):
+            matching_trade_id = tid
+            break
 
+    if matching_trade_id:
+        trade_data = open_trades[matching_trade_id]
+        if trade_data.get("exit_in_progress"):
+            print(f"⚠️ Exit already in progress for trade {matching_trade_id}, skipping exit order placement")
+            return {"status": "skipped", "reason": "exit_in_progress"}
 
+    result = place_exit_trade(symbol, action, quantity, firebase_db)
+    print(f"[INFO] place_exit_trade() result: {result}")
+
+    if isinstance(result, dict) and result.get("status") == "SUCCESS" and matching_trade_id:
+        max_retries = 5
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                open_trades_ref.child(matching_trade_id).update({"exit_in_progress": True})
+                updated_trade = open_trades_ref.child(matching_trade_id).get()
+                if updated_trade and updated_trade.get("exit_in_progress") == True:
+                    print(f"🟢 Confirmed exit_in_progress=True for trade {matching_trade_id}")
+                    break
+            except Exception as e:
+                print(f"⚠️ Retry {retry_count+1}: Failed to set exit_in_progress: {e}")
+            retry_count += 1
+            time.sleep(1)
+        else:
+            print(f"❌ Failed to confirm exit_in_progress flag for trade {matching_trade_id} after {max_retries} retries")
+
+    # Update trade on exit fills (assumed helper exists)
+    if action.upper() in ["BUY", "SELL"]:
+        if "exit_order_id" in result and result["exit_order_id"]:
+            exit_order_id = result["exit_order_id"]
+            exit_action = action
+            filled_qty = result.get("filled_quantity", 0)
+            try:
+                update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, filled_qty)
+            except Exception as e:
+                print(f"❌ Failed to update trade on exit fill: {e}")
+
+    # Push new or updated trade to Firebase (assuming FIREBASE_URL & others are defined)
+    if isinstance(result, dict) and result.get("status") == "SUCCESS":
+        def is_valid_trade_id(tid):
+            return isinstance(tid, str) and tid.isdigit()
+
+        raw = result.get("order_id")
+        if isinstance(raw, int):
+            trade_id = str(raw)
+        elif isinstance(raw, str):
+            trade_id = raw
+        else:
+            trade_id = None
+
+        if not trade_id or not is_valid_trade_id(trade_id):
+            print(f"❌ Invalid trade_id detected: {trade_id}")
+            return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}
+
+        status = result.get("trade_status", "UNKNOWN")
+        filled = result.get("filled_quantity", 0)
+
+        if is_archived_trade(trade_id, firebase_db):
+            print(f"⏭️ Ignoring archived trade {trade_id} in exit order handling")
+            return {"status": "skipped", "reason": "archived trade"}
+
+        # Assuming is_zombie_trade() exists if needed
+        if 'is_zombie_trade' in globals() and is_zombie_trade(trade_id, firebase_db):
+            print(f"⏭️ Ignoring zombie trade {trade_id} in exit order handling")
+            return {"status": "skipped", "reason": "zombie trade"}
+
+        filled_price = result.get("filled_price") or 0.0
+        # entry_timestamp assumed to be retrievable here, else pass as param
+        entry_timestamp = datetime.utcnow().isoformat() + "Z"
+
+        new_trade = {
+            "trade_id": trade_id,
+            "symbol": symbol,
+            "filled_price": filled_price,
+            "action": action,
+            "trade_type": trade_type,
+            "status": status,
+            "contracts_remaining": 1,
+            "trail_trigger": trigger_points,
+            "trail_offset": offset_points,
+            "trail_hit": False,
+            "trail_peak": filled_price,
+            "filled": True,
+            "entry_timestamp": entry_timestamp,
+            "trade_state": "open",
+            "just_executed": True,
+            "executed_timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
+        try:
+            FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+            print("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
+            import requests
+            put = requests.put(endpoint, json=new_trade)
+            if put.status_code == 200:
+                print(f"✅ Firebase open_active_trades updated at key: {trade_id}")
+            else:
+                print(f"❌ Firebase update failed: {put.text}")
+        except Exception as e:
+            print(f"❌ Failed to push trade to Firebase: {e}")
+
+    else:
+        print(f"[❌] Trade result error: {result}")
+        return {"status": "error", "message": f"Trade result: {result}"}
+
+    return result
 
 if __name__ == '__main__':
     while True:
@@ -526,4 +722,5 @@ if __name__ == '__main__':
             print(f"❌ ERROR in monitor_trades(): {e}")
         time.sleep(10)
 
-    #=====  END OF PART 3 (END OF SCRIPT)  =====
+    # ========================= MONITOR_TRADES_LOOP - END OF SEGMENT 4 END OF SCRIPT ================================
+     

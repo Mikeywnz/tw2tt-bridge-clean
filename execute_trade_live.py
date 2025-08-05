@@ -69,11 +69,19 @@ def get_contract(symbol: str):
 # ==========================
 # 🟩 ENTRY TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_entry_trade(client, contract, symbol, action, quantity, db):
-    print(f"🚀 Starting ENTRY trade logic for {symbol} {action} x {quantity}")
-    print(f"[DEBUG] execute_entry_trade client id: {id(client)}")  # or execute_exit_trade similarly
-    print(f"[DEBUG] execute_entry_trade client type: {type(client)}")
-    print(f"[DEBUG] execute_entry_trade has config: {'config' in dir(client)}")
+# ==========================
+# 🟩 PLACE ENTRY TRADE FUNCTION (Calls execute_entry_trade)
+# ==========================
+def place_entry_trade(symbol, action, quantity, db):
+    global client
+    print(f"[DEBUG] place_entry_trade called with client id: {id(client)}")
+    print(f"[DEBUG] place_entry_trade client type: {type(client)}")
+
+    symbol = symbol.upper()
+    action = action.upper()
+    contract = get_contract(symbol)
+
+    
 
     order = Order(
         account=ACCOUNT,
@@ -144,23 +152,36 @@ def execute_entry_trade(client, contract, symbol, action, quantity, db):
 
     # If not ghost, continue normal processing
 
+    if action == "BUY":
+        trade_type = "LONG_ENTRY"
+    elif action == "SELL":
+        trade_type = "SHORT_ENTRY"
+    else:
+        trade_type = "ENTRY"  # fallback generic
+
     return {
         "status": "SUCCESS",
         "order_id": order_id,
-        "trade_type": "ENTRY",
+        "trade_type": trade_type,
         "symbol": symbol,
         "action": action,
         "quantity": quantity
     }
+
 # ==========================
 # 🟩 EXIT TRADE LOGIC BLOCK (No cooldown, single try)
 # ==========================
-def execute_exit_trade(client, contract, symbol, action, quantity, db):
-    print(f"🚀 Starting EXIT trade logic for {symbol} {action} x {quantity}")
-    print(f"[DEBUG] execute_exit_trade client id: {id(client)}")
-    print(f"[DEBUG] execute_exit_trade client type: {type(client)}")
-    print(f"[DEBUG] execute_exit_trade has config: {'config' in dir(client)}")
-   
+# ==========================
+# 🟩 PLACE EXIT TRADE FUNCTION (Calls execute_exit_trade)
+# ==========================
+def place_exit_trade(symbol, action, quantity, db):
+    global client
+    print(f"[DEBUG] place_exit_trade called with client id: {id(client)}")
+    print(f"[DEBUG] place_exit_trade client type: {type(client)}")
+
+    symbol = symbol.upper()
+    action = action.upper()
+    contract = get_contract(symbol)
 
     # No ghost trade logic on exits
 
@@ -210,37 +231,21 @@ def execute_exit_trade(client, contract, symbol, action, quantity, db):
     except Exception as e:
         print(f"⚠️ Failed to update exit_in_progress in Firebase: {e}")
 
+    if action == "SELL":
+        trade_type = "FLATTENING_SELL"
+    elif action == "BUY":
+        trade_type = "FLATTENING_BUY"
+    else:
+        trade_type = "EXIT"  # fallback
+
     return {
         "status": "SUCCESS",
         "order_id": order_id,
-        "trade_type": "EXIT",
+        "trade_type": trade_type,
         "symbol": symbol,
         "action": action,
         "quantity": quantity
     }
-
-
-# ==========================
-# 🟩 DISPATCHER FUNCTION (Detailed trade type routing)
-# ==========================
-def place_trade(symbol, action, quantity, trade_type, db):
-    global client  # Use the globally initialized client
-    print(f"[DEBUG] place_trade called with client id: {id(client)}")
-    print(f"[DEBUG] place_trade client type: {type(client)}")
-
-    symbol = symbol.upper()
-    action = action.upper()
-    contract = get_contract(symbol)
-
-    # Use detailed trade_type strings for routing
-    if trade_type in ["LONG_ENTRY", "SHORT_ENTRY"]:
-        return execute_entry_trade(client, contract, symbol, action, quantity, db)
-    elif trade_type in ["FLATTENING_BUY", "FLATTENING_SELL"]:
-        return execute_exit_trade(client, contract, symbol, action, quantity, db)
-    else:
-        print(f"❌ Unknown trade_type: {trade_type}")
-        return {"status": "ERROR", "reason": f"Unknown trade_type {trade_type}"}
-
 
 # ==========================
 # 🟩 CLI MAIN ENTRYPOINT (No cooldown dictionary)

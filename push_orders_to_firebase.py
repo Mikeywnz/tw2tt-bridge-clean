@@ -73,27 +73,37 @@ def get_google_sheet():
     sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
 
-    # === Helper to Check if Trade ID is a Known Ghost Trade ===
-# ==========================
-# 🟩 GREEN PATCH: Uncomment and fix is_ghost_trade helper function
-# ==========================
-#def is_ghost_trade(trade_id, firebase_db):
-    #ghost_ref = firebase_db.reference("/ghost_trades_log")
-    #ghosts = ghost_ref.get() or {}
-   # return trade_id in ghosts
+# ====================================================
+#🟩 Helper to Check if Trade ID is a Known Ghost Trade
+# ====================================================
 
-# === STEP 3A: Helper to Check if Trade ID is a Known Zombie ===
+def is_ghost_trade(trade_id, firebase_db):
+    ghost_ref = firebase_db.reference("/ghost_trades_log")
+    ghosts = ghost_ref.get() or {}
+    return trade_id in ghosts
+
+#=============================================
+#Helper to Check if Trade ID is a Known Zombie
+#=============================================
+
 def is_zombie_trade(trade_id, firebase_db):
     zombie_ref = firebase_db.reference("/zombie_trades_log")
     zombies = zombie_ref.get() or {}
     return trade_id in zombies
+
+#======================================================
+#Helper to Check if Trade ID is a Known Archived Trade
+#======================================================
 
 def is_archived_trade(trade_id, firebase_db):
     archived_ref = firebase_db.reference("/archived_trades_log")
     archived_trades = archived_ref.get() or {}
     return trade_id in archived_trades
 
-    # ===== Archived_trade() helper function =====
+#================================
+#Archived_trade() helper function
+#================================
+
 def archive_trade(symbol, trade):
     trade_id = trade.get("trade_id")
     if not trade_id:
@@ -306,6 +316,8 @@ def push_orders_main():
                 continue  # Skip processing this order
 
             # === BUILD PAYLOAD WITH PATCHED STATUS, TRADE_STATE, TRADE_TYPE ===
+            is_ghost = is_ghost_trade(oid, db)
+            
             payload = {
                 "order_id": oid,
                 "symbol": symbol,
@@ -319,7 +331,7 @@ def push_orders_main():
                 "timestamp": exit_time_iso,
                 "source": map_source(getattr(order, 'source', None)),
                 "is_open": getattr(order, 'is_open', False),
-               # "is_ghost": is_ghost,
+                "is_ghost": is_ghost,
                 "exit_reason": friendly_reason,
                 # Trade State and Trade Type logic for downstream usage
                 "trade_state": "open" if status == "FILLED" else "closed",
@@ -383,9 +395,12 @@ def push_orders_main():
                 ghosts = ghost_ref.get() or {}
                 return trade_id in ghosts
 
-            if is_ghost_trade(order_id, db):
-                print(f"⏭️ ⛔ Trade {order_id} already in ghost_trades_log; skipping open trades push")
+            is_ghost = is_ghost_trade(oid, db)
+            if is_ghost:
+                print(f"Skipping ghost trade {oid} during API push (detected by helper)")
                 continue
+            else:
+                print(f"Order ID {oid} not a ghost, proceeding")
 
             archived_trade_ids.add(order_id)
             # 🟩 GREEN PATCH END
