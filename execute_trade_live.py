@@ -81,8 +81,6 @@ def place_entry_trade(symbol, action, quantity, db):
     action = action.upper()
     contract = get_contract(symbol)
 
-    
-
     order = Order(
         account=ACCOUNT,
         contract=contract,
