@@ -21,14 +21,18 @@ firebase_db = db
 
 FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
-# Load Firebase secret key
+# === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
+# === Firebase Initialization ===
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred, {
+    firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+    cred = credentials.Certificate(firebase_key_path)
+    initialize_app(cred, {
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
+
 
 # === Helper Load live prices from Firebase ===
 def load_live_prices():
