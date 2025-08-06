@@ -35,16 +35,16 @@ firebase_db = db
 
 
 # 🟢 ARCHIVED TRADE CHECK FUNCTION (updated path and logic)
-def is_archived_trade(trade_id: str, firebase_db) -> bool:
-    archived_ref = firebase_db.reference("/archived_trades_log")  # updated path
-    archived_trades = archived_ref.get() or {}
-    return trade_id in archived_trades
+#def is_archived_trade(trade_id: str, firebase_db) -> bool:
+#    archived_ref = firebase_db.reference("/archived_trades_log")  # updated path
+#    archived_trades = archived_ref.get() or {}
+#    return trade_id in archived_trades
 
 # 🟢 ZOMBIE TRADE CHECK FUNCTION
-def is_zombie_trade(trade_id: str, firebase_db) -> bool:
-    zombie_ref = firebase_db.reference("/zombie_trades_log")
-    zombie_trades = zombie_ref.get() or {}
-    return trade_id in zombie_trades
+#def is_zombie_trade(trade_id: str, firebase_db) -> bool:
+#    zombie_ref = firebase_db.reference("/zombie_trades_log")
+#    zombie_trades = zombie_ref.get() or {}
+#    return trade_id in zombie_trades
 
     # 🟢 GHOST TRADE CHECK FUNCTION
     #def is_ghost_trade(status: str, filled: int) -> bool:
@@ -54,19 +54,19 @@ def is_zombie_trade(trade_id: str, firebase_db) -> bool:
         #ghost_ref.set(trade_data)
 
     # Archive_trade helper
-def archive_trade(symbol, trade):
-    trade_id = trade.get("trade_id")
-    if not trade_id:
-        print(f"❌ Cannot archive trade without trade_id")
-        return False
-    try:
-        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")
-        archive_ref.set(trade)
-        print(f"✅ Archived trade {trade_id}")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to archive trade {trade_id}: {e}")
-        return False
+#def archive_trade(symbol, trade):
+#    trade_id = trade.get("trade_id")
+#    if not trade_id:
+#        print(f"❌ Cannot archive trade without trade_id")
+#        return False
+#    try:
+#        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")
+#        archive_ref.set(trade)
+#        print(f"✅ Archived trade {trade_id}")
+#        return True
+#    except Exception as e:
+#        print(f"❌ Failed to archive trade {trade_id}: {e}")
+#        return False
 
 # Global net position tracker dict
 position_tracker = {}

@@ -70,9 +70,6 @@ archived_trade_ids = set(archived_trades_ref.get() or {})
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
-#logged_ghost_ids_ref = db.reference("/logged_ghost_ids")
-#logged_ghost_order_ids = set(logged_ghost_ids_ref.get() or [])
-
 # === Google Sheets Setup (Global) ===
 from google.oauth2.service_account import Credentials
 import gspread
@@ -87,8 +84,6 @@ def get_google_sheet():
     gs_client = gspread.authorize(creds)
     sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
-
-
 
 #=============================================
 #Helper to Check if Trade ID is a Known Zombie
@@ -131,34 +126,34 @@ def archive_trade(symbol, trade):
 
 
 # === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
-def safe_float(val):
-    try:
-        return float(val)
-    except:
-        return 0.0
+#def safe_float(val):
+#    try:
+#        return float(val)
+#    except:
+#        return 0.0
 
-def map_source(raw_source):
-    if raw_source is None:
-        return "unknown"
-    lower = raw_source.lower()
-    if "openapi" in lower:
-        return "OpGo"
-    elif "desktop" in lower:
-        return "Tiger Desktop"
-    elif "mobile" in lower:
-        return "tiger-mobile"
-    return "unknown"
+#def map_source(raw_source):
+#    if raw_source is None:
+#        return "unknown"
+#    lower = raw_source.lower()
+#    if "openapi" in lower:
+#        return "OpGo"
+#    elif "desktop" in lower:
+#        return "Tiger Desktop"
+#    elif "mobile" in lower:
+#        return "tiger-mobile"
+#    return "unknown"
 
-def get_exit_reason(status, reason, filled):
-    if status == "CANCELLED" and filled == 0:
-        return "CANCELLED"
-    elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
-        return "LACK_OF_MARGIN"
-    elif "liquidation" in reason.lower():
-        return "liquidation"
-    elif status == "FILLED":
-        return "FILLED"
-    return status
+#def get_exit_reason(status, reason, filled):
+#    if status == "CANCELLED" and filled == 0:
+#        return "CANCELLED"
+#    elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
+#        return "LACK_OF_MARGIN"
+#    elif "liquidation" in reason.lower():
+#        return "liquidation"
+#    elif status == "FILLED":
+#        return "FILLED"
+#    return status
 
 #=====  END OF PART 1 =====
 
@@ -358,27 +353,27 @@ def push_orders_main():
 
             # === 🧱 Zombie Firewall: Skip if contracts_remaining missing or 0 === (COULD STOP ALL - SO THIS COULD CAUSE AND ISSUE)
                # 🟩 GREEN PATCH START: Contracts remaining check with 5-second grace period
-            now = time.time()
-            order_id = payload.get("order_id")
+            #now = time.time()
+            #order_id = payload.get("order_id")
 
-            contracts_remaining = payload.get("contracts_remaining")
+            #contracts_remaining = payload.get("contracts_remaining")
 
-            if contracts_remaining is None or contracts_remaining == 0:
-                first_seen = grace_cache.get(order_id, now)
-                grace_cache[order_id] = first_seen  # Set if new
+            #if contracts_remaining is None or contracts_remaining == 0:
+            #    first_seen = grace_cache.get(order_id, now)
+            #    grace_cache[order_id] = first_seen  # Set if new
 
-                if now - first_seen < 5:  # 5 seconds grace period
-                    print(f"⚠️ Grace period active for order {order_id}, allowing trade to be processed")
+            #    if now - first_seen < 5:  # 5 seconds grace period
+            #        print(f"⚠️ Grace period active for order {order_id}, allowing trade to be processed")
                     # Allow processing — do not skip
-                else:
-                    print(f"⏭️ Grace period expired for order {order_id}, archiving as zombie trade")
-                    archived_ref = db.reference("/archived_trades_log")
-                    archived_ref.child(order_id).set(payload)
-                    continue  # Skip pushing to open trades
-            else:
+            #    else:
+            #        print(f"⏭️ Grace period expired for order {order_id}, archiving as zombie trade")
+            #        archived_ref = db.reference("/archived_trades_log")
+            #        archived_ref.child(order_id).set(payload)
+            #        continue  # Skip pushing to open trades
+            #else:
                 # Clear cache for trades with contracts > 0
-                if order_id in grace_cache:
-                    del grace_cache[order_id]
+            #    if order_id in grace_cache:
+            #        del grace_cache[order_id]
 
                 # Normal processing for trades with contracts_remaining > 0
             # 🟩 GREEN PATCH END

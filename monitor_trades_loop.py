@@ -238,7 +238,7 @@ def save_open_trades(symbol, trades):
             print(f"✅ Open Active Trade {trade_id} saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
-        
+
 # ==========================================================
 # 🟩 TRAILING TP AND EXIT PROCESSING WITH place_exit_trade()
 # ==========================================================
@@ -454,53 +454,53 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
-def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
-    live_ref = firebase_db.reference("/live_total_positions")
-    data = live_ref.get() or {}
+#def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
+#    live_ref = firebase_db.reference("/live_total_positions")
+#    data = live_ref.get() or {}
 
-    position_count = data.get("position_count", None)
-    last_updated_str = data.get("last_updated", None)
+#    position_count = data.get("position_count", None)
+#    last_updated_str = data.get("last_updated", None)
 
-    if position_count is None or last_updated_str is None:
-        print("⚠️ /live_total_positions data incomplete or missing")
-        return False
+#    if position_count is None or last_updated_str is None:
+#        print("⚠️ /live_total_positions data incomplete or missing")
+#        return False
 
-    try:
+#    try:
         # Convert position_count to float explicitly to avoid type mismatch
-        position_count_val = float(position_count)
-    except Exception:
-        print(f"⚠️ Invalid position_count value: {position_count}")
-        return False
+#        position_count_val = float(position_count)
+#    except Exception:
+#        print(f"⚠️ Invalid position_count value: {position_count}")
+#        return False
 
-    try:
+#    try:
         # Parse last_updated using your existing timezone setup
-        nz_tz = timezone(timedelta(hours=12))  # NZST fixed offset; adjust manually if needed
-        last_updated_str = last_updated_str.replace(" NZST", "")
-        last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
-        last_updated = last_updated.replace(tzinfo=nz_tz)
-    except Exception as e:
-        print(f"⚠️ Failed to parse last_updated timestamp: {e}")
-        return False
+#        nz_tz = timezone(timedelta(hours=12))  # NZST fixed offset; adjust manually if needed
+#        last_updated_str = last_updated_str.replace(" NZST", "")
+#        last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
+#        last_updated = last_updated.replace(tzinfo=nz_tz)
+#    except Exception as e:
+#        print(f"⚠️ Failed to parse last_updated timestamp: {e}")
+#        return False
 
-    now_nz = datetime.now(NZ_TZ)
-    delta_seconds = (now_nz - last_updated).total_seconds()
+#    now_nz = datetime.now(NZ_TZ)
+#    delta_seconds = (now_nz - last_updated).total_seconds()
 
-    print(f"[DEBUG] Current time: {datetime.now(timezone(timedelta(hours=12)))}")
-    print(f"[DEBUG] /live_total_positions last_updated: {last_updated} (NZST)")
-    print(f"[DEBUG] Data age (seconds): {delta_seconds:.1f}")
-    print(f"[DEBUG] Position count (float): {position_count_val}")
+#    print(f"[DEBUG] Current time: {datetime.now(timezone(timedelta(hours=12)))}")
+#    print(f"[DEBUG] /live_total_positions last_updated: {last_updated} (NZST)")
+#    print(f"[DEBUG] Data age (seconds): {delta_seconds:.1f}")
+#    print(f"[DEBUG] Position count (float): {position_count_val}")
 
     # Inverted grace period logic:
-    if position_count_val == 0:
-        if delta_seconds < grace_period_seconds:
-            print(f"⚠️ Position count zero but data only {delta_seconds:.1f}s old, skipping zombie check")
-            return False
-        else:
-            print(f"✅ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
-            return True
-    else:
-        print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
-        return False
+#    if position_count_val == 0:
+#        if delta_seconds < grace_period_seconds:
+#            print(f"⚠️ Position count zero but data only {delta_seconds:.1f}s old, skipping zombie check")
+#            return False
+#        else:
+#            print(f"✅ Position count zero and data stale enough ({delta_seconds:.1f}s), safe to run zombie detection")
+#            return True
+#    else:
+#        print("⚠️ Position count non-zero, skipping zombie detection to avoid false positives")
+#        return False
 
  # ========================= MONITOR_TRADES_LOOP - END OF SEGMENT 3 ================================
 
@@ -510,49 +510,49 @@ def check_live_positions_freshness(firebase_db, grace_period_seconds=140):
 # 🟩 GREEN PATCH START: Zombie & Ghost Trade Handler with 30s Grace Period (DISABLED FOR TEST)
 # ============================================================================================
 
-ZOMBIE_COOLDOWN_SECONDS = 30
-GHOST_GRACE_PERIOD_SECONDS = 30
-ZOMBIE_STATUSES = {"FILLED"}  # Legitimate filled trades with no position
-GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-GRACE_PERIOD_SECONDS = 140 
+#ZOMBIE_COOLDOWN_SECONDS = 30
+#GHOST_GRACE_PERIOD_SECONDS = 30
+#ZOMBIE_STATUSES = {"FILLED"}  # Legitimate filled trades with no position
+#GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+#GRACE_PERIOD_SECONDS = 140 
 
-def handle_zombie_and_ghost_trades(firebase_db):
-    now_utc = datetime.now(timezone.utc)
-    open_trades_ref = firebase_db.reference("/open_active_trades")
-    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
+#def handle_zombie_and_ghost_trades(firebase_db):
+#    now_utc = datetime.now(timezone.utc)
+#    open_trades_ref = firebase_db.reference("/open_active_trades")
+#    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
    # ghost_trades_ref = firebase_db.reference("/ghost_trades_log")
 
-    all_open_trades = open_trades_ref.get() or {}
-    existing_zombies = set(zombie_trades_ref.get() or {})
-    existing_ghosts = set(ghost_trades_ref.get() or {})
+#    all_open_trades = open_trades_ref.get() or {}
+#    existing_zombies = set(zombie_trades_ref.get() or {})
+#    existing_ghosts = set(ghost_trades_ref.get() or {})
 
-    NZ_TZ = timezone(timedelta(hours=12))  # NZST fixed offset, adjust if needed
-    now_nz = datetime.now(NZ_TZ)
+#    NZ_TZ = timezone(timedelta(hours=12))  # NZST fixed offset, adjust if needed
+#    now_nz = datetime.now(NZ_TZ)
 
-    try:
-        position_count = int(firebase_db.reference("/live_total_positions/position_count").get())
-    except Exception:
-        position_count = 0
+#    try:
+#        position_count = int(firebase_db.reference("/live_total_positions/position_count").get())
+#    except Exception:
+#        position_count = 0
 
-    if position_count > 0:
-        print("[INFO] Positions open; skipping zombie and ghost cleanup.")
-        return
+#    if position_count > 0:
+#        print("[INFO] Positions open; skipping zombie and ghost cleanup.")
+#        return
 
-    if not isinstance(all_open_trades, dict):
-        print("⚠️ all_open_trades is not a dict, skipping trade processing")
-        return
+#    if not isinstance(all_open_trades, dict):
+#        print("⚠️ all_open_trades is not a dict, skipping trade processing")
+#        return
 
-    for symbol, trades_by_id in all_open_trades.items():
-        if not isinstance(trades_by_id, dict):
-            print(f"⚠️ Skipping trades for symbol {symbol} because it's not a dict")
-            continue
+#    for symbol, trades_by_id in all_open_trades.items():
+#        if not isinstance(trades_by_id, dict):
+#            print(f"⚠️ Skipping trades for symbol {symbol} because it's not a dict")
+#            continue
 
-        for trade_id, trade in trades_by_id.items():
-            if not isinstance(trade, dict):
-                continue
+#        for trade_id, trade in trades_by_id.items():
+#            if not isinstance(trade, dict):
+#                continue
 
-            status = trade.get("status", "").upper()
-            filled = trade.get("filled", 0)
+#            status = trade.get("status", "").upper()
+#            filled = trade.get("filled", 0)
 
             #if trade_id in existing_zombies or trade_id in existing_ghosts:
             #    continue
@@ -564,18 +564,18 @@ def handle_zombie_and_ghost_trades(firebase_db):
             #     print(f"🗑️ Deleted ghost trade {trade_id} from /open_active_trades/")
             #     continue
 
-            entry_ts_str = trade.get("entry_timestamp")
-            if not entry_ts_str:
-                print(f"⚠️ No entry_timestamp for trade {trade_id}; skipping cooldown check")
-                continue
+ #           entry_ts_str = trade.get("entry_timestamp")
+ #           if not entry_ts_str:
+ #               print(f"⚠️ No entry_timestamp for trade {trade_id}; skipping cooldown check")
+ #               continue
 
-            try:
-                entry_ts = datetime.fromisoformat(entry_ts_str.replace("Z", "+00:00")).astimezone(timezone.utc)
-            except Exception as e:
-                print(f"⚠️ Failed to parse entry_timestamp for {trade_id}: {e}; skipping cooldown check")
-                continue
+ #           try:
+ #               entry_ts = datetime.fromisoformat(entry_ts_str.replace("Z", "+00:00")).astimezone(timezone.utc)
+ #           except Exception as e:
+ #               print(f"⚠️ Failed to parse entry_timestamp for {trade_id}: {e}; skipping cooldown check")
+ #               continue
 
-            age_seconds = (now_utc - entry_ts).total_seconds()
+ #           age_seconds = (now_utc - entry_ts).total_seconds()
 
             # if status in ZOMBIE_STATUSES:
             #     if age_seconds < ZOMBIE_COOLDOWN_SECONDS:

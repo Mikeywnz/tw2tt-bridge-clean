@@ -15,7 +15,6 @@ from firebase_admin import db
 # your Tiger Trade account number
 ACCOUNT = "21807597867063647"  
 
-
 # Firebase DB reference shortcut
 firebase_db = db
 
@@ -35,12 +34,6 @@ try:
 except Exception as e:
     print(f"❌ Failed to load Tiger API config or initialize client: {e}")
     sys.exit(1)
-    print(f"[DEBUG] Initialized client object: {client}")
-    print(f"[DEBUG] client type: {type(client)}")
-    print(f"[DEBUG] client has config: {'config' in dir(client)}")
-    print(f"[DEBUG] client.config.account: {getattr(client.config, 'account', None)}")
-    print(f"[DEBUG] client id: {id(client)}")
-
 
 # ==========================
 # 🟩 CONTRACT CREATION HELPER
@@ -53,22 +46,6 @@ def get_contract(symbol: str):
     contract.exchange = 'CME'
     return contract
 
-
-# ==========================
-# 🟩 ARCHIVE GHOST TRADE UTILITY
-# ==========================
-#def archive_ghost_trade(trade_id, trade_data):
-#    try:
-#        ghost_ref = db.reference("/ghost_trades_log")
-#        ghost_ref.child(trade_id).set(trade_data)
-#        print(f"✅ Archived ghost trade {trade_id} to ghost_trades_log")
-#    except Exception as e:
-#        print(f"❌ Failed to archive ghost trade {trade_id}: {e}")
-
-
-# ==========================
-# 🟩 ENTRY TRADE LOGIC BLOCK (No cooldown, single try)
-# ==========================
 # ==========================
 # 🟩 PLACE ENTRY TRADE FUNCTION (Calls execute_entry_trade)
 # ==========================
@@ -109,53 +86,13 @@ def place_entry_trade(symbol, action, quantity, db):
 
     print(f"✅ Entry order placed with order_id: {order_id}")
 
-    # ==========================
-    # 🟩 GRACE PERIOD BEFORE ARCHIVING GHOST TRADES (COMMENTED OUT FOR TEST)
-    # ==========================
-    trade_status = getattr(response, "status", "").upper() if hasattr(response, "status") else ""
-    ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-
-    filled_qty = 0
-    if hasattr(response, "filled_quantity"):
-        filled_qty = response.filled_quantity
-    elif isinstance(response, dict):
-        filled_qty = response.get("filled_quantity", 0)
-
-    # Wait for a few seconds before deciding it's a ghost trade
-    # if filled_qty == 0 and trade_status in ghost_statuses:
-    #     print("⏳ Waiting 5 seconds before confirming ghost trade...")
-    #     time.sleep(5)  # Grace period delay
-
-    #     # Re-check the trade status and filled qty (pseudo code, replace with actual API call)
-    #     updated_response = client.get_order_status(order_id)  # You may need to implement this
-    #     updated_filled_qty = updated_response.get("filled_quantity", 0)
-    #     updated_trade_status = updated_response.get("status", "").upper()
-
-    #     if updated_filled_qty == 0 and updated_trade_status in ghost_statuses:
-    #         print(f"⏭️ Confirmed ghost trade detected after grace: status={updated_trade_status}, filled_qty=0")
-    #         archive_ghost_trade(order_id, {
-    #             "trade_status": updated_trade_status,
-    #             "filled_quantity": updated_filled_qty,
-    #             "trade_state": "closed",
-    #             "trade_type": "",
-    #             "raw_response": updated_response
-    #         })
-    #         return {
-    #             "status": "skipped",
-    #             "reason": "ghost trade - zero fill with bad status after grace",
-    #             "trade_status": updated_trade_status,
-    #             "trade_state": "closed",
-    #             "trade_type": ""
-    #         }
-
-    # If not ghost, continue normal processing
-
+    # Map action to trade_type
     if action == "BUY":
         trade_type = "LONG_ENTRY"
     elif action == "SELL":
         trade_type = "SHORT_ENTRY"
     else:
-        trade_type = "ENTRY"  # fallback generic
+        trade_type = "ENTRY"
 
     return {
         "status": "SUCCESS",
@@ -167,9 +104,6 @@ def place_entry_trade(symbol, action, quantity, db):
     }
 
 # ==========================
-# 🟩 EXIT TRADE LOGIC BLOCK (No cooldown, single try)
-# ==========================
-# ==========================
 # 🟩 PLACE EXIT TRADE FUNCTION (Calls execute_exit_trade)
 # ==========================
 def place_exit_trade(symbol, action, quantity, db):
@@ -180,8 +114,6 @@ def place_exit_trade(symbol, action, quantity, db):
     symbol = symbol.upper()
     action = action.upper()
     contract = get_contract(symbol)
-
-    # No ghost trade logic on exits
 
     order = Order(
         account=ACCOUNT,
@@ -234,7 +166,7 @@ def place_exit_trade(symbol, action, quantity, db):
     elif action == "BUY":
         trade_type = "FLATTENING_BUY"
     else:
-        trade_type = "EXIT"  # fallback
+        trade_type = "EXIT"
 
     return {
         "status": "SUCCESS",
@@ -265,7 +197,14 @@ def main():
 
     print(f"🚀 CLI launch: Placing {trade_type} trade with symbol={symbol}, action={action}, quantity={quantity}")
 
-    result = place_trade(symbol, action, quantity, trade_type, firebase_db)
+    # Use place_entry_trade or place_exit_trade depending on trade_type
+    if trade_type in ["LONG_ENTRY", "SHORT_ENTRY"]:
+        result = place_entry_trade(symbol, action, quantity, firebase_db)
+    elif trade_type in ["FLATTENING_SELL", "FLATTENING_BUY"]:
+        result = place_exit_trade(symbol, action, quantity, firebase_db)
+    else:
+        print(f"❌ Unknown trade_type {trade_type}")
+        sys.exit(1)
 
     print(f"🚀 Trade result: {result}")
 
