@@ -37,9 +37,6 @@ def is_ghostflag_trade(trade_id, firebase_db):
 
 firebase_db = db
 grace_cache = {}
-# 🟩 GREEN PATCH END
-
-FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # Load Firebase secret key
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -54,9 +51,9 @@ if not firebase_admin._apps:
 # === Load Trailing Take Profit Settings from Firebase ===
 def load_trailing_tp_settings():
     try:
-        fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
-        res = requests.get(fb_url)
-        cfg = res.json() if res.ok else {}
+        ref = db.reference('/trailing_tp_settings')
+        cfg = ref.get() or {}
+
         if cfg.get("enabled", False):
             return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
     except Exception as e:
@@ -386,7 +383,8 @@ def push_orders_main():
                 print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
                 continue
 
-            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+            # Firebase Admin SDK reference (no URL needed)
+            ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')
 
             # 🟩 GREEN PATCH START: Skip if trade already archived or ghosted this run
             if order_id in archived_trade_ids:

@@ -17,8 +17,6 @@ NZ_TZ = timezone(timedelta(hours=12))
 # FIREBASE INITIALIZATION 
 #=========================
 
-FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-
 # === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
@@ -128,23 +126,22 @@ def update_trade_on_exit_fill(firebase_db, symbol, exit_order_id, exit_action, f
 # ========================================================
 
 def load_trailing_tp_settings():
-    # Example: Fetch settings from Firebase or return defaults
     try:
-        fb_url = f"{FIREBASE_URL}/trailing_tp_settings.json"
-        res = requests.get(fb_url)
-        cfg = res.json() if res.ok else {}
+        ref = db.reference('/trailing_tp_settings')
+        cfg = ref.get() or {}
+
         if cfg.get("enabled", False):
             trigger_points = float(cfg.get("trigger_points", 14.0))
             offset_points = float(cfg.get("offset_points", 5.0))
         else:
             trigger_points = 14.0
             offset_points = 5.0
+
     except Exception as e:
         print(f"[WARN] Failed to fetch trailing settings, using defaults: {e}")
         trigger_points = 14.0
         offset_points = 5.0
 
-    return trigger_points, offset_points
 
 #=======================================
 # Helper: Check if trade is archived
@@ -366,10 +363,10 @@ def monitor_trades():
     print(f"[DEBUG] Starting monitor_trades loop at {datetime.now(NZ_TZ)}")
 
     # Check live positions freshness and handle zombies/ghosts
-    if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
-        print("[DEBUG] Skipping zombie trade check due to stale data or non-zero positions")
-    else:
-        pass  # Ghost/zombie logic disabled for debugging
+    #if not check_live_positions_freshness(db, grace_period_seconds=GRACE_PERIOD_SECONDS):
+    #    print("[DEBUG] Skipping zombie trade check due to stale data or non-zero positions")
+    #else:
+    #    pass  # Ghost/zombie logic disabled for debugging
             #   print("[DEBUG] Passing zombie trade check, handling zombies")
             #   handle_zombie_and_ghost_trades(db)
 
@@ -692,15 +689,10 @@ def handle_exit_order(symbol, action, quantity):
         }
 
         try:
-            FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-            endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+            ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')
             print("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
-            import requests
-            put = requests.put(endpoint, json=new_trade)
-            if put.status_code == 200:
-                print(f"✅ Firebase open_active_trades updated at key: {trade_id}")
-            else:
-                print(f"❌ Firebase update failed: {put.text}")
+            ref.set(new_trade)
+            print(f"✅ Firebase open_active_trades updated at key: {trade_id}")
         except Exception as e:
             print(f"❌ Failed to push trade to Firebase: {e}")
 
