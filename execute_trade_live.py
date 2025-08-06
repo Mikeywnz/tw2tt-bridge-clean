@@ -57,6 +57,7 @@ def place_entry_trade(symbol, action, quantity, db):
     symbol = symbol.upper()
     action = action.upper()
     contract = get_contract(symbol)
+    print(f"[DEBUG] Contract fetched for symbol {symbol}: {contract}")
 
     order = Order(
         account=ACCOUNT,
@@ -65,13 +66,13 @@ def place_entry_trade(symbol, action, quantity, db):
         order_type='MKT',
         quantity=quantity
     )
-    print(f"📦 Placing ENTRY market order: {symbol} {action} {quantity}")
+    print(f"[DEBUG] Created market order: {symbol} {action} {quantity}")
 
     try:
         response = client.place_order(order)
-        print(f"🐯 Tiger order response (entry): {response}")
+        print(f"[DEBUG] Tiger order response (entry): {response}")
     except Exception as e:
-        print(f"❌ Exception placing entry order: {e}")
+        print(f"[ERROR] Exception placing entry order: {e}")
         return {"status": "ERROR", "reason": str(e)}
 
     order_id = None
@@ -80,27 +81,28 @@ def place_entry_trade(symbol, action, quantity, db):
     elif isinstance(response, (str, int)) and str(response).isdigit():
         order_id = str(response)
 
-     # After placing order and parsing order_id
+    print(f"[DEBUG] Parsed order_id: {order_id}")
+
     if not order_id:
-        print("🛑 Failed to parse order ID for entry trade")
+        print("[ERROR] Failed to parse order ID for entry trade")
         return {"status": "REJECTED", "reason": "No order ID returned from Tiger"}
 
-    print(f"✅ Entry order placed with order_id: {order_id}")
+    print(f"[INFO] Entry order placed with order_id: {order_id}")
 
-    # === Fetch transaction details from Tiger API for this order_id ===
     try:
         transactions = client.get_transactions(account=ACCOUNT, symbol=symbol, limit=10)
+        print(f"[DEBUG] Retrieved last 10 transactions: {transactions}")
         tx_info = None
         for tx in transactions:
+            print(f"[TRACE] Checking transaction order_id: {tx.order_id}")
             if str(tx.order_id) == str(order_id):
                 tx_info = tx
+                print(f"[INFO] Matching transaction found: {tx_info}")
                 break
 
         if tx_info is None:
-            print(f"⚠️ Transaction info for order_id {order_id} not found in recent transactions.")
-            # Optional: fetch more or return partial info
+            print(f"[WARN] Transaction info for order_id {order_id} not found in recent transactions.")
 
-        # Build a dict of relevant transaction info to return
         tx_dict = {
             "status": "SUCCESS",
             "order_id": order_id,
@@ -110,14 +112,14 @@ def place_entry_trade(symbol, action, quantity, db):
             "quantity": quantity,
             "filled_price": getattr(tx_info, "filled_price", 0.0) if tx_info else 0.0,
             "filled_quantity": getattr(tx_info, "filled_quantity", quantity) if tx_info else quantity,
-            "transaction_time": getattr(tx_info, "transacted_at", ""),
+            "transaction_time": getattr(tx_info, "transacted_at", "") if tx_info else "",
             "raw_transaction": tx_info  # optional full object for debugging
         }
+        print(f"[DEBUG] Transaction dict prepared: {tx_dict}")
         return tx_dict
 
     except Exception as e:
-        print(f"❌ Failed to fetch transaction details for order_id {order_id}: {e}")
-        # Fallback to minimal info if failed
+        print(f"[ERROR] Failed to fetch transaction details for order_id {order_id}: {e}")
         return {
             "status": "SUCCESS",
             "order_id": order_id,
@@ -129,7 +131,6 @@ def place_entry_trade(symbol, action, quantity, db):
             "filled_quantity": quantity,
             "transaction_time": "",
         }
-        
 # ==========================
 # 🟩 PLACE EXIT TRADE FUNCTION (Calls execute_exit_trade, fetches full transaction info)
 # ==========================

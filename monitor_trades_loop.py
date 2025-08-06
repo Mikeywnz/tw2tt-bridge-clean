@@ -354,6 +354,8 @@ def fifo_match_and_flatten(active_trades):
         if not matched:
             print(f"[WARN] No matching open trade found for exit trade {exit_trade.get('trade_id')}")
 
+    return active_trades
+
 # ========================================================
 # MONITOR TRADES LOOP with FIFO Matching and Debug Logging
 # ========================================================
