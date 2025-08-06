@@ -133,16 +133,17 @@ DEDUP_WINDOW = 10  # seconds
 
 @app.post("/webhook")
 async def webhook(request: Request):
-    raw_body = await request.body()
-    payload_hash = hashlib.sha256(raw_body).hexdigest()
     current_time = time.time()
-
-    # Fix: parse JSON once here only (remove later duplicate parsing)
+    
     try:
-        data = json.loads(raw_body)
+        data = await request.json()
     except Exception as e:
         log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
+
+    # Compute payload hash for deduplication
+    payload_str = json.dumps(data, sort_keys=True)
+    payload_hash = hashlib.sha256(payload_str.encode('utf-8')).hexdigest()
 
     # -----------------------------------
     # SPECIAL FLAGS: Liquidation & Manual
