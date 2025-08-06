@@ -234,50 +234,8 @@ async def webhook(request: Request):
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
         trade_type = None  # Assign if you classify trades here, else set to None
 
-        # =========================================
-        # 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
-        # =========================================
-        result = place_entry_trade(symbol, action, quantity, firebase_db)
-        if isinstance(result, dict) and result.get("status") == "SUCCESS":
-            def is_valid_trade_id(tid):
-                return isinstance(tid, str) and tid.isdigit()
-
-            raw = result.get("order_id")
-            if isinstance(raw, int):
-                trade_id = str(raw)
-            elif isinstance(raw, str):
-                trade_id = raw
-            else:
-                trade_id = None
-
-            if not trade_id or not is_valid_trade_id(trade_id):
-                log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
-                return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
-
-            status = result.get("trade_status", "UNKNOWN")
-            filled_price = result.get("filled_price") or 0.0
-
-            # Compose new trade dict
-            new_trade = {
-                "trade_id": trade_id,
-                "symbol": symbol,
-                "filled_price": filled_price,
-                "action": action,
-                "trade_type": trade_type,
-                "status": status,
-                "contracts_remaining": 1,
-                "trail_trigger": trigger_points,
-                "trail_offset": offset_points,
-                "trail_hit": False,
-                "trail_peak": filled_price,
-                "filled": True,
-                "entry_timestamp": entry_timestamp,
-                "trade_state": "open",
-                "just_executed": True,
-                "executed_timestamp": datetime.utcnow().isoformat() + "Z"
-            }
-
-# ============================
+    
+ # ============================
 # 🟩 Load Trailing TP Settings
 # ============================
 def load_trailing_tp_settings(firebase_url):
@@ -308,12 +266,17 @@ def load_trailing_tp_settings(firebase_url):
     print(f"[DEBUG] Returning trailing TP settings: trigger_points={trigger_points}, offset_points={offset_points}")
     return trigger_points, offset_points
 
+# =========================================
+# 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
+# =========================================
 
-# =========================================================
-# 🟩 PATCH: Webhook Handler (Entry Trade Processing)
-# =========================================================
+# ==========================================
+# 🟩 Webhook Handler (Entry Trade Processing)
+# ==========================================
 def webhook_handler(data, firebase_db):
     print("[DEBUG] webhook_handler started")
+
+    # --- Order comes in from TradingView ---
     symbol = firebase_active_contract.get_active_contract()
     if not symbol:
         print("❌ No active contract symbol found; aborting")
@@ -323,20 +286,72 @@ def webhook_handler(data, firebase_db):
     quantity = int(data.get("quantity", 1))
     print(f"[DEBUG] Received trade action: {action}, quantity: {quantity}")
 
+    # --- Order classified ---
     trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
     print(f"[DEBUG] Trade classified as: {trade_type}, updated position: {updated_position}")
 
+    # --- Load trailing take profit settings ---
     trigger_points, offset_points = load_trailing_tp_settings(FIREBASE_URL)
     entry_timestamp = datetime.utcnow().isoformat() + "Z"
     print(f"[DEBUG] Entry timestamp for trade: {entry_timestamp}")
 
-    # ============================================
-    # 🟩 ENTRY LOGIC: ORDER SENT TO EXECUTE TRADES
-    # ============================================
-
+    # --- Order sent to execute_trade_live ---
     print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
+
+    # --- Order received from execute_trade_live and validated ---
+    if isinstance(result, dict) and result.get("status") == "SUCCESS":
+
+        def is_valid_trade_id(tid):
+            return isinstance(tid, str) and tid.isdigit()
+
+        raw = result.get("order_id")
+        if isinstance(raw, int):
+            trade_id = str(raw)
+        elif isinstance(raw, str):
+            trade_id = raw
+        else:
+            trade_id = None
+
+        if not trade_id or not is_valid_trade_id(trade_id):
+            log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
+            return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
+
+        status = result.get("trade_status", "UNKNOWN")
+        filled_price = result.get("filled_price") or 0.0
+
+        # --- Order composed for Firebase ---
+        new_trade = {
+            "trade_id": trade_id,
+            "symbol": symbol,
+            "filled_price": filled_price,
+            "action": action,
+            "trade_type": trade_type,
+            "status": status,
+            "contracts_remaining": 1,
+            "trail_trigger": trigger_points,
+            "trail_offset": offset_points,
+            "trail_hit": False,
+            "trail_peak": filled_price,
+            "filled": True,
+            "entry_timestamp": entry_timestamp,
+            "trade_state": "open",
+            "just_executed": True,
+            "executed_timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+
+        # --- Order sent to Firebase ---
+        endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+        try:
+            log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
+            put = requests.put(endpoint, json=new_trade)
+            if put.status_code == 200:
+                log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
+            else:
+                log_to_file(f"❌ Firebase update failed: {put.text}")
+        except Exception as e:
+            log_to_file(f"❌ Firebase push error: {e}")
 
     return result
 

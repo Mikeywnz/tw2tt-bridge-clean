@@ -80,31 +80,58 @@ def place_entry_trade(symbol, action, quantity, db):
     elif isinstance(response, (str, int)) and str(response).isdigit():
         order_id = str(response)
 
+     # After placing order and parsing order_id
     if not order_id:
         print("🛑 Failed to parse order ID for entry trade")
         return {"status": "REJECTED", "reason": "No order ID returned from Tiger"}
 
     print(f"✅ Entry order placed with order_id: {order_id}")
 
-    # Map action to trade_type
-    if action == "BUY":
-        trade_type = "LONG_ENTRY"
-    elif action == "SELL":
-        trade_type = "SHORT_ENTRY"
-    else:
-        trade_type = "ENTRY"
+    # === Fetch transaction details from Tiger API for this order_id ===
+    try:
+        transactions = client.get_transactions(account=ACCOUNT, symbol=symbol, limit=10)
+        tx_info = None
+        for tx in transactions:
+            if str(tx.order_id) == str(order_id):
+                tx_info = tx
+                break
 
-    return {
-        "status": "SUCCESS",
-        "order_id": order_id,
-        "trade_type": trade_type,
-        "symbol": symbol,
-        "action": action,
-        "quantity": quantity
-    }
+        if tx_info is None:
+            print(f"⚠️ Transaction info for order_id {order_id} not found in recent transactions.")
+            # Optional: fetch more or return partial info
 
+        # Build a dict of relevant transaction info to return
+        tx_dict = {
+            "status": "SUCCESS",
+            "order_id": order_id,
+            "trade_type": "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY",
+            "symbol": symbol,
+            "action": action,
+            "quantity": quantity,
+            "filled_price": getattr(tx_info, "filled_price", 0.0) if tx_info else 0.0,
+            "filled_quantity": getattr(tx_info, "filled_quantity", quantity) if tx_info else quantity,
+            "transaction_time": getattr(tx_info, "transacted_at", ""),
+            "raw_transaction": tx_info  # optional full object for debugging
+        }
+        return tx_dict
+
+    except Exception as e:
+        print(f"❌ Failed to fetch transaction details for order_id {order_id}: {e}")
+        # Fallback to minimal info if failed
+        return {
+            "status": "SUCCESS",
+            "order_id": order_id,
+            "trade_type": "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY",
+            "symbol": symbol,
+            "action": action,
+            "quantity": quantity,
+            "filled_price": 0.0,
+            "filled_quantity": quantity,
+            "transaction_time": "",
+        }
+        
 # ==========================
-# 🟩 PLACE EXIT TRADE FUNCTION (Calls execute_exit_trade)
+# 🟩 PLACE EXIT TRADE FUNCTION (Calls execute_exit_trade, fetches full transaction info)
 # ==========================
 def place_exit_trade(symbol, action, quantity, db):
     global client
@@ -115,6 +142,7 @@ def place_exit_trade(symbol, action, quantity, db):
     action = action.upper()
     contract = get_contract(symbol)
 
+    # --- Place the exit market order ---
     order = Order(
         account=ACCOUNT,
         contract=contract,
@@ -143,7 +171,22 @@ def place_exit_trade(symbol, action, quantity, db):
 
     print(f"✅ Exit order placed with order_id: {order_id}")
 
-    # Mark exit in progress for FIFO matching in Firebase
+    # --- Fetch transaction details matching this exit order_id ---
+    tx_info = None
+    try:
+        # Get recent transactions for this symbol and account
+        transactions = client.get_transactions(account=ACCOUNT, symbol=symbol, limit=20)
+        for tx in transactions:
+            if str(getattr(tx, "order_id", "")) == order_id:
+                tx_info = tx
+                print(f"[DEBUG] Matched exit transaction info for order_id {order_id}")
+                break
+        if tx_info is None:
+            print(f"[WARN] No transaction info found for exit order_id {order_id}")
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch transaction info for exit order {order_id}: {e}")
+
+    # --- Mark exit in progress for FIFO matching in Firebase ---
     try:
         open_trades_ref = db.reference(f"/open_active_trades/{symbol}")
         open_trades = open_trades_ref.get() or {}
@@ -161,20 +204,18 @@ def place_exit_trade(symbol, action, quantity, db):
     except Exception as e:
         print(f"⚠️ Failed to update exit_in_progress in Firebase: {e}")
 
-    if action == "SELL":
-        trade_type = "FLATTENING_SELL"
-    elif action == "BUY":
-        trade_type = "FLATTENING_BUY"
-    else:
-        trade_type = "EXIT"
-
+    # --- Prepare the return dict with transaction info for further processing ---
     return {
         "status": "SUCCESS",
         "order_id": order_id,
-        "trade_type": trade_type,
+        "trade_type": "FLATTENING_SELL" if action == "SELL" else "FLATTENING_BUY" if action == "BUY" else "EXIT",
         "symbol": symbol,
         "action": action,
-        "quantity": quantity
+        "quantity": quantity,
+        "filled_price": getattr(tx_info, "filled_price", 0.0) if tx_info else 0.0,
+        "filled_quantity": getattr(tx_info, "filled_quantity", quantity) if tx_info else quantity,
+        "transaction_time": getattr(tx_info, "transacted_at", "") if tx_info else "",
+        "raw_transaction": tx_info  # optional full object for debugging
     }
 
 # ==========================
