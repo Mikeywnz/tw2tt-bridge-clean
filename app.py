@@ -33,7 +33,6 @@ if not firebase_admin._apps:
 # Firebase database reference
 firebase_db = db
 
-
 # 🟢 ARCHIVED TRADE CHECK FUNCTION (updated path and logic)
 #def is_archived_trade(trade_id: str, firebase_db) -> bool:
 #    archived_ref = firebase_db.reference("/archived_trades_log")  # updated path
@@ -76,7 +75,7 @@ app = FastAPI()
 PRICE_FILE = "live_prices.json"
 TRADE_LOG = "trade_log.json"
 LOG_FILE = "app.log"
-FIREBASE_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+
 
 def log_to_file(message: str):
     timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
@@ -206,7 +205,8 @@ async def webhook(request: Request):
         payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
         try:
-            requests.patch(f"{FIREBASE_URL}/live_prices/{symbol}.json", data=json.dumps(payload))
+            ref = firebase_db.reference(f"/live_prices/{symbol}")
+            ref.update(payload)
             log_to_file(f"✅ Price pushed: {price}")
         except Exception as e:
             log_to_file(f"❌ Firebase price push failed: {e}")
@@ -225,45 +225,39 @@ async def webhook(request: Request):
         log_to_file("🟢 [LOG] Received action from webhook: " + action)
         quantity = int(data.get("quantity", 1))
 
-        # You must define or import trigger_points, offset_points, entry_timestamp, trade_type above this block
-        # If not defined, set reasonable defaults here:
+        # Load trailing TP settings via Admin SDK, no Firebase URL string needed
         try:
-            trigger_points, offset_points = load_trailing_tp_settings(FIREBASE_URL)
+            trigger_points, offset_points = load_trailing_tp_settings_admin(firebase_db)
         except Exception:
             trigger_points, offset_points = 14.0, 5.0
+
         entry_timestamp = datetime.utcnow().isoformat() + "Z"
         trade_type = None  # Assign if you classify trades here, else set to None
-
     
- # ============================
-# 🟩 Load Trailing TP Settings
 # ============================
-def load_trailing_tp_settings(firebase_url):
-    print("[DEBUG] Starting to load trailing TP settings from Firebase")
+# 🟩 Load Trailing TP Settings (Firebase Admin SDK)
+# ============================
+def load_trailing_tp_settings_admin(firebase_db):
+    print("[DEBUG] Starting to load trailing TP settings from Firebase (Admin SDK)")
     try:
-        fb_url = f"{firebase_url}/trailing_tp_settings.json"
-        res = requests.get(fb_url)
-        if res.ok:
-            cfg = res.json()
-            print(f"[DEBUG] Trailing TP config fetched: {cfg}")
-            if cfg.get("enabled", False):
-                trigger_points = float(cfg.get("trigger_points", 14.0))
-                offset_points = float(cfg.get("offset_points", 5.0))
-                print(f"[DEBUG] Trailing TP enabled with trigger_points={trigger_points}, offset_points={offset_points}")
-            else:
-                trigger_points = 14.0
-                offset_points = 5.0
-                print("[DEBUG] Trailing TP disabled; using default values")
+        ref = firebase_db.reference("/trailing_tp_settings")
+        cfg = ref.get() or {}
+        print(f"[DEBUG] Trailing TP config fetched: {cfg}")
+        if cfg.get("enabled", False):
+            trigger_points = float(cfg.get("trigger_points", 14.0))
+            offset_points = float(cfg.get("offset_points", 5.0))
+            print(f"[DEBUG] Trailing TP enabled with trigger_points={trigger_points}, offset_points={offset_points}")
         else:
-            print(f"[WARN] Failed to fetch trailing TP settings; HTTP status: {res.status_code}")
             trigger_points = 14.0
             offset_points = 5.0
+            print("[DEBUG] Trailing TP disabled; using default values")
     except Exception as e:
         print(f"[WARN] Exception loading trailing TP settings: {e}")
         trigger_points = 14.0
         offset_points = 5.0
 
     print(f"[DEBUG] Returning trailing TP settings: trigger_points={trigger_points}, offset_points={offset_points}")
+    return trigger_points, offset_pointsngs: trigger_points={trigger_points}, offset_points={offset_points}")
     return trigger_points, offset_points
 
 # =========================================
@@ -271,7 +265,7 @@ def load_trailing_tp_settings(firebase_url):
 # =========================================
 
 # ==========================================
-# 🟩 Webhook Handler (Entry Trade Processing)
+# 🟩 Webhook Handler (Entry Trade Processing) - Admin SDK Firebase Writes
 # ==========================================
 def webhook_handler(data, firebase_db):
     print("[DEBUG] webhook_handler started")
@@ -291,11 +285,11 @@ def webhook_handler(data, firebase_db):
     print(f"[DEBUG] Trade classified as: {trade_type}, updated position: {updated_position}")
 
     # --- Load trailing take profit settings ---
-    trigger_points, offset_points = load_trailing_tp_settings(FIREBASE_URL)
+    trigger_points, offset_points = load_trailing_tp_settings()
     entry_timestamp = datetime.utcnow().isoformat() + "Z"
     print(f"[DEBUG] Entry timestamp for trade: {entry_timestamp}")
 
-    # --- Order sent to execute_trade_live ---
+    # --- Order sent to execute_trade_live ---aa
     print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
@@ -341,15 +335,11 @@ def webhook_handler(data, firebase_db):
             "executed_timestamp": datetime.utcnow().isoformat() + "Z"
         }
 
-        # --- Order sent to Firebase ---
-        endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
+        # --- Admin SDK: Push to Firebase ---
         try:
-            log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
-            put = requests.put(endpoint, json=new_trade)
-            if put.status_code == 200:
-                log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
-            else:
-                log_to_file(f"❌ Firebase update failed: {put.text}")
+            ref = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}")
+            ref.set(new_trade)
+            log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
         except Exception as e:
             log_to_file(f"❌ Firebase push error: {e}")
 
@@ -421,7 +411,6 @@ def webhook_handler(data, firebase_db):
         "executed_timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
-    endpoint = f"{FIREBASE_URL}/open_active_trades/{symbol}/{trade_id}.json"
     try:
         log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
         put = requests.put(endpoint, json=new_trade)
