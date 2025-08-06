@@ -30,7 +30,7 @@ def log_closed_trade_to_sheets(trade_data):
 #🟩 Helper to Check if Trade ID is a Known Ghost Trade
 # ====================================================
 
-def is_ghost_trade(trade_id, firebase_db):
+def is_ghostflag_trade(trade_id, firebase_db):
     ghost_ref = firebase_db.reference("/ghost_trades_log")
     ghosts = ghost_ref.get() or {}
     return trade_id in ghosts
@@ -279,7 +279,7 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
 
-            is_ghost_flag = is_ghost_trade(oid, db)
+            is_ghost_flag = is_ghostflag_trade(oid, db)
             if is_ghost_flag:
                 print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
                 continue
@@ -311,8 +311,8 @@ def push_orders_main():
 
             # === DETECT GHOST TRADE ===
            # ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-           # is_ghost = filled == 0 and status in ghost_statuses
-           # if is_ghost:
+           # is = filled == 0 and status in ghost_statuses
+           # if is
            #     print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
             # Map friendly reason
@@ -325,7 +325,7 @@ def push_orders_main():
                 continue  # Skip processing this order
 
             # === BUILD PAYLOAD WITH PATCHED STATUS, TRADE_STATE, TRADE_TYPE ===
-            is_ghost_flag = is_ghost_trade(oid, db)
+            is_ghost_flag = is_ghostflag_trade(oid, db)
             
             payload = {
                 "order_id": oid,
@@ -398,16 +398,10 @@ def push_orders_main():
                 print(f"⏭️ ⛔ Archived trade {order_id} already processed this run; skipping duplicate archive")
                 continue
 
-            # Define this once, at module level (outside loops/functions)
-            def is_ghost_trade(trade_id, db):
-                ghost_ref = db.reference("/ghost_trades_log")
-                ghosts = ghost_ref.get() or {}
-                return trade_id in ghosts
-
             # Later inside your processing function or loop:
-            is_ghost_flag = is_ghost_trade(oid, db)
+            is_ghost_flag = is_ghostflag_trade(oid, db)
             if is_ghost_flag:
-                print(f"Skipping ghost trade {oid} during API push (detected by helper)")
+                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
                 continue
             else:
                 print(f"Order ID {oid} not a ghost, proceeding")
