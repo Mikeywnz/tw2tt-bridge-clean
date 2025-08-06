@@ -11,8 +11,6 @@ from execute_trade_live import place_exit_trade
 
 NZ_TZ = timezone(timedelta(hours=12))
 
-firebase_db = db
-
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
 #=========================
@@ -33,6 +31,7 @@ if not firebase_admin._apps:
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
+firebase_db = db
 
 # === Helper Load live prices from Firebase ===
 def load_live_prices():
@@ -214,19 +213,14 @@ def archive_and_delete_matched_trades(symbol, matched_trades):
 #=============================
 
 def load_open_trades(symbol):
-    firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}.json"
     try:
-        resp = requests.get(firebase_url)
-        resp.raise_for_status()
-        data = resp.json() or {}
+        ref = db.reference(f"/open_active_trades/{symbol}")
+        data = ref.get() or {}
         trades = []
         if isinstance(data, dict):
             for tid, td in data.items():
                 td['trade_id'] = tid
                 trades.append(td)
-        else:
-            trades = []
-
         print(f"🔄 Loaded {len(trades)} open trades from Firebase.")
         return trades
     except Exception as e:
@@ -234,17 +228,17 @@ def load_open_trades(symbol):
         return []
 
 def save_open_trades(symbol, trades):
+    ref = db.reference(f"/open_active_trades/{symbol}")
     try:
         for t in trades:
             trade_id = t.get("trade_id")
             if not trade_id:
                 continue
-            firebase_url = f"https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/open_active_trades/{symbol}/{trade_id}.json"
-            requests.put(firebase_url, json=t).raise_for_status()
+            ref.child(trade_id).set(t)
             print(f"✅ Open Active Trade {trade_id} saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
-
+        
 # ==========================================================
 # 🟩 TRAILING TP AND EXIT PROCESSING WITH place_exit_trade()
 # ==========================================================
