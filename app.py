@@ -257,7 +257,6 @@ def load_trailing_tp_settings_admin(firebase_db):
         offset_points = 5.0
 
     print(f"[DEBUG] Returning trailing TP settings: trigger_points={trigger_points}, offset_points={offset_points}")
-    return trigger_points, offset_pointsngs: trigger_points={trigger_points}, offset_points={offset_points}")
     return trigger_points, offset_points
 
 # =========================================
