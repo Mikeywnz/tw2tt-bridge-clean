@@ -293,6 +293,10 @@ def webhook_handler(data, firebase_db):
     result = place_entry_trade(symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
 
+    if not (isinstance(result, dict) and result.get("status") == "SUCCESS"):
+        log_to_file(f"❌ place_entry_trade failed or returned invalid result: {result}")
+        return {"status": "error", "message": "Trade execution failed", "detail": result}
+
     # --- Order received from execute_trade_live and validated ---
     if isinstance(result, dict) and result.get("status") == "SUCCESS":
 
