@@ -353,7 +353,7 @@ def webhook_handler(data, firebase_db):
         except Exception as e:
             log_to_file(f"❌ Firebase push error: {e}")
 
-    return result
+    return {"status": "success", "message": "Trade processed"}
 
     # ========================= APP.PY - PART 3 (FINAL PART) ================================
 
