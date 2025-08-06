@@ -20,6 +20,21 @@ import os
 # 🟩 GREEN PATCH START: Grace period cache for zero contracts trades
 import time
 
+# ====================================================
+#🟩 Helper to use Log_closed Trades
+# ====================================================
+def log_closed_trade_to_sheets(trade_data):
+    print(f"Logging trade to sheets: {trade_data}")
+
+# ====================================================
+#🟩 Helper to Check if Trade ID is a Known Ghost Trade
+# ====================================================
+
+def is_ghost_trade(trade_id, firebase_db):
+    ghost_ref = firebase_db.reference("/ghost_trades_log")
+    ghosts = ghost_ref.get() or {}
+    return trade_id in ghosts
+
 firebase_db = db
 grace_cache = {}
 # 🟩 GREEN PATCH END
@@ -73,14 +88,7 @@ def get_google_sheet():
     sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
 
-# ====================================================
-#🟩 Helper to Check if Trade ID is a Known Ghost Trade
-# ====================================================
 
-def is_ghost_trade(trade_id, firebase_db):
-    ghost_ref = firebase_db.reference("/ghost_trades_log")
-    ghosts = ghost_ref.get() or {}
-    return trade_id in ghosts
 
 #=============================================
 #Helper to Check if Trade ID is a Known Zombie
