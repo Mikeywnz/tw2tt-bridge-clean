@@ -15,6 +15,7 @@ from firebase_admin import credentials, initialize_app, db
 import firebase_active_contract
 import firebase_admin
 import time  # if not already imported
+import hashlib
 
 processed_exit_order_ids = set()
 
@@ -126,14 +127,8 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
 
     pos_tracker[symbol] = new_net
     return trade_type, new_net
-
+ 
 # ========================= APP.PY - PART 2 ================================  
-import hashlib
-import time
-import json
-import requests
-from datetime import datetime
-
 recent_payloads = {}
 DEDUP_WINDOW = 10  # seconds
 
@@ -143,7 +138,12 @@ async def webhook(request: Request):
     payload_hash = hashlib.sha256(raw_body).hexdigest()
     current_time = time.time()
 
-    data = json.loads(raw_body)
+    # Fix: parse JSON once here only (remove later duplicate parsing)
+    try:
+        data = json.loads(raw_body)
+    except Exception as e:
+        log_to_file(f"Failed to parse JSON: {e}")
+        return {"status": "invalid json", "error": str(e)}
 
     # -----------------------------------
     # SPECIAL FLAGS: Liquidation & Manual
@@ -161,13 +161,6 @@ async def webhook(request: Request):
     for key in list(recent_payloads.keys()):
         if current_time - recent_payloads[key] > DEDUP_WINDOW:
             del recent_payloads[key]
-
-    # Price updates bypass deduplication
-    try:
-        data = await request.json()
-    except Exception as e:
-        log_to_file(f"Failed to parse JSON: {e}")
-        return {"status": "invalid json", "error": str(e)}
 
     if data.get("type") != "price_update":
         if payload_hash in recent_payloads:
@@ -232,49 +225,57 @@ async def webhook(request: Request):
         log_to_file("🟢 [LOG] Received action from webhook: " + action)
         quantity = int(data.get("quantity", 1))
 
-   
-    # =========================================
-    # 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
-    # =========================================
-    result = None
-    if isinstance(result, dict) and result.get("status") == "SUCCESS":
-        def is_valid_trade_id(tid):
-            return isinstance(tid, str) and tid.isdigit()
+        # You must define or import trigger_points, offset_points, entry_timestamp, trade_type above this block
+        # If not defined, set reasonable defaults here:
+        try:
+            trigger_points, offset_points = load_trailing_tp_settings(FIREBASE_URL)
+        except Exception:
+            trigger_points, offset_points = 14.0, 5.0
+        entry_timestamp = datetime.utcnow().isoformat() + "Z"
+        trade_type = None  # Assign if you classify trades here, else set to None
 
-        raw = result.get("order_id")
-        if isinstance(raw, int):
-            trade_id = str(raw)
-        elif isinstance(raw, str):
-            trade_id = raw
-        else:
-            trade_id = None
+        # =========================================
+        # 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
+        # =========================================
+        result = place_entry_trade(symbol, action, quantity, firebase_db)
+        if isinstance(result, dict) and result.get("status") == "SUCCESS":
+            def is_valid_trade_id(tid):
+                return isinstance(tid, str) and tid.isdigit()
 
-        if not trade_id or not is_valid_trade_id(trade_id):
-            log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
-            return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
+            raw = result.get("order_id")
+            if isinstance(raw, int):
+                trade_id = str(raw)
+            elif isinstance(raw, str):
+                trade_id = raw
+            else:
+                trade_id = None
 
-        status = result.get("trade_status", "UNKNOWN")
-        filled_price = result.get("filled_price") or 0.0
+            if not trade_id or not is_valid_trade_id(trade_id):
+                log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
+                return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
 
-        # Compose new trade dict
-        new_trade = {
-            "trade_id": trade_id,
-            "symbol": symbol,
-            "filled_price": filled_price,
-            "action": action,
-            "trade_type": trade_type,
-            "status": status,
-            "contracts_remaining": 1,
-            "trail_trigger": trigger_points,
-            "trail_offset": offset_points,
-            "trail_hit": False,
-            "trail_peak": filled_price,
-            "filled": True,
-            "entry_timestamp": entry_timestamp,
-            "trade_state": "open",
-            "just_executed": True,
-            "executed_timestamp": datetime.utcnow().isoformat() + "Z"
-        }
+            status = result.get("trade_status", "UNKNOWN")
+            filled_price = result.get("filled_price") or 0.0
+
+            # Compose new trade dict
+            new_trade = {
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "filled_price": filled_price,
+                "action": action,
+                "trade_type": trade_type,
+                "status": status,
+                "contracts_remaining": 1,
+                "trail_trigger": trigger_points,
+                "trail_offset": offset_points,
+                "trail_hit": False,
+                "trail_peak": filled_price,
+                "filled": True,
+                "entry_timestamp": entry_timestamp,
+                "trade_state": "open",
+                "just_executed": True,
+                "executed_timestamp": datetime.utcnow().isoformat() + "Z"
+            }
 
 # ============================
 # 🟩 Load Trailing TP Settings
