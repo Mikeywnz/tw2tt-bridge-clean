@@ -90,13 +90,19 @@ def place_entry_trade(symbol, action, quantity, db):
     print(f"[INFO] Entry order placed with order_id: {order_id}")
 
     try:
-
+        max_retries = 5
+        retry_count = 0
         transactions = client.get_transactions(order_id=order_id)
 
-        while(len(transactions) == 0):
+        while len(transactions) == 0 and retry_count < max_retries:
             print(f"[DEBUG] No transactions found for order_id {order_id}, retrying in 2 seconds...")
             time.sleep(2)
             transactions = client.get_transactions(order_id=order_id)
+            retry_count += 1
+
+        if len(transactions) == 0:
+            print(f"[ERROR] Failed to fetch transactions after {max_retries} retries for order_id {order_id}")
+            return {"status": "ERROR", "reason": "No transactions found"}
 
         print(f"New order is {transactions}")
 
@@ -121,15 +127,9 @@ def place_entry_trade(symbol, action, quantity, db):
     except Exception as e:
         print(f"[ERROR] Failed to fetch transaction details for order_id {order_id}: {e}")
         return {
-            "status": "GHOST_TRADE",
-            "order_id": order_id,
-            "trade_type": "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY",
-            "symbol": symbol,
-            "action": action,
-            "quantity": quantity,
-            "filled_price": 0.0,
-            "filled_quantity": quantity,
-            "transaction_time": "",
+            "status": "ERROR",
+            "reason": "Failed to fetch transaction details",
+            "order_id": order_id
         }
 # ======================================================================================
 # 🟩 PLACE EXIT TRADE FUNCTION (Calls execute_exit_trade, fetches full transaction info)
@@ -174,12 +174,19 @@ def place_exit_trade(symbol, action, quantity, db):
 
     # --- Fetch transaction details matching this exit order_id ---
     try:
+        max_retries = 5
+        retry_count = 0
         transactions = client.get_transactions(order_id=order_id)
 
-        while(len(transactions) == 0):
+        while len(transactions) == 0 and retry_count < max_retries:
             print(f"[DEBUG] No transactions found for order_id {order_id}, retrying in 2 seconds...")
             time.sleep(2)
             transactions = client.get_transactions(order_id=order_id)
+            retry_count += 1
+
+        if len(transactions) == 0:
+            print(f"[ERROR] Failed to fetch transactions after {max_retries} retries for order_id {order_id}")
+            return {"status": "ERROR", "reason": "No transactions found"}
 
         print(f"New order is {transactions}")
 
@@ -204,15 +211,9 @@ def place_exit_trade(symbol, action, quantity, db):
     except Exception as e:
         print(f"[ERROR] Failed to fetch transaction details for order_id {order_id}: {e}")
         return {
-            "status": "GHOST_TRADE",
-            "order_id": order_id,
-            "trade_type": "LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY",
-            "symbol": symbol,
-            "action": action,
-            "quantity": quantity,
-            "filled_price": 0.0,
-            "filled_quantity": quantity,
-            "transaction_time": "",
+            "status": "ERROR",
+            "reason": "Failed to fetch transaction details",
+            "order_id": order_id
         }
 
 # ===============================================
