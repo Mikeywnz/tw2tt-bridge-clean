@@ -244,7 +244,9 @@ def save_open_trades(symbol, trades):
 def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points, exit_in_progress):
     updated_trades = []
 
+    print(f"[DEBUG] process_trailing_tp_and_exits() called with {len(active_trades)} active trades")
     for trade in active_trades:
+        print(trade)
         if not trade or not isinstance(trade, dict):
             continue
         if trade.get("status") == "closed":
@@ -373,6 +375,7 @@ def monitor_trades():
             #   print("[DEBUG] Passing zombie trade check, handling zombies")
             #   handle_zombie_and_ghost_trades(db)
 
+    print("DO WE GET TO HERE????")
     # Load trailing TP settings
     trigger_points, offset_points = load_trailing_tp_settings()
 
@@ -397,11 +400,15 @@ def monitor_trades():
         return
     all_trades = load_open_trades(symbol)
 
+    print(f"ALL TRADES TO PROCESS ARE: {all_trades}")
     # Filter active trades
     active_trades = []
     GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
 
     for t in all_trades:
+        print("PRINTOUT OUT TRADE")
+        print(t)
+        print("CLOSING PRINT OUT TRADE")
         tid = t.get('trade_id')
         if not tid:
             print("⚠️ Skipping trade with no trade_id")
@@ -593,6 +600,8 @@ def handle_zombie_and_ghost_trades(firebase_db):
 # ========================================================
 
 def handle_exit_order(symbol, action, quantity):
+    print(f"[DEBUG] executing handle_exit_order() called for symbol={symbol}, action={action}, quantity={quantity}")
+
     open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
     open_trades = open_trades_ref.get() or {}
 

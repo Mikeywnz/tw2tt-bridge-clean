@@ -1,0 +1,50 @@
+[2025-08-06T20:21:31.534377+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:21:32.577798+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:24:08.181092+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:24:08.665547+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:25:13.010984+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:25:14.435444+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:29:25.825980+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:29:26.912192+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:37:11.206419+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:37:13.449605+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:43:24.408870+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:43:26.176817+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:49:47.439175+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:49:47.950718+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:59:27.541629+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:59:28.667555+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T20:59:44.589165+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T20:59:44.749815+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:01:16.102219+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:01:17.157501+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:02:07.819538+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:02:08.874017+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:03:15.086282+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:03:16.137797+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:03:46.149733+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:03:47.184132+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:11:53.576671+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:11:54.761453+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:12:32.100518+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:12:33.748317+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:13:08.186294+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:13:09.903976+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:13:50.884322+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:13:51.040843+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:16:12.192930+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-06T21:16:13.217866+12:00] 🟢 [LOG] Received action from webhook: SELL
+[2025-08-06T21:44:52.596078+12:00] ✅ Firebase open_active_trades updated at key: 40052233295496192
+[2025-08-06T21:45:59.578206+12:00] ✅ Firebase open_active_trades updated at key: 40052242192138240
+[2025-08-06T21:53:31.901958+12:00] ✅ Firebase open_active_trades updated at key: 40052301469583360
+[2025-08-06T22:08:03.926921+12:00] ❌ place_entry_trade failed or returned invalid result: {'status': 'GHOST_TRADE', 'order_id': '40052415998592000', 'trade_type': 'SHORT_ENTRY', 'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1, 'filled_price': 0.0, 'filled_quantity': 1, 'transaction_time': ''}
+[2025-08-06T22:08:03.929187+12:00] ❌ Firebase push error: local variable 'symbol' referenced before assignment
+[2025-08-06T22:10:41.709312+12:00] ✅ Firebase open_active_trades updated at key: 40052436486063104
+[2025-08-06T22:17:43.743485+12:00] ✅ Firebase open_active_trades updated at key: 40052491898323968
+[2025-08-06T22:19:35.515397+12:00] ❌ place_entry_trade failed or returned invalid result: {'status': 'GHOST_TRADE', 'order_id': '40052506650345472', 'trade_type': 'LONG_ENTRY', 'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1, 'filled_price': 0.0, 'filled_quantity': 1, 'transaction_time': ''}
+[2025-08-06T22:19:35.515868+12:00] ❌ Firebase push error: local variable 'symbol' referenced before assignment
+[2025-08-06T22:21:26.696154+12:00] ❌ place_entry_trade failed or returned invalid result: {'status': 'GHOST_TRADE', 'order_id': '40052521224897536', 'trade_type': 'LONG_ENTRY', 'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1, 'filled_price': 0.0, 'filled_quantity': 1, 'transaction_time': ''}
+[2025-08-06T22:21:26.696659+12:00] ❌ Firebase push error: local variable 'symbol' referenced before assignment
+[2025-08-06T22:54:45.198108+12:00] ❌ place_entry_trade failed or returned invalid result: {'status': 'GHOST_TRADE', 'order_id': '40052783178973184', 'trade_type': 'LONG_ENTRY', 'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1, 'filled_price': 0.0, 'filled_quantity': 1, 'transaction_time': ''}
+[2025-08-06T22:54:45.200276+12:00] ❌ Firebase push error: local variable 'symbol' referenced before assignment
+[2025-08-06T22:56:14.014869+12:00] ✅ Firebase open_active_trades updated at key: 40052794344473600
