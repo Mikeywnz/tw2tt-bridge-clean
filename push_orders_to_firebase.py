@@ -123,34 +123,34 @@ def archive_trade(symbol, trade):
 
 
 # === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
-#def safe_float(val):
-#    try:
-#        return float(val)
-#    except:
-#        return 0.0
+def safe_float(val):
+    try:
+        return float(val)
+    except:
+        return 0.0
 
-#def map_source(raw_source):
-#    if raw_source is None:
-#        return "unknown"
-#    lower = raw_source.lower()
-#    if "openapi" in lower:
-#        return "OpGo"
-#    elif "desktop" in lower:
-#        return "Tiger Desktop"
-#    elif "mobile" in lower:
-#        return "tiger-mobile"
-#    return "unknown"
+def map_source(raw_source):
+    if raw_source is None:
+        return "unknown"
+    lower = raw_source.lower()
+    if "openapi" in lower:
+        return "OpGo"
+    elif "desktop" in lower:
+        return "Tiger Desktop"
+    elif "mobile" in lower:
+        return "tiger-mobile"
+    return "unknown"
 
-#def get_exit_reason(status, reason, filled):
-#    if status == "CANCELLED" and filled == 0:
-#        return "CANCELLED"
-#    elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
-#        return "LACK_OF_MARGIN"
-#    elif "liquidation" in reason.lower():
-#        return "liquidation"
-#    elif status == "FILLED":
-#        return "FILLED"
-#    return status
+def get_exit_reason(status, reason, filled):
+    if status == "CANCELLED" and filled == 0:
+        return "CANCELLED"
+    elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
+        return "LACK_OF_MARGIN"
+    elif "liquidation" in reason.lower():
+        return "liquidation"
+    elif status == "FILLED":
+        return "FILLED"
+    return status
 
 #=====  END OF PART 1 =====
 
@@ -400,17 +400,19 @@ def push_orders_main():
                 print(f"Order ID {oid} not a ghost, proceeding")
 
             archived_trade_ids.add(order_id)
-            # 🟩 GREEN PATCH END
+            
+            status = payload.get("status", "").upper()
+            filled = payload.get("filled", 0)
+            order_id = payload.get("order_id", "")
+            trade_state = payload.get("trade_state", "").lower()
+            trade_id = payload.get("order_id", "")
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+
 
             # ==========================
             # 🟩 GREEN PATCH START: Ghost Trade Filtering and Archiving
             # ==========================
 
-           # ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-
-           # status = payload.get("status", "").upper()
-           # filled = payload.get("filled", 0)
-           # order_id = payload.get("order_id", "")
 
            # if filled == 0 and status in ghost_statuses:
             #     print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
@@ -426,9 +428,7 @@ def push_orders_main():
             # 🟩 GREEN PATCH END
             # ==========================
 
-            status = payload.get("status", "").upper()
-            trade_state = payload.get("trade_state", "").lower()
-            trade_id = payload.get("order_id", "")
+            
 
             if status == "CLOSED" or trade_state == "closed":
                 print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
