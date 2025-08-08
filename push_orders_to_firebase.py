@@ -298,6 +298,34 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {oid} not a ghost, proceeding")
 
+                # ===== NEW PATCH START =====
+            is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
+
+            if is_closed:
+                payload = {
+                    "order_id": oid,
+                    "symbol": getattr(order, "symbol", ""),
+                    "is_open": False,
+                    "status": getattr(order, "status", ""),
+                    "filled_price": getattr(order, "filled_price", 0.0),
+                    "filled": getattr(order, "filled", 0),
+                    "reason": getattr(order, "reason", ""),
+                    "timestamp": getattr(order, "timestamp", ""),
+                    "trade_type": getattr(order, "trade_type", ""),
+                    # add any other relevant fields you need
+                }
+
+                log_closed_trade_to_sheets(payload)
+                print(f"✅ Logged closed trade {oid} to Google Sheets")
+
+                archived_ref = db.reference(f"/archived_trades_log/{oid}")
+                archived_ref.set(payload)
+                print(f"🗄️ Archived trade {oid} to /archived_trades_log")
+
+                print(f"⚠️ Skipping closed trade {oid} for open_active_trades push")
+                continue
+            # ===== NEW PATCH END =====
+
             # ===================================End of First filtering=======================================
 
            #=========================== Extract order information for further processing ====================
