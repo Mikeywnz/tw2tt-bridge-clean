@@ -124,6 +124,27 @@ def load_trailing_tp_settings():
 archived_trades_ref = db.reference("/archived_trades_log")
 archived_trade_ids = set(archived_trades_ref.get() or {})
     
+# ====================================================
+# 🟩 Helper: to Sanitize Trade for Firebase
+# ====================================================
+def sanitize_trade_for_firebase(trade):
+    """Convert complex fields to simple JSON-serializable types."""
+    sanitized = {}
+
+    for k, v in trade.items():
+        # Convert problematic fields to string or skip if None
+        if k in ['status', 'contract', 'order_legs', 'algo_params', 'algo_strategy', 'attr_list']:
+            try:
+                sanitized[k] = str(v) if v is not None else None
+            except Exception:
+                sanitized[k] = None
+        else:
+            # Try to assign directly, fallback to string on failure
+            try:
+                sanitized[k] = v
+            except Exception:
+                sanitized[k] = str(v)
+    return sanitized
 
 #===============================================
 # 🟩 Helper: Check if Trade ID is a Known Zombie
@@ -189,7 +210,7 @@ def push_orders_main():
     now = datetime.utcnow()
    
     #====Initialize counters here, BEFORE the order loop: =====
-    filled_count = 0
+    open_trades_count = 0
     cancelled_count = 0
     lack_margin_count = 0
     unknown_count = 0
@@ -315,6 +336,8 @@ def push_orders_main():
                     # add any other relevant fields you need
                 }
 
+                # SANITIZE THE PAYLOAD HERE
+                payload = sanitize_trade_for_firebase(payload)
                 log_closed_trade_to_sheets(payload)
                 print(f"✅ Logged closed trade {oid} to Google Sheets")
 
@@ -357,6 +380,7 @@ def push_orders_main():
                 continue  # Skip processing this order
 
             is_open = getattr(order, 'is_open', False)
+
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
             payload = {
                 "order_id": oid,
@@ -397,6 +421,18 @@ def push_orders_main():
             # Re-check if already logged as ghost
             is_ghost_flag = is_ghostflag_trade(oid, db)
 
+            # Define the validation function (can be outside the loop)
+            def is_valid_trade_id(tid):
+                return isinstance(tid, str) and tid.isdigit()
+
+            # Extract and clean the raw order ID first
+            oid = str(getattr(order, 'id', '')).strip()
+
+            # Validate the raw order ID BEFORE doing anything else with it
+            if not is_valid_trade_id(oid):
+                print(f"❌ Skipping order due to invalid trade_id: {oid}")
+                continue  # Skip this order and move to the next
+
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
             if oid in archived_trade_ids:
                 print(f"⏭️ ⛔ Archived trade {oid} already processed this run; skipping duplicate archive")
@@ -412,19 +448,16 @@ def push_orders_main():
 
             print(f"Order ID {oid} not archived, ghost, or zombie; proceeding")
 
+            if payload.get("is_open", False):
+                open_trades_count += 1
+            elif exit_reason_raw == "CANCELLED":
+                cancelled_count += 1
+            elif exit_reason_raw == "LACK_OF_MARGIN":
+                lack_margin_count += 1
+            else:
+                unknown_count += 1
+
             archived_trade_ids.add(oid)
-
-            # Define the validation function (can be outside the loop)
-            def is_valid_trade_id(tid):
-                return isinstance(tid, str) and tid.isdigit()
-
-            # Extract and clean the raw order ID first
-            oid = str(getattr(order, 'id', '')).strip()
-
-            # Validate the raw order ID BEFORE doing anything else with it
-            if not is_valid_trade_id(oid):
-                print(f"❌ Skipping order due to invalid trade_id: {oid}")
-                continue  # Skip this order and move to the next
 
             # Now assign trade_id safely, knowing it is valid
             trade_id = oid
@@ -478,7 +511,7 @@ def push_orders_main():
             continue
 
     # ============================== Tally Summary wrap up ================================
-    print(f"✅ FILLED: {filled_count}")
+    print(f"✅ Open Trades: {open_trades_count}")
     print(f"❌ CANCELLED: {cancelled_count}")
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
