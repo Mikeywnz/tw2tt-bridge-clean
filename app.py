@@ -18,73 +18,39 @@ import time  # if not already imported
 import hashlib
 
 processed_exit_order_ids = set()
+position_tracker = {}
+app = FastAPI()
+recent_payloads = {}
 
-# Load Firebase secret key
+DEDUP_WINDOW = 10  # seconds
+PRICE_FILE = "live_prices.json"
+TRADE_LOG = "trade_log.json"
+LOG_FILE = "app.log"
+
+#================================
+# 🟩 FIREBASE INITIALIZATION======
+#================================
+
+# === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
-print("Test if this is doing anything useful.")
-# Initialize Firebase Admin SDK
+# === Firebase Initialization ===
 if not firebase_admin._apps:
+    firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
     cred = credentials.Certificate(firebase_key_path)
     initialize_app(cred, {
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-# Firebase database reference
 firebase_db = db
 
-# 🟢 ARCHIVED TRADE CHECK FUNCTION (updated path and logic)
-#def is_archived_trade(trade_id: str, firebase_db) -> bool:
-#    archived_ref = firebase_db.reference("/archived_trades_log")  # updated path
-#    archived_trades = archived_ref.get() or {}
-#    return trade_id in archived_trades
 
-# 🟢 ZOMBIE TRADE CHECK FUNCTION
-#def is_zombie_trade(trade_id: str, firebase_db) -> bool:
-#    zombie_ref = firebase_db.reference("/zombie_trades_log")
-#    zombie_trades = zombie_ref.get() or {}
-#    return trade_id in zombie_trades
+#################### ALL HELPERS FOR THIS SCRIPT ####################
 
-    # 🟢 GHOST TRADE CHECK FUNCTION
-    #def is_ghost_trade(status: str, filled: int) -> bool:
-        #ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-        #return filled == 0 and status in ghost_statuses
-        #ghost_ref = firebase_db.reference(f"/ghost_trades_log/{trade_id}")
-        #ghost_ref.set(trade_data)
-
-    # Archive_trade helper
-#def archive_trade(symbol, trade):
-#    trade_id = trade.get("trade_id")
-#    if not trade_id:
-#        print(f"❌ Cannot archive trade without trade_id")
-#        return False
-#    try:
-#        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")
-#        archive_ref.set(trade)
-#        print(f"✅ Archived trade {trade_id}")
-#        return True
-#    except Exception as e:
-#        print(f"❌ Failed to archive trade {trade_id}: {e}")
-#        return False
-
-# Global net position tracker dict
-position_tracker = {}
-
-app = FastAPI()
-
-PRICE_FILE = "live_prices.json"
-TRADE_LOG = "trade_log.json"
-LOG_FILE = "app.log"
-
-
-def log_to_file(message: str):
-    print(f"Logging: {message}")
-    timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
-    with open(LOG_FILE, "a") as f:
-        f.write(f"[{timestamp}] {message}\n")
-
-    # ✅ GOOGLE SHEETS: Get OPEN Trades Journal Sheet 
+# ==============================================================
+# 🟩 Helper: Google Sheets Setup - Get OPEN Trades Journal Sheet
+# ==============================================================
 def get_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_name("firebase_key.json", scope)
@@ -92,7 +58,43 @@ def get_google_sheet():
     sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
     return sheet
 
-# 🟩 FINAL – IRONCLAD TRADE CLASSIFIER (Handles all cases cleanly)
+# ==============================================================
+# 🟩 Helper: Log to file helper
+# ==============================================================
+def log_to_file(message: str):
+    print(f"Logging: {message}")
+    timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {message}\n")
+
+# ==============================================================
+# 🟩 Helper: Load Trailing TP Settings (Firebase Admin SDK)
+# ==============================================================
+def load_trailing_tp_settings_admin(firebase_db):
+    print("[DEBUG] Starting to load trailing TP settings from Firebase (Admin SDK)")
+    try:
+        ref = firebase_db.reference("/trailing_tp_settings")
+        cfg = ref.get() or {}
+        print(f"[DEBUG] Trailing TP config fetched: {cfg}")
+        if cfg.get("enabled", False):
+            trigger_points = float(cfg.get("trigger_points", 14.0))
+            offset_points = float(cfg.get("offset_points", 5.0))
+            print(f"[DEBUG] Trailing TP enabled with trigger_points={trigger_points}, offset_points={offset_points}")
+        else:
+            trigger_points = 14.0
+            offset_points = 5.0
+            print("[DEBUG] Trailing TP disabled; using default values")
+    except Exception as e:
+        print(f"[WARN] Exception loading trailing TP settings: {e}")
+        trigger_points = 14.0
+        offset_points = 5.0
+
+    print(f"[DEBUG] Returning trailing TP settings: trigger_points={trigger_points}, offset_points={offset_points}")
+    return trigger_points, offset_points
+
+# ==============================================================
+# 🟩 Helper:IRONCLAD TRADE CLASSIFIER (Handles all cases cleanly)
+# ==============================================================
 def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     ttype = None  # Prevent NameError fallback
 
@@ -129,13 +131,9 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     pos_tracker[symbol] = new_net
     return trade_type, new_net
  
-# ========================= APP.PY - PART 2 ================================  
-recent_payloads = {}
-DEDUP_WINDOW = 10  # seconds
-
-# --------------
-# PRICE UPDATER
-# --------------
+# ==============================================================
+# 🟩 Helper: Price updater
+# ==============================================================
 def perform_price_update(data):
         symbol = data.get("symbol")
         symbol = symbol.split("@")[0] if symbol else "UNKNOWN"
@@ -176,84 +174,109 @@ def perform_price_update(data):
             log_to_file(f"❌ Firebase price push failed: {e}")
         return {"status": "price stored"}
 
+#################### END OF ALL HELPERS FOR THIS SCRIPT ####################
+
+# ====================================================================================================
+# ===================================== MAIN FUNCTION ==APP WEBHOOK ===================================
+# ====================================================================================================
+
 @app.post("/webhook")
 async def webhook(request: Request):
     current_time = time.time()
+    #---------------------------------------------------
+    # RECEIVING ORDER FORM TRADING VIEW WEBHOOK
+    # ---------------------------------------------------
     try:
         data = await request.json()
         print("Logging data...")
         print(data)
         print("Finished data")
-
     except Exception as e:
         log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
 
-    # -----------------------
+    # -------------------------------------------------
     # PRICE UPDATE HANDLER
-    # -----------------------
+    # -------------------------------------------------
+    # Handle price update immediately without dedupe
     action_type = data.get("type", "")
     if action_type == "price_update":
         return perform_price_update(data)
     
-    # -----------------------
+    # ---------------------------------------------------
     # TRADE ACTION HANDLER (BUY / SELL)
-    # -----------------------
+    # ---------------------------------------------------
+    # Extract essential trade info safely
+    request_symbol = data.get('symbol')
+    action = data.get('action')
+    quantity = data.get('quantity')
 
-    request_symbol = data['symbol']
-    action = data['action']
-    quantity = data['quantity']
+    if not request_symbol or not action or quantity is None:
+        return {"status": "error", "message": "Missing required fields"}    
     
-    # --- Order sent to execute_trade_live ---
+    # ---------------------------------------------------
+    # DEDUPLICATION LOGIC
+    # ---------------------------------------------------
+
+    # ----------- Deduplication logic start --------------
+    # Compute a hash of the payload for deduplication
+    payload_str = json.dumps(data, sort_keys=True)
+    payload_hash = hashlib.sha256(payload_str.encode('utf-8')).hexdigest()
+
+    # Cleanup old entries from dedupe cache
+    for key in list(recent_payloads.keys()):
+        if current_time - recent_payloads[key] > DEDUP_WINDOW:
+            del recent_payloads[key]
+
+    # Skip if duplicate within window
+    if payload_hash in recent_payloads:
+        print(f"⚠️ Duplicate webhook call detected; ignoring.")
+        return {"status": "duplicate_skipped"}
+
+    # Mark this payload as processed
+    recent_payloads[payload_hash] = current_time
+
+    print(f"[LOG] Webhook received: {data}")
+    log_to_file(f"Webhook received: {data}")
+    # ------------- Deduplication logic end --------------
+
+    # ---------------------------------------------------
+    # TRADE ORDER SENT TO EXECUTE TRADE LIVE
+    # ---------------------------------------------------
+
     print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
 
+    # === Guard clause: abort if trade_id invalid to avoid None bug ===
+    def is_valid_trade_id(tid):
+        return isinstance(tid, str) and tid.isdigit()
+
+    if not is_valid_trade_id(result.get("order_id")):
+        log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
+        return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
+
+    # Explicitly set status here for new trade
+    status = "FILLED"  # You can adjust logic later if needed
+
+    # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
+    trade_type = result.get("trade_type", "").lower()
+    if trade_type == "closed":
+        if action.upper() == "BUY":
+            trade_type = "LONG_ENTRY"
+        else:
+            trade_type = "SHORT_ENTRY"
+
     if not result.get("status") == "SUCCESS":
         log_to_file(f"❌ place_entry_trade failed or returned invalid result: {result}")
-
         try:
-            ref = firebase_db.reference(f"/ghost_trades_log/{symbol}/{result.get('order_id')}")
-            ref.set(new_trade)
+            ref = firebase_db.reference(f"/ghost_trades_log/{request_symbol}/{result.get('order_id')}")
+            ref.set(data)  # Use original data or create new_trade dict if available
             log_to_file(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
         except Exception as e:
             log_to_file(f"❌ Firebase push error: {e}")
-    
         return {"status": "error", "message": "Trade execution failed", "detail": result}
 
-
-    # # Compute payload hash for deduplication
-    # payload_str = json.dumps(data, sort_keys=True)
-    # payload_hash = hashlib.sha256(payload_str.encode('utf-8')).hexdigest()
-
-    # # -----------------------------------
-    # # SPECIAL FLAGS: Liquidation & Manual
-    # # -----------------------------------
-    # if data.get("liquidation", False):
-    #     source = "Liquidation"
-    # elif data.get("manual", False):
-    #     source = "Manual"
-    # else:
-    #     source = "OpGo"
-
-    # # -------------------------------
-    # # CLEANUP & DEDUPLICATION SECTION
-    # # -------------------------------
-    # for key in list(recent_payloads.keys()):
-    #     if current_time - recent_payloads[key] > DEDUP_WINDOW:
-    #         del recent_payloads[key]
-
-    # if data.get("type") != "price_update":
-    #     if payload_hash in recent_payloads:
-    #         print(f"⚠️ Duplicate webhook call detected; ignoring.")
-    #         return {"status": "duplicate_skipped"}
-
-    # recent_payloads[payload_hash] = current_time
-    # log_to_file(f"Webhook received: {data}")
- 
-    # -----------------------------------
-    # TRADE ACTION HANDLER (BUY / SELL)
-    # -----------------------------------
     symbol = firebase_active_contract.get_active_contract()
     if not symbol:
         log_to_file("❌ No active contract symbol found in Firebase; aborting trade action")
@@ -293,126 +316,16 @@ async def webhook(request: Request):
     except Exception as e:
         log_to_file(f"❌ Firebase push error: {e}")
 
-    return {"status": "success", "message": "Trade processed"}
-    
-# ============================
-# 🟩 Load Trailing TP Settings (Firebase Admin SDK)
-# ============================
-def load_trailing_tp_settings_admin(firebase_db):
-    print("[DEBUG] Starting to load trailing TP settings from Firebase (Admin SDK)")
-    try:
-        ref = firebase_db.reference("/trailing_tp_settings")
-        cfg = ref.get() or {}
-        print(f"[DEBUG] Trailing TP config fetched: {cfg}")
-        if cfg.get("enabled", False):
-            trigger_points = float(cfg.get("trigger_points", 14.0))
-            offset_points = float(cfg.get("offset_points", 5.0))
-            print(f"[DEBUG] Trailing TP enabled with trigger_points={trigger_points}, offset_points={offset_points}")
-        else:
-            trigger_points = 14.0
-            offset_points = 5.0
-            print("[DEBUG] Trailing TP disabled; using default values")
-    except Exception as e:
-        print(f"[WARN] Exception loading trailing TP settings: {e}")
-        trigger_points = 14.0
-        offset_points = 5.0
+    # ====================================================================================================
+    # =============================✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL ==========================
+    # ====================================================================================================
+    price = result.get("filled_price", 0.0)
+    trade_id = result.get("order_id")
+    entry_timestamp = result.get("transaction_time", datetime.utcnow().isoformat() + "Z")
+    source = data.get("source", "webhook")
+    symbol_for_log = request_symbol
 
-    print(f"[DEBUG] Returning trailing TP settings: trigger_points={trigger_points}, offset_points={offset_points}")
-    return trigger_points, offset_points
-
-# =========================================
-# 🟩 NEW TRADE CREATION AND FIREBASE UPDATE
-# =========================================
-
-# ==========================================
-# 🟩 Webhook Handler (Entry Trade Processing) - Admin SDK Firebase Writes
-# ==========================================
-def original_webhook_does_nothing_not_called(data, firebase_db):
-    print("[DEBUG] webhook_handler started")
-
-    # --- Order comes in from TradingView ---
-    symbol = firebase_active_contract.get_active_contract()
-    if not symbol:
-        print("❌ No active contract symbol found; aborting")
-        return {"status": "error", "message": "No active contract symbol"}
-
-    action = data.get("action")
-    quantity = int(data.get("quantity", 1))
-    print(f"[DEBUG] Received trade action: {action}, quantity: {quantity}")
-
-    # --- Order classified ---
-    trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
-    print(f"[DEBUG] Trade classified as: {trade_type}, updated position: {updated_position}")
-
-    # --- Load trailing take profit settings ---
-    trigger_points, offset_points = load_trailing_tp_settings()
-    entry_timestamp = datetime.utcnow().isoformat() + "Z"
-    print(f"[DEBUG] Entry timestamp for trade: {entry_timestamp}")
-
-    # # --- Order sent to execute_trade_live ---aa
-    # print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
-    # result = place_entry_trade(symbol, action, quantity, firebase_db)
-    # print(f"[DEBUG] Received result from place_entry_trade: {result}")
-
-    # if not (isinstance(result, dict) and result.get("status") == "SUCCESS"):
-    #     log_to_file(f"❌ place_entry_trade failed or returned invalid result: {result}")
-    #     return {"status": "error", "message": "Trade execution failed", "detail": result}
-
-    # --- Order received from execute_trade_live and validated ---
-    if isinstance(result, dict) and result.get("status") == "SUCCESS":
-
-        def is_valid_trade_id(tid):
-            return isinstance(tid, str) and tid.isdigit()
-
-        raw = result.get("order_id")
-        if isinstance(raw, int):
-            trade_id = str(raw)
-        elif isinstance(raw, str):
-            trade_id = raw
-        else:
-            trade_id = None
-
-        if not trade_id or not is_valid_trade_id(trade_id):
-            log_to_file(f"❌ Invalid trade_id detected: {trade_id}")
-            return {"status": "error", "message": "Invalid trade_id from execute_trade_live"}, 555
-
-        status = result.get("trade_status", "UNKNOWN")
-        filled_price = result.get("filled_price") or 0.0
-
-        # --- Order composed for Firebase ---
-        new_trade = {
-            "trade_id": trade_id,
-            "symbol": symbol,
-            "filled_price": filled_price,
-            "action": action,
-            "trade_type": trade_type,
-            "status": status,
-            "contracts_remaining": 1,
-            "trail_trigger": trigger_points,
-            "trail_offset": offset_points,
-            "trail_hit": False,
-            "trail_peak": filled_price,
-            "filled": True,
-            "entry_timestamp": entry_timestamp,
-            "trade_state": "open",
-            "just_executed": True,
-            "executed_timestamp": datetime.utcnow().isoformat() + "Z"
-        }
-
-        # --- Admin SDK: Push to Firebase ---
-        try:
-            ref = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}")
-            ref.set(new_trade)
-            log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
-        except Exception as e:
-            log_to_file(f"❌ Firebase push error: {e}")
-
-    return {"status": "success", "message": "Trade processed"}
-
-    # ========================= APP.PY - PART 3 (FINAL PART) ================================
-
-    # ✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL
-    trade_type, updated_position = classify_trade(symbol, action, quantity, position_tracker, firebase_db)
+    trade_type, updated_position = classify_trade(symbol_for_log, action, quantity, position_tracker, firebase_db)
     log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
 
     for _ in range(quantity):
@@ -422,7 +335,7 @@ def original_webhook_does_nothing_not_called(data, firebase_db):
 
             sheet.append_row([
                 day_date,           # 1. day_date
-                symbol,             # 2. symbol
+                symbol_for_log,     # 2. symbol
                 action,             # 3. action
                 trade_type,         # 4. Short or Long (new column)
                 price,              # 5. filled_price
@@ -438,73 +351,6 @@ def original_webhook_does_nothing_not_called(data, firebase_db):
         except Exception as e:
             log_to_file(f"❌ Open sheet log failed: {e}")
 
-    # === Guard clause: abort if trade_id invalid to avoid None bug ===
-    def is_valid_trade_id(tid):
-        return isinstance(tid, str) and tid.isdigit()
+    return {"status": "success", "message": "Trade processed"}
 
-    if not is_valid_trade_id(trade_id):
-        log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-        return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
-
-    # Explicitly set status here for new trade
-    status = "FILLED"  # You can adjust logic later if needed
-
-    # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
-    if trade_type.lower() == "closed":
-        if action.upper() == "BUY":
-            trade_type = "LONG_ENTRY"
-        else:
-            trade_type = "SHORT_ENTRY"
-
-    new_trade = {
-        "trade_id": trade_id,
-        "symbol": symbol,
-        "filled_price": filled_price,
-        "action": action,
-        "trade_type": trade_type,
-        "status": status,
-        "contracts_remaining": 1,
-        "trail_trigger": trigger_points,
-        "trail_offset": offset_points,
-        "trail_hit": False,
-        "trail_peak": filled_price,
-        "filled": True,
-        "entry_timestamp": entry_timestamp,
-        "trade_state": "open",
-        "just_executed": True,
-        "executed_timestamp": datetime.utcnow().isoformat() + "Z"
-    }
-
-    try:
-        log_to_file("🟢 [LOG] Pushing trade to Firebase with payload: " + json.dumps(new_trade))
-        put = requests.put(endpoint, json=new_trade)
-        if put.status_code == 200:
-            log_to_file(f"✅ Firebase open_active_trades updated at key: {trade_id}")
-        else:
-            log_to_file(f"❌ Firebase update failed: {put.text}")
-    except Exception as e:
-        log_to_file(f"❌ Firebase push error: {e}")
-
-    try:
-        entry = {
-            "timestamp": entry_timestamp,
-            "trade_id": trade_id,
-            "symbol": symbol,
-            "action": action,
-            "price": price,
-            "quantity": quantity
-        }
-        logs = []
-        if os.path.exists(TRADE_LOG):
-            with open(TRADE_LOG, "r") as f:
-                logs = json.load(f)
-        logs.append(entry)
-        with open(TRADE_LOG, "w") as f:
-            json.dump(logs, f, indent=2)
-        log_to_file("Logged to trade_log.json.")
-    except Exception as e:
-        log_to_file(f"❌ trade_log.json failed: {e}")
-
-    return {"status": "ok"}
-
-    #=====  END OF PART 3 (END OF SCRIPT) =====
+#=================================  (END OF SCRIPT) ======================================================

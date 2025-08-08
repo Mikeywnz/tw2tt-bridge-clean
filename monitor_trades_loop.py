@@ -14,9 +14,9 @@ processed_exit_order_ids = set()
 GRACE_PERIOD_SECONDS = 140
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
-#===================================
-# 🟩 HELPER: FIREBASE INITIALIZATION 
-#===================================
+#================================
+# 🟩 FIREBASE INITIALIZATION======
+#================================
 
 # === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
@@ -577,4 +577,4 @@ if __name__ == '__main__':
             print(f"❌ ERROR in monitor_trades(): {e}")
         time.sleep(10)
 
-    # ========================= MONITOR_TRADES_LOOP - END OF SEGMENT 4 END OF SCRIPT ================================
+    # =========================  END OF SCRIPT ================================

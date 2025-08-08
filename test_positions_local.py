@@ -1,18 +1,22 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.consts import SegmentType
 
-# === Init ===
-#config = TigerOpenClientConfig()
-#client = TradeClient(config)
+def main():
+    config = TigerOpenClientConfig()
+    client = TradeClient(config)
 
-# === Get positions from Tiger ===
-#positions = client.get_positions(
-#    account="21807597867063647",
-#    sec_type=SegmentType.FUT
-)
+    account = "21807597867063647"
+    symbol = "MGC2510"
 
-#print(f"📦 Total positions returned: {len(positions)}\n")
+    try:
+        transactions = client.get_transactions(account=account, symbol=symbol, limit=10)
+        for tx in transactions:
+            print("Transaction:")
+            for key, value in vars(tx).items():
+                print(f"  {key}: {value}")
+            print()
+    except Exception as e:
+        print(f"Error fetching transactions: {e}")
 
-#for pos in positions:
-#    print(vars(pos))
+if __name__ == "__main__":
+    main()

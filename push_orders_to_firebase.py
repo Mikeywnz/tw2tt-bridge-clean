@@ -2,8 +2,6 @@
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType, OrderStatus  # ✅ correct on Render!
-import firebase_admin
-from firebase_admin import credentials, db
 import random
 import string
 from datetime import datetime, timedelta
@@ -17,57 +15,39 @@ import firebase_active_contract
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import os
-# 🟩 GREEN PATCH START: Grace period cache for zero contracts trades
 import time
 
-# ====================================================
-#🟩 Helper to use Log_closed Trades
-# ====================================================
-def log_closed_trade_to_sheets(trade_data):
-    print(f"Logging trade to sheets: {trade_data}")
-
-# ====================================================
-#🟩 Helper to Check if Trade ID is a Known Ghost Trade
-# ====================================================
-
-def is_ghostflag_trade(trade_id, firebase_db):
-    ghost_ref = firebase_db.reference("/ghost_trades_log")
-    ghosts = ghost_ref.get() or {}
-    return trade_id in ghosts
-
-firebase_db = db
 grace_cache = {}
 
-# Load Firebase secret key
+#================================
+# 🟩 FIREBASE INITIALIZATION======
+#================================
+
+# === Firebase Key ===
 firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
 cred = credentials.Certificate(firebase_key_path)
 
-# === Firebase Init ===
+# === Firebase Initialization ===
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app/'
+    firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+    cred = credentials.Certificate(firebase_key_path)
+    initialize_app(cred, {
+        'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-# === Load Trailing Take Profit Settings from Firebase ===
-def load_trailing_tp_settings():
-    try:
-        ref = db.reference('/trailing_tp_settings')
-        cfg = ref.get() or {}
+firebase_db = db
 
-        if cfg.get("enabled", False):
-            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
-    except Exception as e:
-        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
-    return 14.0, 5.0
-
-archived_trades_ref = db.reference("/archived_trades_log")
-archived_trade_ids = set(archived_trades_ref.get() or {})
-    
-# === Setup Tiger API ===
+#================================
+# 🟩 TIGER API SET UP ============
+#================================
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
-# === Google Sheets Setup (Global) ===
+#################### ALL HELPERS FOR THIS SCRIPT ####################
+
+# ====================================================
+# 🟩 Helper: Google Sheets Setup (Global)
+# ====================================================
 from google.oauth2.service_account import Credentials
 import gspread
 
@@ -82,47 +62,12 @@ def get_google_sheet():
     sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
 
-#=============================================
-#Helper to Check if Trade ID is a Known Zombie
-#=============================================
+def log_closed_trade_to_sheets(trade_data):
+    print(f"Logging trade to sheets: {trade_data}")
 
-def is_zombie_trade(trade_id, firebase_db):
-    zombie_ref = firebase_db.reference("/zombie_trades_log")
-    zombies = zombie_ref.get() or {}
-    return trade_id in zombies
-
-#======================================================
-#Helper to Check if Trade ID is a Known Archived Trade
-#======================================================
-
-def is_archived_trade(trade_id, firebase_db):
-    archived_ref = firebase_db.reference("/archived_trades_log")
-    archived_trades = archived_ref.get() or {}
-    return trade_id in archived_trades
-
-#================================
-#Archived_trade() helper function
-#================================
-
-def archive_trade(symbol, trade):
-    trade_id = trade.get("trade_id")
-    if not trade_id:
-        print(f"❌ Cannot archive trade without trade_id")
-        return False
-    try:
-        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")  # <-- changed here
-        # Preserve original trade_type; do NOT overwrite it with "closed"
-        if "trade_type" not in trade or not trade["trade_type"]:
-            trade["trade_type"] = "UNKNOWN"
-        archive_ref.set(trade)
-        print(f"✅ Archived trade {trade_id}")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to archive trade {trade_id}: {e}")
-        return False
-
-
-# === Manual Flatten Block Helper MAY BE OUTDATED AND REDUNDANT NOW ===
+# ===============================================================
+# 🟩 Helper: Safe Float, Map Source, Get exit reason helpers ===
+# ===============================================================
 def safe_float(val):
     try:
         return float(val)
@@ -152,33 +97,102 @@ def get_exit_reason(status, reason, filled):
         return "FILLED"
     return status
 
-#=====  END OF PART 1 =====
-
-#=========================  PUSH_ORDERS_TO_FIREBASE - PART 2  ================================
-
-# === Helper: Safe int cast for sorting entry_timestamps ===
+# =====================================================
+# 🟩 Helper: Safe int cast for sorting entry_timestamps
+# =====================================================
 def safe_int(value):
     try:
         return int(value)
     except:
         return 0
 
-# === MAIN FUNCTION WRAPPED HERE ===
+# ====================================================
+# 🟩 Helper: Load_trailing_tp_settings() From Firebase
+# ====================================================
+def load_trailing_tp_settings():
+    try:
+        ref = db.reference('/trailing_tp_settings')
+        cfg = ref.get() or {}
+
+        if cfg.get("enabled", False):
+            return float(cfg.get("trigger_points", 14.0)), float(cfg.get("offset_points", 5.0))
+    except Exception as e:
+        print(f"⚠️ Failed to fetch trailing TP settings: {e}")
+    return 14.0, 5.0
+
+archived_trades_ref = db.reference("/archived_trades_log")
+archived_trade_ids = set(archived_trades_ref.get() or {})
+    
+
+#===============================================
+# 🟩 Helper: Check if Trade ID is a Known Zombie
+#===============================================
+
+def is_zombie_trade(trade_id, firebase_db):
+    zombie_ref = firebase_db.reference("/zombie_trades_log")
+    zombies = zombie_ref.get() or {}
+    return trade_id in zombies
+
+#======================================================
+# 🟩 Helper: Check if Trade ID is a Known Archived Trade
+#======================================================
+
+def is_archived_trade(trade_id, firebase_db):
+    archived_ref = firebase_db.reference("/archived_trades_log")
+    archived_trades = archived_ref.get() or {}
+    return trade_id in archived_trades
+
+# ====================================================
+#🟩 Helper to Check if Trade ID is a Known Ghost Trade
+# ====================================================
+def is_ghostflag_trade(trade_id, firebase_db):
+    ghost_ref = firebase_db.reference("/ghost_trades_log")
+    ghosts = ghost_ref.get() or {}
+    return trade_id in ghosts
+
+#================================
+#Archived_trade() helper function
+#================================
+
+def archive_trade(symbol, trade):
+    trade_id = trade.get("trade_id")
+    if not trade_id:
+        print(f"❌ Cannot archive trade without trade_id")
+        return False
+    try:
+        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")  # <-- changed here
+        # Preserve original trade_type; do NOT overwrite it with "closed"
+        if "trade_type" not in trade or not trade["trade_type"]:
+            trade["trade_type"] = "UNKNOWN"
+        archive_ref.set(trade)
+        print(f"✅ Archived trade {trade_id}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to archive trade {trade_id}: {e}")
+        return False
+
+#################### END OF ALL HELPERS FOR THIS SCRIPT ####################
+    
+# =======================================================
+# ======MAIN FUNCTION ==PUSH ORDERS TO FIREBASE==========
+# =======================================================
 def push_orders_main():
 
+    #=======Definitions ===========
     tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
-    open_trades_ref = db.reference("open_active_trades")
-    pos_tracker = {}
+    symbol = firebase_active_contract.get_active_contract()
+    open_trades_ref = db.reference(f"open_active_trades/{symbol}")
+    
+    #=====Time function ===
     now = datetime.utcnow()
-    #start_time = now - timedelta(hours=48)
-    #end_time = now
-
-    # Initialize counters here, BEFORE the order loop:
+   
+    #====Initialize counters here, BEFORE the order loop: =====
     filled_count = 0
     cancelled_count = 0
     lack_margin_count = 0
     unknown_count = 0
 
+    # Reason map dictionary to more user friendly names
     REASON_MAP = {
         "trailing_tp_exit": "Trailing Take Profit",
         "manual_close": "Manual Close",
@@ -187,35 +201,36 @@ def push_orders_main():
         "LACK_OF_MARGIN": "Lack of Margin",
         "CANCELLED": "Cancelled",
         "EXPIRED": "Lack of Margin",
-        # Add raw Tiger strings mapped here if needed
     }
 
-   # =================== GREEN PATCH: Use Active Contract Symbol ===================
-
+    # ================== Use Active Contract Symbol For Efficiency ====================
     # Before fetching orders from TigerTrade API, fetch the active contract from Firebase
     active_symbol = firebase_active_contract.get_active_contract()
     if not active_symbol:
         print("❌ No active contract symbol found in Firebase; aborting orders fetch")
-        return  # Or raise Exception or handle error as appropriate
+        return 
 
-    # Then pass active_symbol as a filter parameter to client.get_orders()
+    # Then pass active_symbol as a filter To Tiger Trade through client.get_orders()
     orders = client.get_orders(
         account="21807597867063647",
         seg_type=SegmentType.FUT,
         symbol=active_symbol,  # if you added this from patch
         limit=30
     )
-
     print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
 
-    # ====================== GREEN PATCH START: Push Orders Processing Fixes ======================
-    # 🟩 GREEN PATCH START: Refresh archived trades cache inside main loop
+    #=========================================================================================
+    # ====================== START THE FUNCTION: Push Orders Processing ======================
+    #=========================================================================================
+
+    # 🟩 Refresh archived trades cache inside main loop
     archived_trade_ids = set(archived_trades_ref.get() or {})
 
     tiger_ids = set()
+
     for order in orders:
         try:
-            # === 🧱 Liquidation Firewall & Cleanup ===
+            # =============== 🧱 Liquidation Firewall & Cleanup ===================================
             if getattr(order, "liquidation", False) is True:
                 trade_id = str(getattr(order, "order_id", ""))
                 symbol = getattr(order, "symbol", "")
@@ -254,23 +269,26 @@ def push_orders_main():
                 
                 continue  # Skip pushing to /open_active_trades/
 
+            # ====================== 🧱 Liquidation Firewall & Cleanup END ===================================
+
+            # ===================== Check if order ID is already processed and filter out ====================
             oid = str(getattr(order, 'id', '')).strip()
+            # Skip if order ID is empty or None
             if not oid:
                 print("⚠️ Skipping order with empty or missing ID")
                 continue
-
             print(f"🔍 Processing order ID: {oid}")
-
+            # Skip if Zombie Trade
             if is_zombie_trade(oid, db):
                 print(f"⏭️ ⛔ Skipping zombie trade {oid} during API push")
                 continue
             else:
                 print(f"✅ Order ID {oid} not a zombie, proceeding")
-
+            # Skip if already archived
             if is_archived_trade(oid, db):
                 print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
                 continue
-
+            # Skip if ghost trade
             is_ghost_flag = is_ghostflag_trade(oid, db)
             if is_ghost_flag:
                 print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
@@ -278,16 +296,18 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {oid} not a ghost, proceeding")
 
+            # ===================================End of First filtering=======================================
+
+            #=========================== Extract order information for further processing ====================
             tiger_ids.add(oid)
 
-            # Extract order info
             exit_reason_raw = "UNKNOWN"
             status = str(getattr(order, "status", "")).split('.')[-1].upper()
             reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
             filled = getattr(order, "filled", 0)
             exit_reason_raw = get_exit_reason(status, reason, filled)
 
-            # === Normalize TigerTrade timestamp (raw ms → ISO UTC) ===
+            # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
             raw_ts = getattr(order, 'order_time', 0)
             try:
                 ts_dt = datetime.utcfromtimestamp(raw_ts / 1000.0)
@@ -301,11 +321,18 @@ def push_orders_main():
 
             print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
 
-            # === DETECT GHOST TRADE ===
-           # ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-           # is = filled == 0 and status in ghost_statuses
-           # if is
-           #     print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+            # ========================= DETECT GHOST TRADE ==================================================
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+            is_ghost_flag = filled == 0 and status in ghost_statuses
+            if is_ghost_flag:
+                print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+
+                # Write to ghost_trades_log to archive ghost trade
+                ghost_ref = db.reference("/ghost_trades_log")
+                ghost_ref.child(oid).set(payload)
+                
+                # Skip pushing this trade to open_active_trades
+                continue
 
             # Map friendly reason
             friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
@@ -316,9 +343,37 @@ def push_orders_main():
                 print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
                 continue  # Skip processing this order
 
-            # === BUILD PAYLOAD WITH PATCHED STATUS, TRADE_STATE, TRADE_TYPE ===
+            # Re-check if already logged as ghost
             is_ghost_flag = is_ghostflag_trade(oid, db)
+
+            # ==========================End of Ghost Trade Detection =========================
+
+            # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
+           # Cached skip for archived, ghost, and zombie trades
+            if oid in archived_trade_ids:
+                print(f"⏭️ ⛔ Archived trade {oid} already processed this run; skipping duplicate archive")
+                continue
+
+            if is_ghostflag_trade(oid, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+                continue
+
+            if is_zombie_trade(oid, db):
+                print(f"⏭️ ⛔ Skipping zombie trade {oid} during API push (detected by helper)")
+                continue
+
+            print(f"Order ID {oid} not archived, ghost, or zombie; proceeding")
+
+            archived_trade_ids.add(oid)
             
+            status = payload.get("status", "").upper()
+            filled = payload.get("filled", 0)
+            order_id = payload.get("order_id", "")
+            trade_state = payload.get("trade_state", "").lower()
+            trade_id = payload.get("order_id", "")
+
+            # ========================= BUILD PAYLOAD READY TO PUSH TO FIRBASE ====================================================
+            # Prepare payload for Firebase
             payload = {
                 "order_id": oid,
                 "symbol": symbol,
@@ -339,98 +394,57 @@ def push_orders_main():
                 "trade_type": None  # Will be assigned below
             }
 
-            # === Use trade_type from upstream (app.py) if available ===
+            # Include trade_type from upstream (app.py) if available
             payload["trade_type"] = getattr(order, "trade_type", None) or None
 
-            # ✅ Always push raw Tiger order into tiger_orders_log
-            tiger_orders_ref.child(oid).set(payload)
-
-            # Push to open_active_trades unconditionally
-            trade_id = oid
-
-            # === 🧱 Zombie Firewall: Skip if contracts_remaining missing or 0 === (COULD STOP ALL - SO THIS COULD CAUSE AND ISSUE)
-               # 🟩 GREEN PATCH START: Contracts remaining check with 5-second grace period
-            #now = time.time()
-            #order_id = payload.get("order_id")
-
-            #contracts_remaining = payload.get("contracts_remaining")
-
-            #if contracts_remaining is None or contracts_remaining == 0:
-            #    first_seen = grace_cache.get(order_id, now)
-            #    grace_cache[order_id] = first_seen  # Set if new
-
-            #    if now - first_seen < 5:  # 5 seconds grace period
-            #        print(f"⚠️ Grace period active for order {order_id}, allowing trade to be processed")
-                    # Allow processing — do not skip
-            #    else:
-            #        print(f"⏭️ Grace period expired for order {order_id}, archiving as zombie trade")
-            #        archived_ref = db.reference("/archived_trades_log")
-            #        archived_ref.child(order_id).set(payload)
-            #        continue  # Skip pushing to open trades
-            #else:
-                # Clear cache for trades with contracts > 0
-            #    if order_id in grace_cache:
-            #        del grace_cache[order_id]
-
-                # Normal processing for trades with contracts_remaining > 0
-            # 🟩 GREEN PATCH END
-
-            # VALIDATE trade_id
+            # Define the validation function (can be outside the loop)
             def is_valid_trade_id(tid):
                 return isinstance(tid, str) and tid.isdigit()
 
-            if not is_valid_trade_id(trade_id):
-                print(f"❌ Aborting Firebase push due to invalid trade_id: {trade_id}")
-                continue
+            # Extract and clean the raw order ID first
+            oid = str(getattr(order, 'id', '')).strip()
 
-            # Firebase Admin SDK reference (no URL needed)
+            # Validate the raw order ID BEFORE doing anything else with it
+            if not is_valid_trade_id(oid):
+                print(f"❌ Skipping order due to invalid trade_id: {oid}")
+                continue  # Skip this order and move to the next
+
+            # Now assign trade_id safely, knowing it is valid
+            trade_id = oid
+
+            # Use trade_id safely from here on
             ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')
 
-            # 🟩 GREEN PATCH START: Skip if trade already archived or ghosted this run
-            if order_id in archived_trade_ids:
-                print(f"⏭️ ⛔ Archived trade {order_id} already processed this run; skipping duplicate archive")
-                continue
+            #===========================End of Payload Preparation and sent to firebase ==============================================================
 
-            # Later inside your processing function or loop:
-            is_ghost_flag = is_ghostflag_trade(oid, db)
-            if is_ghost_flag:
-                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
-                continue
-            else:
-                print(f"Order ID {oid} not a ghost, proceeding")
-
-            archived_trade_ids.add(order_id)
-            
-            status = payload.get("status", "").upper()
-            filled = payload.get("filled", 0)
-            order_id = payload.get("order_id", "")
-            trade_state = payload.get("trade_state", "").lower()
-            trade_id = payload.get("order_id", "")
-            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-
-
-            # ==========================
-            # 🟩 GREEN PATCH START: Ghost Trade Filtering and Archiving
-            # ==========================
-
-
-           # if filled == 0 and status in ghost_statuses:
-            #     print(f"🛑 Detected ghost trade {order_id} (status={status}, filled=0), archiving and skipping open trades push")
-            #     print(f"    Full payload: {json.dumps(payload)}")
-
-            #     # Archive ghost trade
-            #     ghost_ref = db.reference("/ghost_trades_log")
-            #     ghost_ref.child(order_id).set(payload)
-            #     # Skip pushing this trade to open_active_trades
-            #     continue
-
-            # ==========================
-            # 🟩 GREEN PATCH END
-            # ==========================
-
-            
+            # ====================== Finalizing main function and Push to Firesbase an trade data for google sheets ======================
 
             if status == "CLOSED" or trade_state == "closed":
+                # Prepare trade data for Google Sheets logging
+                trade_data = {
+                    "order_id": trade_id,
+                    "entry_exit_time": exit_time_str,
+                    "number_of_contracts": getattr(order, 'quantity', 1),
+                    "trade_type": payload.get("trade_type", ""),
+                    "fifo_match": "",  # Fill with actual FIFO match info if available
+                    "entry_price": safe_float(payload.get("filled_price", 0.0)),
+                    "close_price": safe_float(payload.get("filled_price", 0.0)),
+                    "trail_trigger_value": payload.get("trail_trigger", 0),
+                    "trail_offset": payload.get("trail_offset", 0),
+                    "trailing_take_profit": 0,  # Add your calculation later
+                    "trail_offset_amount": 0.0,  # Add your calculation later
+                    "ema_flatten_type": "",  # Fill if applicable
+                    "ema_flatten_triggered": "",  # Fill if applicable
+                    "spread": 0.0,  # Add calculation or pass known value
+                    "net_pnl": 0.0,  # Calculate and fill
+                    "tiger_commissions": 0.0,  # Fill if known
+                    "realised_pnl": 0.0,  # Calculate and fill
+                    "fifo_match_order_id": "",  # Fill if known
+                    "source": map_source(payload.get("source", None)),
+                    "manual_notes": ""
+                }
+                log_closed_trade_to_sheets(trade_data)
+
                 print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
                 continue  # Skip pushing closed trades
 
@@ -441,17 +455,16 @@ def push_orders_main():
                 print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
 
         except Exception as e:
-            print(f"❌ Firebase push failed for {oid}: {e}")
+            print(f"❌ Error processing order {order}: {e}")
+            continue
 
-    # ====================== GREEN PATCH END ======================
-
-    # === Tally Summary ===
+    # ============================== Tally Summary wrap up ================================
     print(f"✅ FILLED: {filled_count}")
     print(f"❌ CANCELLED: {cancelled_count}")
     print(f"🚫 LACK_OF_MARGIN: {lack_margin_count}")
     print(f"🟡 UNKNOWN: {unknown_count}")
 
-    # === Ensure /open_active_trades/ path stays alive, even if no trades written ===
+    # ======= Ensure /open_active_trades/ path stays alive, even if no trades written =====
     try:
         open_active_trades_root = db.reference("/open_active_trades")
         snapshot = open_active_trades_root.get() or {}
@@ -461,42 +474,45 @@ def push_orders_main():
     except Exception as e:
         print(f"❌ Failed to write /open_active_trades/_heartbeat: {e}")
 
-#=====  END OF PART 2 =====
- 
-#=========================  PUSH_ORDERS_TO_FIREBASE - PART 3 (FINAL PART)  ================================
+#=============================================================================================================================================
+#=============================================END OF MAIN PUSH_ORDERS_MAIN_FUNCTION===========================================================
+#=============================================================================================================================================
 
-def log_closed_trade_to_google_sheet(trade):
+#=================================================================================
+#=========================  LOG TO GOOGLE SHEETS  ================================
+#=================================================================================
+
+def log_closed_trade_to_sheets(trade):
     try:
         sheet = get_google_sheet()
         now_nz = datetime.now(timezone("Pacific/Auckland"))
         day_date = now_nz.strftime("%A %d %B %Y")
-        exit_time_str = now_nz.strftime("%Y-%m-%d %H:%M:%S")
-
-        exit_price = 0.0  # Optional placeholder
-        pnl_dollars = 0.0
-        exit_reason = trade.get("exit_reason", "manual_flattened")
-        exit_method = "manual"
-        exit_order_id = trade.get("exit_order_id", "MANUAL")
-
+        
         sheet.append_row([
             day_date,
-            trade.get("symbol", ""),
-            "closed",
-            trade.get("action", ""),
-            trade.get("trade_type", ""),  # preserve trade_type here
-            safe_float(trade.get("filled_price")),
-            exit_price,
-            pnl_dollars,
-            exit_reason,
-            trade.get("entry_timestamp", ""),
-            exit_time_str,
-            trade.get("trail_hit", False),
-            trade.get("trade_id", ""),
-            exit_order_id,
-            exit_method
+            trade.get("entry_exit_time", ""),
+            trade.get("number_of_contracts", 1),
+            trade.get("trade_type", ""),
+            trade.get("fifo_match", "No"),
+            safe_float(trade.get("entry_price", 0.0)),
+            safe_float(trade.get("close_price", 0.0)),
+            trade.get("trail_trigger_value", 0),
+            trade.get("trail_offset", 0),
+            trade.get("trailing_take_profit", 0),
+            safe_float(trade.get("trail_offset_amount", 0.0)),
+            trade.get("ema_flatten_type", ""),
+            trade.get("ema_flatten_triggered", ""),
+            safe_float(trade.get("spread", 0.0)),
+            safe_float(trade.get("net_pnl", 0.0)),
+            safe_float(trade.get("tiger_commissions", 0.0)),
+            safe_float(trade.get("realised_pnl", 0.0)),
+            trade.get("order_id", ""),
+            trade.get("fifo_match_order_id", ""),
+            trade.get("source", ""),
+            trade.get("manual_notes", "")
         ])
-        print(f"✅ Logged closed trade to Google Sheets: {trade.get('trade_id', 'unknown')}")
+        print(f"✅ Logged closed trade {trade.get('order_id', 'unknown')} to Google Sheets")
     except Exception as e:
         print(f"❌ Failed to log trade to Google Sheets: {e}")
 
-#=====  END OF PART 3 (END OF SCRIPT) =====
+#===============================================================(END OF SCRIPT) ======================================================================
