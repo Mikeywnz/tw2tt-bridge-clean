@@ -386,6 +386,7 @@ def push_orders_main():
 
             order_data = order
             trade_id = str(getattr(order, "order_id", "")) 
+            original_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
             entry_timestamp = getattr(order, "transaction_time", None)
             if entry_timestamp is None:
                 entry_timestamp = datetime.utcnow().isoformat() + "Z" 
