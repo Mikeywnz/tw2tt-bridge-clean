@@ -18,6 +18,7 @@ import os
 import time
 
 grace_cache = {}
+_logged_trade_ids = set()
 
 #================================
 # 🟩 FIREBASE INITIALIZATION======
@@ -327,6 +328,7 @@ def push_orders_main():
                 print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
                 continue  # Skip processing this order
 
+            is_open = getattr(order, 'is_open', False)
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
             payload = {
                 "order_id": oid,
@@ -344,7 +346,7 @@ def push_orders_main():
                 "is_ghost": False,  # default, will update below if ghost detected
                 "exit_reason": friendly_reason,
                 # Trade State and Trade Type logic for downstream usage
-                "trade_state": "open" if status == "FILLED" else "closed",
+                "trade_state": "open" if status == "FILLED" and is_open else "closed",
                 "trade_type": getattr(order, "trade_type", None) or None
             }
 
@@ -406,6 +408,7 @@ def push_orders_main():
 
             # ====================== Finalizing main function and Push to Firesbase an trade data for google sheets ======================
 
+            trade_state = "open" if payload.get("is_open", True) else "closed"
             if not payload.get("is_open", True) or trade_state == "closed":
                 # Prepare trade data for Google Sheets logging
                 trade_data = {
@@ -435,11 +438,12 @@ def push_orders_main():
                 print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
                 continue  # Skip pushing closed trades
 
-            put = requests.put(endpoint, json=payload)
-            if put.status_code == 200:
+            ref = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}")
+            try:
+                ref.set(payload)
                 print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
-            else:
-                print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {put.text}")
+            except Exception as e:
+                print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {e}")
 
         except Exception as e:
             print(f"❌ Error processing order {order}: {e}")
@@ -470,6 +474,10 @@ def push_orders_main():
 #=================================================================================
 
 def log_closed_trade_to_sheets(trade):
+    trade_id = trade.get("order_id")
+    if trade_id in _logged_trade_ids:
+        print(f"⏭️ Trade {trade_id} already logged this session; skipping duplicate log.")
+        return
     try:
         sheet = get_google_sheet()
         now_nz = datetime.now(timezone("Pacific/Auckland"))
@@ -493,12 +501,13 @@ def log_closed_trade_to_sheets(trade):
             safe_float(trade.get("net_pnl", 0.0)),
             safe_float(trade.get("tiger_commissions", 0.0)),
             safe_float(trade.get("realised_pnl", 0.0)),
-            trade.get("order_id", ""),
+            trade_id,
             trade.get("fifo_match_order_id", ""),
             trade.get("source", ""),
             trade.get("manual_notes", "")
         ])
-        print(f"✅ Logged closed trade {trade.get('order_id', 'unknown')} to Google Sheets")
+        print(f"✅ Logged closed trade {trade_id} to Google Sheets")
+        _logged_trade_ids.add(trade_id)
     except Exception as e:
         print(f"❌ Failed to log trade to Google Sheets: {e}")
 
