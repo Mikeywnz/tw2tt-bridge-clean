@@ -524,13 +524,14 @@ def push_orders_main():
                 print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
                 continue  # Skip pushing closed trades
 
-            ref = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}")
+            ref = firebase_db.reference(f'/open_active_trades/{symbol}/{trade_id}')
             try:
-                ref.set(payload)
-                print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully updated")
+                existing_trade = ref.get() or {}
+                merged_trade = {**existing_trade, **payload}
+                ref.set(merged_trade)
+                print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully merged and updated")
             except Exception as e:
                 print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {e}")
-
         except Exception as e:
             print(f"❌ Error processing order {order}: {e}")
             continue
