@@ -299,7 +299,7 @@ def push_orders_main():
 
             # ===================================End of First filtering=======================================
 
-            #=========================== Extract order information for further processing ====================
+           #=========================== Extract order information for further processing ====================
             tiger_ids.add(oid)
 
             exit_reason_raw = "UNKNOWN"
@@ -320,7 +320,33 @@ def push_orders_main():
                 exit_time_iso = datetime.utcnow().isoformat() + "Z"
                 exit_reason_raw = "UNKNOWN"
 
-            print(f"ℹ️ Processed order ID: {oid}, status: {status}, reason: {reason}, filled: {filled}")
+            friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
+
+            symbol = firebase_active_contract.get_active_contract()
+            if not symbol:
+                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
+                continue  # Skip processing this order
+
+            # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
+            payload = {
+                "order_id": oid,
+                "symbol": symbol,
+                "action": str(getattr(order, 'action', '')).upper(),
+                "quantity": getattr(order, 'quantity', 0),
+                "filled": filled,
+                "filled_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
+                "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
+                "reason": friendly_reason,
+                "liquidation": getattr(order, 'liquidation', False),
+                "timestamp": exit_time_iso,
+                "source": map_source(getattr(order, 'source', None)),
+                "is_open": getattr(order, 'is_open', False),
+                "is_ghost": False,  # default, will update below if ghost detected
+                "exit_reason": friendly_reason,
+                # Trade State and Trade Type logic for downstream usage
+                "trade_state": "open" if status == "FILLED" else "closed",
+                "trade_type": getattr(order, "trade_type", None) or None
+            }
 
             # ========================= DETECT GHOST TRADE ==================================================
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
@@ -328,37 +354,20 @@ def push_orders_main():
             if is_ghost_flag:
                 print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
+                # Update payload ghost flag
+                payload["is_ghost"] = True
+
                 # Write minimal info to ghost_trades_log to archive ghost trade
                 ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(oid).set({
-                    "order_id": oid,
-                    "symbol": symbol,
-                    "status": status,
-                    "filled": filled,
-                    "reason": friendly_reason,
-                    "timestamp": exit_time_iso,
-                    "is_ghost": True
-                })
+                ghost_ref.child(oid).set(payload)
 
                 # Skip pushing this trade to open_active_trades
                 continue
 
-            # Map friendly reason
-            friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
-
-            # Parse symbol
-            symbol = firebase_active_contract.get_active_contract()
-            if not symbol:
-                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
-                continue  # Skip processing this order
-
             # Re-check if already logged as ghost
             is_ghost_flag = is_ghostflag_trade(oid, db)
 
-            # ==========================End of Ghost Trade Detection =========================
-
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
-           # Cached skip for archived, ghost, and zombie trades
             if oid in archived_trade_ids:
                 print(f"⏭️ ⛔ Archived trade {oid} already processed this run; skipping duplicate archive")
                 continue
@@ -374,37 +383,6 @@ def push_orders_main():
             print(f"Order ID {oid} not archived, ghost, or zombie; proceeding")
 
             archived_trade_ids.add(oid)
-            
-            status = payload.get("status", "").upper()
-            filled = payload.get("filled", 0)
-            order_id = payload.get("order_id", "")
-            trade_state = payload.get("trade_state", "").lower()
-            trade_id = payload.get("order_id", "")
-
-            # ========================= BUILD PAYLOAD READY TO PUSH TO FIRBASE ====================================================
-            # Prepare payload for Firebase
-            payload = {
-                "order_id": oid,
-                "symbol": symbol,
-                "action": str(getattr(order, 'action', '')).upper(),
-                "quantity": getattr(order, 'quantity', 0),
-                "filled": filled,
-                "filled_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
-                "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
-                "reason": friendly_reason,
-                "liquidation": getattr(order, 'liquidation', False),
-                "timestamp": exit_time_iso,
-                "source": map_source(getattr(order, 'source', None)),
-                "is_open": getattr(order, 'is_open', False),
-                "is_ghost": is_ghost_flag,
-                "exit_reason": friendly_reason,
-                # Trade State and Trade Type logic for downstream usage
-                "trade_state": "open" if status == "FILLED" else "closed",
-                "trade_type": None  # Will be assigned below
-            }
-
-            # Include trade_type from upstream (app.py) if available
-            payload["trade_type"] = getattr(order, "trade_type", None) or None
 
             # Define the validation function (can be outside the loop)
             def is_valid_trade_id(tid):
@@ -424,11 +402,11 @@ def push_orders_main():
             # Use trade_id safely from here on
             ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')
 
-            #===========================End of Payload Preparation and sent to firebase ==============================================================
+            #===========================End of Payload Preparation and sent to firebase ==================================================
 
             # ====================== Finalizing main function and Push to Firesbase an trade data for google sheets ======================
 
-            if status == "CLOSED" or trade_state == "closed":
+            if not payload.get("is_open", True) or trade_state == "closed":
                 # Prepare trade data for Google Sheets logging
                 trade_data = {
                     "order_id": trade_id,
