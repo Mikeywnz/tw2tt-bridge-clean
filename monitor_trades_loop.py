@@ -279,6 +279,10 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 print(f"🚨 Trailing TP exit for {trade_id}: price={current_price}, peak={trade['trail_peak']}")
                 print(f"[INFO] Trailing TP EXIT triggered for trade {trade_id}: current price={current_price:.2f}, trail peak={trade['trail_peak']:.2f}, buffer={buffer_amt}")
 
+                if trade.get("exit_in_progress", False):
+                    print(f"⏭️ Exit order already in progress for trade {trade_id}, skipping new exit order.")
+                    continue
+
                 try:
                     result = place_exit_trade(symbol, 'SELL' if trade['action'] == 'BUY' else 'BUY', 1, firebase_db)
                     if result.get("status") == "SUCCESS":
