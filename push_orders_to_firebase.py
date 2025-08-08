@@ -385,6 +385,7 @@ def push_orders_main():
             is_open = getattr(order, 'is_open', False)
 
             order_data = order
+            trade_id = str(getattr(order, "order_id", "")) 
             entry_timestamp = getattr(order, "transaction_time", None)
             if entry_timestamp is None:
                 entry_timestamp = datetime.utcnow().isoformat() + "Z" 
@@ -392,11 +393,12 @@ def push_orders_main():
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
         
             payload = {
-                "order_id": oid,
+                "trade_id": trade_id,
                 "symbol": symbol,
+                "exit_in_progress": False,
                 "filled_price": getattr(order, "filled_price", 0.0),
                 "action": str(getattr(order, 'action', '')).upper(),
-                "trade_type": getattr(order, "trade_type", "") or "",
+                "trade_type": original_trade.get("trade_type", ""),
                 "status": status,
                 "contracts_remaining": getattr(order, "contracts_remaining", 1),
                 "trail_trigger": trigger_points,
