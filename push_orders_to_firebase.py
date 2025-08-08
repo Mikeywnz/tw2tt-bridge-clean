@@ -1,4 +1,5 @@
 #=========================  PUSH_ORDERS_TO_FIREBASE - PART 1  ================================
+from unittest import result
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType, OrderStatus  # ✅ correct on Render!
@@ -355,7 +356,8 @@ def push_orders_main():
             tiger_ids.add(oid)
 
             exit_reason_raw = "UNKNOWN"
-            status = str(getattr(order, "status", "")).split('.')[-1].upper()
+            raw_status = result.get("status", "") or getattr(order, "status", "")
+            status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
             reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
             filled = getattr(order, "filled", 0)
             exit_reason_raw = get_exit_reason(status, reason, filled)
@@ -380,28 +382,36 @@ def push_orders_main():
                 continue  # Skip processing this order
 
             is_open = getattr(order, 'is_open', False)
-
+            
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
+        
             payload = {
                 "order_id": oid,
                 "symbol": symbol,
+                "filled_price": result.get("filled_price", 0.0),
                 "action": str(getattr(order, 'action', '')).upper(),
-                "quantity": getattr(order, 'quantity', 0),
-                "filled": filled,
-                "filled_price": getattr(order, 'avg_fill_price', 0.0),  # Exact filled price
-                "status": status,             # e.g. FILLED, CANCELLED, EXPIRED
+                "trade_type": result.get("trade_type", ""),
+                "status": status, 
+                "contracts_remaining": getattr(order, "contracts_remaining", 1),  
+                "trail_trigger": trigger_points,     # Your trailing trigger value (usually in points)
+                "trail_offset": offset_points,       # Offset/buffer for trailing stop
+                "trail_hit": False,                  # Whether the trailing TP was triggered yet
+                "trail_peak": result.get("filled_price", 0.0),  # Current peak price for trailing TP
+                "filled": filled > 0,  # converts numeric to True/False
+                "entry_timestamp": result.get("transaction_time", datetime.utcnow().isoformat() + "Z"),
+                "timestamp": exit_time_iso,
+                "trade_state": "open" if status == "FILLED" and is_open else "closed",
+                "just_executed": True,
+                "executed_timestamp": datetime.utcnow().isoformat() + "Z",
+                "quantity": getattr(order, 'quantity', 0),              
                 "reason": friendly_reason,
                 "liquidation": getattr(order, 'liquidation', False),
-                "timestamp": exit_time_iso,
                 "source": map_source(getattr(order, 'source', None)),
                 "is_open": getattr(order, 'is_open', False),
                 "is_ghost": False,  # default, will update below if ghost detected
-                "exit_reason": friendly_reason,
-                # Trade State and Trade Type logic for downstream usage
-                "trade_state": "open" if status == "FILLED" and is_open else "closed",
-                "trade_type": getattr(order, "trade_type", None) or None
+                "exit_reason": friendly_reason   
             }
-
+            
             # ========================= DETECT GHOST TRADE ==================================================
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
             is_ghost_flag = filled == 0 and status in ghost_statuses
@@ -465,13 +475,19 @@ def push_orders_main():
             # Use trade_id safely from here on
             ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')
 
-            #===========================End of Payload Preparation and sent to firebase ==================================================
+            # Simple guard: skip closed but filled trades
+            if not payload.get("is_open", True) and payload.get("status", "").upper() == "FILLED":
+                print(f"⚠️ Skipping closed filled trade {payload.get('order_id')} before open check")
+                continue
 
-            # ====================== Finalizing main function and Push to Firesbase an trade data for google sheets ======================
 
             trade_state = "open" if payload.get("is_open", True) else "closed"
             if not payload.get("is_open", True) or trade_state == "closed":
-                # Prepare trade data for Google Sheets logging
+
+             #===========================End of Payload Preparation and sent to firebase ==================================================
+
+            # ====================== Prepare trade data for google sheets ======================    
+                
                 trade_data = {
                     "order_id": trade_id,
                     "entry_exit_time": exit_time_str,

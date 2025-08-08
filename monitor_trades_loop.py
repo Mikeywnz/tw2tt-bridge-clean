@@ -473,7 +473,7 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
-def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=35):
+def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=10):
     # Check freshness and position count
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
