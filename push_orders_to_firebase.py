@@ -1,5 +1,4 @@
 #=========================  PUSH_ORDERS_TO_FIREBASE - PART 1  ================================
-from unittest import result
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType, OrderStatus  # ✅ correct on Render!
@@ -356,11 +355,13 @@ def push_orders_main():
             tiger_ids.add(oid)
 
             exit_reason_raw = "UNKNOWN"
-            raw_status = result.get("status", "") or getattr(order, "status", "")
+            raw_status = getattr(order, "status", "")
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
             reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
             filled = getattr(order, "filled", 0)
             exit_reason_raw = get_exit_reason(status, reason, filled)
+            trigger_points = 0  # or your actual trailing trigger value
+            offset_points = 0   # or your actual trailing offset value
 
             # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
             raw_ts = getattr(order, 'order_time', 0)
@@ -382,34 +383,39 @@ def push_orders_main():
                 continue  # Skip processing this order
 
             is_open = getattr(order, 'is_open', False)
+
+            order_data = order
+            entry_timestamp = getattr(order, "transaction_time", None)
+            if entry_timestamp is None:
+                entry_timestamp = datetime.utcnow().isoformat() + "Z" 
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
         
             payload = {
                 "order_id": oid,
                 "symbol": symbol,
-                "filled_price": result.get("filled_price", 0.0),
+                "filled_price": getattr(order, "filled_price", 0.0),
                 "action": str(getattr(order, 'action', '')).upper(),
-                "trade_type": result.get("trade_type", ""),
-                "status": status, 
-                "contracts_remaining": getattr(order, "contracts_remaining", 1),  
-                "trail_trigger": trigger_points,     # Your trailing trigger value (usually in points)
-                "trail_offset": offset_points,       # Offset/buffer for trailing stop
-                "trail_hit": False,                  # Whether the trailing TP was triggered yet
-                "trail_peak": result.get("filled_price", 0.0),  # Current peak price for trailing TP
-                "filled": filled > 0,  # converts numeric to True/False
-                "entry_timestamp": result.get("transaction_time", datetime.utcnow().isoformat() + "Z"),
+                "trade_type": getattr(order, "trade_type", "") or "",
+                "status": status,
+                "contracts_remaining": getattr(order, "contracts_remaining", 1),
+                "trail_trigger": trigger_points,
+                "trail_offset": offset_points,
+                "trail_hit": False,
+                "trail_peak": getattr(order, "filled_price", 0.0),
+                "filled": bool(filled),
+                "entry_timestamp": entry_timestamp,
                 "timestamp": exit_time_iso,
                 "trade_state": "open" if status == "FILLED" and is_open else "closed",
                 "just_executed": True,
                 "executed_timestamp": datetime.utcnow().isoformat() + "Z",
-                "quantity": getattr(order, 'quantity', 0),              
+                "quantity": getattr(order, 'quantity', 0),
                 "reason": friendly_reason,
                 "liquidation": getattr(order, 'liquidation', False),
                 "source": map_source(getattr(order, 'source', None)),
                 "is_open": getattr(order, 'is_open', False),
-                "is_ghost": False,  # default, will update below if ghost detected
-                "exit_reason": friendly_reason   
+                "is_ghost": False,
+                "exit_reason": friendly_reason,
             }
             
             # ========================= DETECT GHOST TRADE ==================================================
