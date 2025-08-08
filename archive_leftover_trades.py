@@ -12,7 +12,7 @@ if not firebase_admin._apps:
 
 def archive_and_delete_leftover_trades(symbol):
     open_ref = db.reference(f"/open_active_trades/{symbol}")
-    archived_ref = db.reference(f"/archived_trades_log/{symbol}")
+    archived_ref = db.reference("/archived_trades_log")
 
     open_trades = open_ref.get() or {}
     if not open_trades:
