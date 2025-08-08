@@ -182,6 +182,7 @@ def push_orders_main():
     tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
     symbol = firebase_active_contract.get_active_contract()
     open_trades_ref = db.reference(f"open_active_trades/{symbol}")
+    sheet = get_google_sheet()
     
     #=====Time function ===
     now = datetime.utcnow()
@@ -327,10 +328,18 @@ def push_orders_main():
             if is_ghost_flag:
                 print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
 
-                # Write to ghost_trades_log to archive ghost trade
+                # Write minimal info to ghost_trades_log to archive ghost trade
                 ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(oid).set(payload)
-                
+                ghost_ref.child(oid).set({
+                    "order_id": oid,
+                    "symbol": symbol,
+                    "status": status,
+                    "filled": filled,
+                    "reason": friendly_reason,
+                    "timestamp": exit_time_iso,
+                    "is_ghost": True
+                })
+
                 # Skip pushing this trade to open_active_trades
                 continue
 
