@@ -11,7 +11,7 @@ from execute_trade_live import place_exit_trade
 
 NZ_TZ = timezone(timedelta(hours=12))
 processed_exit_order_ids = set()
-GRACE_PERIOD_SECONDS = 140
+last_cleanup_timestamp = None
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
 #================================
@@ -521,7 +521,9 @@ def monitor_trades():
 # ============================================================================
 
 def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
-    # Check freshness and position count
+    global last_cleanup_timestamp  # use the global variable
+
+    # Fetch live total positions data from Firebase
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
 
@@ -552,9 +554,18 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
 
     print(f"[INFO] Zombie cleanup check - position_count: {position_count_val}, data age: {delta_seconds:.1f}s")
 
+    # New grace period logic: skip if cleanup ran recently (prevent reset)
+    if last_cleanup_timestamp is not None:
+        elapsed_since_cleanup = (now_nz - last_cleanup_timestamp).total_seconds()
+        if elapsed_since_cleanup < grace_period_seconds:
+            print(f"[INFO] Zombie cleanup ran {elapsed_since_cleanup:.1f}s ago; skipping")
+            return
+
+    # Original checks
     if position_count_val != 0:
         print("[INFO] Positions open; skipping zombie cleanup.")
         return
+
     if delta_seconds < grace_period_seconds:
         print(f"[INFO] Position count zero but data only {delta_seconds:.1f}s old; skipping zombie cleanup.")
         return
@@ -597,10 +608,11 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
                     print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
                     continue
 
-                # Existing archiving logic if needed here...
-
             except Exception as e:
                 print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
+
+    # Update last_cleanup_timestamp after processing all trades
+    last_cleanup_timestamp = now_nz
 
 if __name__ == '__main__':
     while True:

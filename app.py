@@ -280,17 +280,9 @@ async def webhook(request: Request):
     print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
+    print(f"[DEBUG] Filled price from result: {result.get('filled_price')}")
 
-    # === Guard clause: abort if trade_id invalid to avoid None bug ===
-    def is_valid_trade_id(tid):
-        return isinstance(tid, str) and tid.isdigit()
-
-    if not is_valid_trade_id(result.get("order_id")):
-        log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
-        print(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
-        return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
-    
-    # Build the payload dict with real API values from 'result' and known data
+      # Build the payload dict with real API values from 'result' and known data
     payload = {
         "trade_id": result.get("order_id"),
         "symbol": request_symbol,
@@ -317,6 +309,15 @@ async def webhook(request: Request):
         "exit_reason": "",
     }
     
+
+    # === Guard clause: abort if trade_id invalid to avoid None bug ===
+    def is_valid_trade_id(tid):
+        return isinstance(tid, str) and tid.isdigit()
+
+    if not is_valid_trade_id(result.get("order_id")):
+        log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
+        print(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
+        return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
 
     # Explicitly set status here for new trade
     status = "FILLED"  # You can adjust logic later if needed
@@ -392,6 +393,7 @@ async def webhook(request: Request):
         "exit_reason": payload.get("exit_reason", ""),
     }
      # Merge new_trade with existing trade data (if any)
+    print(f"[DEBUG] New trade payload to push to Firebase: {new_trade}")
     try:
         ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['trade_id']}")
         existing_trade = ref.get() or {}
