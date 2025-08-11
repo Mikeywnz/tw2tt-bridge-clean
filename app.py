@@ -242,6 +242,7 @@ async def webhook(request: Request):
     request_symbol = data.get('symbol')
     action = data.get('action')
     quantity = data.get('quantity')
+    payload = data.copy()  # Make a copy of the incoming data as payload
 
     if not request_symbol or not action or quantity is None:
         return {"status": "error", "message": "Missing required fields"}    
@@ -288,6 +289,34 @@ async def webhook(request: Request):
         log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
         print(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
         return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
+    
+    # Build the payload dict with real API values from 'result' and known data
+    payload = {
+        "trade_id": result.get("order_id"),
+        "symbol": request_symbol,
+        "filled_price": result.get("filled_price", 0.0),
+        "action": action.upper(),
+        "trade_type": result.get("trade_type", ""),
+        "status": result.get("status", "UNKNOWN"),
+        "contracts_remaining": quantity,
+        "trail_trigger": trigger_points,    # loaded trigger points from your config
+        "trail_offset": offset_points,      # loaded offset points from your config
+        "trail_hit": False,
+        "trail_peak": result.get("filled_price", 0.0),
+        "filled": True,
+        "entry_timestamp": result.get("transaction_time", datetime.utcnow().isoformat() + "Z"),
+        "trade_state": "open",
+        "just_executed": True,
+        "executed_timestamp": datetime.utcnow().isoformat() + "Z",
+        "quantity": quantity,
+        "reason": "",  # Optional: Add if available
+        "liquidation": False,
+        "source": map_source("OpGo"),
+        "is_open": True,
+        "is_ghost": False,
+        "exit_reason": "",
+    }
+    
 
     # Explicitly set status here for new trade
     status = "FILLED"  # You can adjust logic later if needed
