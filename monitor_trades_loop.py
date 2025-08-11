@@ -285,23 +285,34 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
                 try:
                     result = place_exit_trade(symbol, 'SELL' if trade['action'] == 'BUY' else 'BUY', 1, firebase_db)
+
                     if result.get("status") == "SUCCESS":
                         print(f"📤 Exit order placed successfully for trade {trade_id}")
 
                         # Update Firebase with exit fill details
                         update_trade_on_exit_fill(firebase_db, symbol, result["order_id"], result["action"], result["quantity"], result.get("filled_price"), result.get("transaction_time"))
 
+                        # Patch: Update trade_type in Firebase for this trade
+                        try:
+                            open_trades_ref.child(trade_id).update({
+                                "trade_type": result.get("trade_type", "")
+                            })
+                            print(f"✅ Updated trade_type to {result.get('trade_type')} for trade {trade_id}")
+                        except Exception as e:
+                            print(f"❌ Failed to update trade_type for trade {trade_id}: {e}")
+
                         exit_in_progress.add(trade_id)
                         trade['exit_in_progress'] = True
-                        open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
                         open_trades_ref.child(trade_id).update({
                             "exit_in_progress": True,
                             "exit_order_id": result["order_id"]
                         })
                     else:
                         print(f"❌ Exit order failed for trade {trade_id}: {result}")
+
+                        print(f"📤 Exit order placed successfully for trade {trade_id}: {result}")
                 except Exception as e:
-                    print(f"❌ Exception placing exit trade for {trade_id}: {e}")
+                    print(f"❌ Exception placing exit trade for trade {trade_id}: {e}")
 
         # Update the trade back in active_trades list (in-place)
         active_trades[i] = trade
@@ -327,6 +338,9 @@ def fifo_match_and_flatten(active_trades, symbol):
     exit_trades = [t for t in active_trades if t.get('exit_in_progress') and not t.get('exited')]
     open_trades = [t for t in active_trades if not t.get('exited') and not t.get('exit_in_progress')]
 
+    # Sort open trades by entry time ascending for FIFO matching
+    open_trades.sort(key=lambda t: t.get('entry_timestamp', t['trade_id']))
+
     print(f"[DEBUG] Found {len(exit_trades)} exit trades and {len(open_trades)} open trades for matching")
 
     for exit_trade in exit_trades:
@@ -337,18 +351,51 @@ def fifo_match_and_flatten(active_trades, symbol):
                 open_trade['trade_state'] = 'closed'
                 open_trade['contracts_remaining'] = 0
 
-                # Update Firebase to reflect trade exit
+                # Calculate PnL here
+                try:
+                    entry_price = open_trade.get("filled_price")
+                    exit_price = exit_trade.get("filled_price")  # or exit_fill_price if set elsewhere
+                    quantity = exit_trade.get("exit_filled_qty", 1)  # fallback to 1
+                    
+                    pnl = 0.0
+                    if entry_price is not None and exit_price is not None:
+                        if open_trade.get('action') == 'BUY':
+                            pnl = (exit_price - entry_price) * quantity
+                        else:  # short
+                            pnl = (entry_price - exit_price) * quantity
+                    else:
+                        print(f"[WARN] Missing prices for PnL calculation between open trade {open_trade.get('trade_id')} and exit trade {exit_trade.get('trade_id')}")
+
+                except Exception as e:
+                    print(f"[ERROR] Exception during PnL calculation: {e}")
+                    pnl = 0.0
+
+                # Set FIFO match info on exit trade
+                exit_trade['fifo_match'] = "YES"
+                exit_trade['fifo_match_order_id'] = open_trade.get('trade_id', '')
+
                 try:
                     open_trades_ref = firebase_db.reference(f"/open_active_trades/{open_trade['symbol']}")
+                    commissions = 7.02  
+                    net_pnl = pnl - commissions
+
+                    # Update Firebase to reflect trade exit and realized PnL on the open trade
                     open_trades_ref.child(open_trade['trade_id']).update({
                         "exited": True,
                         "trade_state": "closed",
-                        "contracts_remaining": 0
+                        "contracts_remaining": 0,
+                        "realized_pnl": pnl,
+                        "tiger_commissions": commissions,
+                        "net_pnl": net_pnl
                     })
-                    print(f"[INFO] FIFO matched exit trade {exit_trade.get('trade_id')} to open trade {open_trade.get('trade_id')} and updated Firebase")
-                    open_trade['exited'] = True
-                    open_trade['trade_state'] = 'closed'
-                    open_trade['contracts_remaining'] = 0
+
+                    # Update Firebase for exit trade with FIFO info
+                    open_trades_ref.child(exit_trade['trade_id']).update({
+                        "fifo_match": "YES",
+                        "fifo_match_order_id": open_trade.get('trade_id', '')
+                    })
+
+                    print(f"[INFO] FIFO matched exit trade {exit_trade.get('trade_id')} to open trade {open_trade.get('trade_id')} with realized PnL {pnl:.2f} and updated Firebase")
                 except Exception as e:
                     print(f"❌ Failed to update Firebase for trade {open_trade.get('trade_id')}: {e}")
 

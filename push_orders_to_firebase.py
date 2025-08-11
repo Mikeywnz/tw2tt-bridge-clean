@@ -6,6 +6,7 @@ import random
 import string
 from datetime import datetime, timedelta
 import gspread
+from google.oauth2.service_account import Credentials
 from oauth2client.service_account import ServiceAccountCredentials
 import csv
 from pytz import timezone
@@ -49,8 +50,6 @@ client = TradeClient(config)
 # ====================================================
 # 🟩 Helper: Google Sheets Setup (Global)
 # ====================================================
-from google.oauth2.service_account import Credentials
-import gspread
 
 GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 GOOGLE_CREDS_FILE = "firebase_key.json"
@@ -85,6 +84,8 @@ def map_source(raw_source):
         return "Tiger Desktop"
     elif "mobile" in lower:
         return "tiger-mobile"
+    elif "liquidation" in lower:
+        return "Tiger Liquidation"
     return "unknown"
 
 def get_exit_reason(status, reason, filled):
@@ -490,32 +491,60 @@ def push_orders_main():
                 continue
 
 
+    #===========================End of Payload Preparation and sent to firebase ==================================================
+
+    # =============================== Prepare trade data for google sheets =======================================================  
+
             trade_state = "open" if payload.get("is_open", True) else "closed"
             if not payload.get("is_open", True) or trade_state == "closed":
+                entry_price = safe_float(payload.get("entry_fill_price", 0.0))
+                trailing_take_profit_points = payload.get("trail_trigger", 0)  # trigger distance in points
+                trail_offset_points = payload.get("trail_offset", 0)          # offset buffer in points
+                direction = 1 if payload.get("action", "").upper() == "BUY" else -1
+                commissions = safe_float(payload.get("tiger_commissions", 7.02))
 
-             #===========================End of Payload Preparation and sent to firebase ==================================================
+                # Calculate actual trailing take profit price level
+                trailing_take_profit_price = entry_price + (trailing_take_profit_points * direction)
 
-            # ====================== Prepare trade data for google sheets ======================    
-                
+                exit_price = safe_float(payload.get("exit_fill_price", 0.0))
+
+                # Calculate spread as actual exit price minus trigger price
+                spread = exit_price - trail_trigger_price
+
+                # trail_offset_amount is just the offset buffer points as float
+                trail_offset_amount = float(trail_offset_points)
+
+#                # Calculate net PnL
+                net_pnl = safe_float(payload.get("realized_pnl", 0.0)) - commissions
+
+                # Determine if this is an exit (flattening) trade
+                is_exit_trade = payload.get("trade_type", "").startswith("FLATTENING") or payload.get("trade_type", "").startswith("EXIT")
+
+                # Conditionally assign PNL fields for Google Sheets logging
+                realized_pnl_value = "Match" if is_exit_trade else safe_float(payload.get("realized_pnl", 0.0))
+                net_pnl_value = "Match" if is_exit_trade else safe_float(payload.get("net_pnl", 0.0))
+
+  
+                    
                 trade_data = {
                     "order_id": trade_id,
                     "entry_exit_time": exit_time_str,
                     "number_of_contracts": getattr(order, 'quantity', 1),
                     "trade_type": payload.get("trade_type", ""),
-                    "fifo_match": "",  # Fill with actual FIFO match info if available
-                    "entry_price": safe_float(payload.get("filled_price", 0.0)),
-                    "close_price": safe_float(payload.get("filled_price", 0.0)),
+                    "fifo_match": payload.get("fifo_match", "NO"),
+                    "entry_price": safe_float(payload.get("entry_fill_price", 0.0)),
+                    "exit_price": safe_float(payload.get("exit_fill_price", 0.0)),
                     "trail_trigger_value": payload.get("trail_trigger", 0),
                     "trail_offset": payload.get("trail_offset", 0),
-                    "trailing_take_profit": 0,  # Add your calculation later
-                    "trail_offset_amount": 0.0,  # Add your calculation later
-                    "ema_flatten_type": "",  # Fill if applicable
-                    "ema_flatten_triggered": "",  # Fill if applicable
-                    "spread": 0.0,  # Add calculation or pass known value
-                    "net_pnl": 0.0,  # Calculate and fill
-                    "tiger_commissions": 0.0,  # Fill if known
-                    "realised_pnl": 0.0,  # Calculate and fill
-                    "fifo_match_order_id": "",  # Fill if known
+                    "trailing_take_profit": trailing_take_profit_price,
+                    "trail_offset_amount": trail_offset_amount,
+                    "ema_flatten_type": "N/A",
+                    "ema_flatten_triggered": "N/A",
+                    "spread": spread,
+                    "realized_pnl": realized_pnl_value,
+                    "tiger_commissions": commissions,
+                    "net_pnl": net_pnl_value,
+                    "fifo_match_order_id": payload.get("fifo_match_order_id", ""),
                     "source": map_source(payload.get("source", None)),
                     "manual_notes": ""
                 }
@@ -528,7 +557,7 @@ def push_orders_main():
             try:
                 existing_trade = ref.get() or {}
                 merged_trade = {**existing_trade, **payload}
-                ref.set(merged_trade)
+                ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
                 print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully merged and updated")
             except Exception as e:
                 print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {e}")
@@ -577,7 +606,7 @@ def log_closed_trade_to_sheets(trade):
             trade.get("trade_type", ""),
             trade.get("fifo_match", "No"),
             safe_float(trade.get("entry_price", 0.0)),
-            safe_float(trade.get("close_price", 0.0)),
+            safe_float(trade.get("exit_price", 0.0)),
             trade.get("trail_trigger_value", 0),
             trade.get("trail_offset", 0),
             trade.get("trailing_take_profit", 0),
@@ -587,7 +616,7 @@ def log_closed_trade_to_sheets(trade):
             safe_float(trade.get("spread", 0.0)),
             safe_float(trade.get("net_pnl", 0.0)),
             safe_float(trade.get("tiger_commissions", 0.0)),
-            safe_float(trade.get("realised_pnl", 0.0)),
+            safe_float(trade.get("realized_pnl", 0.0)),
             trade_id,
             trade.get("fifo_match_order_id", ""),
             trade.get("source", ""),

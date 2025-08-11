@@ -9,6 +9,7 @@ import random
 import string
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from execute_trade_live import place_entry_trade  # ✅ NEW: Import the function directly
 import os
 from firebase_admin import credentials, initialize_app, db
@@ -48,15 +49,46 @@ firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
-# ==============================================================
-# 🟩 Helper: Google Sheets Setup - Get OPEN Trades Journal Sheet
-# ==============================================================
+# ====================================================
+# 🟩 Helper: Google Sheets Setup (Global)
+# ====================================================
+
+GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+GOOGLE_CREDS_FILE = "firebase_key.json"
+SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
+CLOSED_TRADES_FILE = "closed_trades.csv"
+
 def get_google_sheet():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("firebase_key.json", scope)
-    client = gspread.authorize(creds)
-    sheet = client.open("Closed Trades Journal").worksheet("Open Trades Journal")
+    creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
+    gs_client = gspread.authorize(creds)
+    sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
     return sheet
+
+def log_closed_trade_to_sheets(trade_data):
+    print(f"Logging trade to sheets: {trade_data}")
+
+# ===============================================================
+# 🟩 Helper: Safe Float, Map Source, Get exit reason helpers ===
+# ===============================================================
+def safe_float(val):
+    try:
+        return float(val)
+    except:
+        return 0.0
+
+def map_source(raw_source):
+    if raw_source is None:
+        return "unknown"
+    lower = raw_source.lower()
+    if "openapi" in lower:
+        return "OpGo"
+    elif "desktop" in lower:
+        return "Tiger Desktop"
+    elif "mobile" in lower:
+        return "tiger-mobile"
+    elif "liquidation" in lower:
+        return "Tiger Liquidation"
+    return "unknown"
 
 # ==============================================================
 # 🟩 Helper: Log to file helper
@@ -317,40 +349,82 @@ async def webhook(request: Request):
         log_to_file(f"❌ Firebase push error: {e}")
 
     # ====================================================================================================
-    # =============================✅ LOG TO GOOGLE SHEETS — OPEN TRADES JOURNAL ==========================
+    # =============================✅ LOG TO GOOGLE SHEETS — NOW CLOSED TRADES JOURNAL ==========================
     # ====================================================================================================
-    price = result.get("filled_price", 0.0)
+    price = safe_float(result.get("filled_price", 0.0))
     trade_id = result.get("order_id")
     entry_timestamp = result.get("transaction_time", datetime.utcnow().isoformat() + "Z")
     source = data.get("source", "webhook")
     symbol_for_log = request_symbol
 
     trade_type, updated_position = classify_trade(symbol_for_log, action, quantity, position_tracker, firebase_db)
-    log_to_file(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
+    print(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
 
-    for _ in range(quantity):
-        try:
-            day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
-            trail_trigger_price = round(price + trigger_points, 2)
+    # Calculate trailing TP and offset amounts
+    trigger_points = trigger_points if 'trigger_points' in locals() else 14.0  # fallback default
+    offset_points = offset_points if 'offset_points' in locals() else 5.0      # fallback default
+    direction = 1 if action.upper() == "BUY" else -1
+    trailing_take_profit_price = price + (trigger_points * direction)
+    trail_offset_amount = float(offset_points)
 
-            sheet.append_row([
-                day_date,           # 1. day_date
-                symbol_for_log,     # 2. symbol
-                action,             # 3. action
-                trade_type,         # 4. Short or Long (new column)
-                price,              # 5. filled_price
-                trigger_points,     # 6. trail_trigger (pts)
-                offset_points,      # 7. trail_offset (pts)
-                trail_trigger_price,# 8. trigger_price
-                trade_id,           # 9. tiger_order_id
-                entry_timestamp,    # 10. entry_time (UTC)
-                source              # 11. Where did the trade come from?
-            ])
+    trade_data = {
+        "order_id": trade_id,
+        "entry_exit_time": entry_timestamp or "N/A",
+        "number_of_contracts": quantity,
+        "trade_type": trade_type,
+        "fifo_match": "No",                    # Placeholder for FIFO match status
+        "fifo_match_order_id": "N/A",         # Placeholder for FIFO match order id
+        "entry_price": price,
+        "exit_price": "N/A",
+        "trail_trigger_value": trigger_points,
+        "trail_offset": offset_points,
+        "trailing_take_profit": trailing_take_profit_price,
+        "trail_offset_amount": trail_offset_amount,
+        "ema_flatten_type": "N/A",
+        "ema_flatten_triggered": "N/A",
+        "spread": "N/A",
+        "net_pnl": "N/A",
+        "tiger_commissions": "N/A",
+        "realized_pnl": "N/A",
+        "source": map_source(source),
+        "manual_notes": ""
+    }
 
-            log_to_file(f"Logged to Open Trades Sheet: {trade_id}")
-        except Exception as e:
-            log_to_file(f"❌ Open sheet log failed: {e}")
+    try:
+        day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
+
+        sheet.append_row([
+            day_date,                           # 1. day_date
+            symbol_for_log,                    # 2. symbol
+            action,                           # 3. action
+            trade_type,                       # 4. trade_type (Short/Long)
+            safe_float(trade_data.get("entry_price", 0.0)),  # 5. entry_price
+            trade_data.get("trail_trigger_value", 0),       # 6. trail_trigger (pts)
+            trade_data.get("trail_offset", 0),              # 7. trail_offset (pts)
+            trailing_take_profit_price,        # 8. trailing_take_profit price
+            trade_id,                         # 9. tiger_order_id
+            entry_timestamp,                  # 10. entry_time (UTC)
+            map_source(source),               # 11. source
+            trade_data.get("fifo_match", "No"),           # 12. fifo_match (Yes/No)
+            trade_data.get("fifo_match_order_id", "N/A"), # 13. fifo_match_order_id
+            trade_data.get("exit_price", "N/A"),          # 14. exit_price (N/A for open trades)
+            trade_data.get("ema_flatten_type", "N/A"),    # 15. ema_flatten_type
+            trade_data.get("ema_flatten_triggered", "N/A"), # 16. ema_flatten_triggered
+            trade_data.get("spread", "N/A"),               # 17. spread
+            trade_data.get("net_pnl", "N/A"),              # 18. net_pnl
+            trade_data.get("tiger_commissions", "N/A"),   # 19. tiger_commissions
+            trade_data.get("realized_pnl", "N/A"),         # 20. realized_pnl
+            trade_data.get("manual_notes", "")             # 21. manual_notes
+        ])
+
+        # Call your helper to log to Google Sheets (if you want to log full data as well)
+        log_closed_trade_to_sheets(trade_data)
+
+        print(f"✅ Logged to Close Trades Sheet: {trade_id}")
+    except Exception as e:
+        print(f"❌ Close sheet log failed: {e}")
 
     return {"status": "success", "message": "Trade processed"}
 
-#=================================  (END OF SCRIPT) ======================================================
+    # =============================== END OF SCRIPT =======================================================  
+
