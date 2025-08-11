@@ -65,29 +65,28 @@ def test_append_row():
     }
 
     sheet.append_row([
-        day_date,                 # 1. day_date
-        "TEST_SYMBOL",            # 2. symbol
-        "BUY",                   # 3. action
-        "LONG",                  # 4. trade_type (Short/Long)
-        123.45,                  # 5. entry_price
-        10,                      # 6. trail_trigger (pts)
-        5,                       # 7. trail_offset (pts)
-        140.00,                  # 8. trailing_take_profit price
-        "TEST_TRADE_ID",         # 9. tiger_order_id
-        day_date + "T12:00:00Z", # 10. entry_time (UTC)
-        "OpGo",                  # 11. source
-        "No",                    # 12. fifo_match (Yes/No)
-        "N/A",                   # 13. fifo_match_order_id
-        "N/A",                   # 14. exit_price (N/A for open trades)
-        "N/A",                   # 15. ema_flatten_type
-        "N/A",                   # 16. ema_flatten_triggered
-        1.25,                    # 17. spread
-        200.50,                  # 18. net_pnl
-        7.02,                    # 19. tiger_commissions
-        193.48,                  # 20. realized_pnl
-        "No notes"               # 21. manual_notes
-    ])
-    
+        day_date,                      # Day Date
+        entry_timestamp,               # Entry/Exit Time
+        1,                            # Number of Contracts
+        "LONG",                       # Trade Type
+        "No",                         # FIFO Match
+        safe_float(123.45),           # Entry Price
+        "N/A",                        # Exit Price
+        10,                           # Trail Trigger Value
+        5,                            # Trail Offset
+        140.00,                       # Trailing Take Profit Hit
+        safe_float(4.0),              # Trail Offset $ Amount
+        "N/A",                        # EMA Flatten Type
+        "N/A",                        # EMA Flatten Triggered
+        safe_float(1.25),             # Spread
+        safe_float(200.50),           # Net PnL
+        safe_float(7.02),             # Tiger Commissions
+        safe_float(193.48),           # Realized PnL
+        "TEST_TRADE_ID",              # Order ID
+        "N/A",                        # FIFO Match Order ID
+        "OpGo",                      # Source
+        ])
+
     print("✅ Open trade test row appended successfully!")
 
 if __name__ == "__main__":
