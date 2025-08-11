@@ -333,6 +333,8 @@ def push_orders_main():
             order_data = order
             trade_id = str(getattr(order, "order_id", "")) 
             original_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
+            exit_timestamp = datetime.utcnow().isoformat() + "Z"
+            exit_time_iso = datetime.utcnow().isoformat() + "Z"
             entry_timestamp = getattr(order, "transaction_time", None)
             if entry_timestamp is None:
                 entry_timestamp = datetime.utcnow().isoformat() + "Z" 
@@ -354,11 +356,13 @@ def push_orders_main():
                 "trail_peak": getattr(order, "filled_price", 0.0),
                 "filled": bool(filled),
                 "entry_timestamp": entry_timestamp,
-                "timestamp": exit_time_iso,
-                "trade_state": "open" if status == "FILLED" and is_open else "closed",
                 "just_executed": True,
-                "executed_timestamp": datetime.utcnow().isoformat() + "Z",
+                "exit_timestamp": exit_time_iso,
+                "trade_state": "open" if status == "FILLED" and is_open else "closed",         
                 "quantity": getattr(order, 'quantity', 0),
+                "realized_pnl": 0.0,
+                "net_pnl": 0.0,
+                "tiger_commissions": 0.0,
                 "reason": friendly_reason,
                 "liquidation": getattr(order, 'liquidation', False),
                 "source": map_source(getattr(order, 'source', None)),
@@ -366,9 +370,8 @@ def push_orders_main():
                 "is_ghost": False,
                 "exit_reason": friendly_reason,
             }
-            
-
-                 # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
+           
+            # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
             is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
 
             if is_closed:

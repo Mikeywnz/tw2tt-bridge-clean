@@ -420,9 +420,6 @@ def monitor_trades():
         print("❌ No active contract symbol found in Firebase; aborting monitor_trades")
         return
 
-    # Run zombie cleanup if live positions are zero and stale enough
-    run_zombie_cleanup_if_ready(db)
-
     print("DO WE GET TO HERE????")
     # Load trailing TP settings
     trigger_points, offset_points = load_trailing_tp_settings()
@@ -443,6 +440,7 @@ def monitor_trades():
     
     # Load open trades from Firebase
     all_trades = load_open_trades(symbol)
+    run_zombie_cleanup_if_ready(all_trades, firebase_db, grace_period_seconds=20)
 
     print(f"ALL TRADES TO PROCESS ARE: {all_trades}")
     # Filter active trades
@@ -522,82 +520,43 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
-def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
-    global last_cleanup_timestamp
+zombie_first_seen = {}
 
-    live_ref = firebase_db.reference("/live_total_positions")
-    data = live_ref.get() or {}
-
-    position_count = data.get("position_count")
-    last_updated_raw = data.get("last_updated")
-
-    if position_count is None or last_updated_raw is None:
-        print("⚠️ /live_total_positions data missing")
-        return
-
-    try:
-        position_count_val = float(position_count)
-    except Exception:
-        print(f"⚠️ Invalid position_count: {position_count}")
-        return
-
-    # Parse last_updated timestamp, robustly
-    try:
-        if isinstance(last_updated_raw, str):
-            last_updated = datetime.fromisoformat(last_updated_raw.replace("Z", "+00:00"))
-        elif isinstance(last_updated_raw, (int, float)):
-            last_updated = datetime.utcfromtimestamp(last_updated_raw / 1000)
-        else:
-            last_updated = last_updated_raw
-    except Exception as e:
-        print(f"⚠️ Failed parsing last_updated: {e}")
-        return
-
-    now_utc = datetime.utcnow()
-    delta_seconds = (now_utc - last_updated).total_seconds()
-
-    print(f"[INFO] Zombie cleanup check - pos count: {position_count_val}, data age: {delta_seconds:.1f}s")
-
-    # No skipping — run every loop when pos=0 and grace period passed
-    if position_count_val != 0:
-        print("[INFO] Positions open; skipping zombie cleanup.")
-        return
-
-    if delta_seconds < grace_period_seconds:
-        print(f"[INFO] Position count zero but data only {delta_seconds:.1f}s old; skipping zombie cleanup.")
-        return
-
-    print("[INFO] Running zombie cleanup now...")
-
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, grace_period_seconds=20):
+    now = time.time()
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
-    all_open_trades = open_trades_ref.get() or {}
 
-    if not isinstance(all_open_trades, dict):
-        print("⚠️ open_active_trades not dict; skipping")
-        return
+    for trade in trades_list:
+        trade_id = trade.get("trade_id")
+        symbol = trade.get("symbol", "UNKNOWN")
+        contracts_remaining = trade.get("contracts_remaining", 1)
 
-    for symbol, trades_by_id in all_open_trades.items():
-        if not isinstance(trades_by_id, dict):
-            print(f"⚠️ Skipping {symbol}, not dict")
-            continue
-
-        for trade_id, trade in trades_by_id.items():
-            if not isinstance(trade, dict):
+        if contracts_remaining == 0:
+            if trade_id not in zombie_first_seen:
+                zombie_first_seen[trade_id] = now
+                print(f"⏳ Started timer for zero-contract trade {trade_id} on {symbol}")
                 continue
 
-            try:
-                if trade.get('contracts_remaining', 0) <= 0:
-                    print(f"🧟 Archiving zero-contract trade {trade_id} for {symbol} as zombie")
-                    trade['contracts_remaining'] = 0
-                    trade['trade_state'] = 'closed'
-                    trade['is_open'] = False
+            elapsed = now - zombie_first_seen[trade_id]
+            if elapsed >= grace_period_seconds:
+                print(f"🧟 Archiving zero-contract trade {trade_id} on {symbol} as zombie after {elapsed:.1f}s")
+                trade['contracts_remaining'] = 0
+                trade['trade_state'] = 'closed'
+                trade['is_open'] = False
 
+                try:
                     zombie_trades_ref.child(trade_id).set(trade)
                     open_trades_ref.child(symbol).child(trade_id).delete()
                     print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
-            except Exception as e:
-                print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
+                except Exception as e:
+                    print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
+
+                zombie_first_seen.pop(trade_id, None)
+        else:
+            if trade_id in zombie_first_seen:
+                print(f"✅ Trade {trade_id} on {symbol} no longer zero-contract; clearing timer")
+                zombie_first_seen.pop(trade_id)
 
 if __name__ == '__main__':
     while True:

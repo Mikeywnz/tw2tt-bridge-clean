@@ -28,7 +28,11 @@ def extract_trade_timestamp(trade_data):
         val = trade_data.get(field)
         if val:
             try:
-                return datetime.fromisoformat(val.replace("Z", "+00:00"))
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                # Force timezone aware UTC if missing
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
             except Exception as e:
                 print(f"❌ Failed parsing {field}='{val}': {e}")
     return None

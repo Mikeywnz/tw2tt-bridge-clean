@@ -1,5 +1,6 @@
 #=========================  APP.PY - PART 1  ================================
 from unittest import result
+from weakref import ref
 from fastapi import FastAPI, Request
 import json
 from datetime import datetime
@@ -257,7 +258,7 @@ async def webhook(request: Request):
     request_symbol = data.get('symbol')
     action = data.get('action')
     quantity = data.get('quantity')
-    payload = data.copy()  # Make a copy of the incoming data as payload
+    
 
     if not request_symbol or not action or quantity is None:
         return {"status": "error", "message": "Missing required fields"}    
@@ -298,40 +299,8 @@ async def webhook(request: Request):
     print(f"[DEBUG] Filled price from result: {result.get('filled_price')}")
     filled_price = result.get("filled_price", 0.0)
 
-    entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
-    executed_timestamp_raw = datetime.utcnow().isoformat()
 
-    entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
-    executed_timestamp = normalize_to_utc_iso(executed_timestamp_raw)
-
-      # Build the payload dict with real API values from 'result' and known data
-    payload = {
-        "trade_id": result.get("order_id"),
-        "symbol": request_symbol,
-        "filled_price": result.get("filled_price", 0.0),
-        "action": action.upper(),
-        "trade_type": result.get("trade_type", ""),
-        "status": result.get("status", "UNKNOWN"),
-        "contracts_remaining": quantity,
-        "trail_trigger": trigger_points,    # loaded trigger points from your config
-        "trail_offset": offset_points,      # loaded offset points from your config
-        "trail_hit": False,
-        "trail_peak": result.get("filled_price", 0.0),
-        "filled": True,
-        "entry_timestamp": entry_timestamp,
-        "timestamp": exit_time_iso,
-        "trade_state": "open",
-        "just_executed": True,
-        "executed_timestamp": executed_timestamp,
-        "quantity": quantity,
-        "reason": "",  # Optional: Add if available
-        "liquidation": False,
-        "source": map_source("OpGo"),
-        "is_open": True,
-        "is_ghost": False,
-        "exit_reason": "",
-    }
-    
+    # Build the payload dict with real API values from 'result' and known data
 
     # === Guard clause: abort if trade_id invalid to avoid None bug ===
     def is_valid_trade_id(tid):
@@ -385,21 +354,18 @@ async def webhook(request: Request):
     # Action string from your trade context
     action = payload.get("action", "BUY").upper()
     entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
-    executed_timestamp_raw = datetime.utcnow().isoformat()
-
     entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
-    executed_timestamp = normalize_to_utc_iso(executed_timestamp_raw)
-
-    exit_time_iso = datetime.utcnow().isoformat() + "Z"
+    exit_timestamp = datetime.utcnow().isoformat() + "Z"  #
 
     # Build new_trade dict merging existing payload to preserve info
     new_trade = {
         "trade_id": result.get("order_id"),
         "symbol": symbol,
+        "exit_in_progress": False,
         "filled_price": result.get("filled_price", 0.0),
         "action": action,
-        "trade_type": result.get("trade_type", payload.get("trade_type", "")),
-        "status": "FILLED" if result.get("status", "UNKNOWN") == "SUCCESS" else "UNFILLED",
+        "trade_type": result.get("trade_type", ""),
+        "status": status,
         "contracts_remaining": payload.get("contracts_remaining", 1),
         "trail_trigger": trigger_points,
         "trail_offset": offset_points,
@@ -407,14 +373,13 @@ async def webhook(request: Request):
         "trail_peak": payload.get("trail_peak", result.get("filled_price", 0.0)),
         "filled": payload.get("filled", True),
         "entry_timestamp": entry_timestamp,
-        "timestamp": exit_time_iso,
-        "trade_state": payload.get("trade_state", "open"),
         "just_executed": True,
-        "realized_pnl": payload.get("realized_pnl", 0.0),
-        "net_pnl": payload.get("net_pnl", 0.0),
-        "tiger_commissions": payload.get("tiger_commissions", 0.0),
-        "executed_timestamp": executed_timestamp,
+        "exit_timestamp": exit_timestamp,
+        "trade_state": payload.get("trade_state", "open"),
         "quantity": payload.get("quantity", 1),
+        "realized_pnl": 0.0,
+        "net_pnl": 0.0,
+        "tiger_commissions": 0.0,
         "reason": payload.get("reason", ""),
         "liquidation": payload.get("liquidation", False),
         "source": map_source(payload.get("source", None)),
@@ -422,13 +387,11 @@ async def webhook(request: Request):
         "is_ghost": payload.get("is_ghost", False),
         "exit_reason": payload.get("exit_reason", ""),
     }
-     # Merge new_trade with existing trade data (if any)
+
     print(f"[DEBUG] New trade payload to push to Firebase: {new_trade}")
     try:
         ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['trade_id']}")
-        existing_trade = ref.get() or {}
-        merged_trade = {**existing_trade, **new_trade}  # Merge to preserve prior data
-        ref.update(merged_trade)
+        ref.set(new_trade)  # Use set() here for new trade creation to fully overwrite old data
         print(f"✅ Firebase open_active_trades updated at key: {new_trade['trade_id']}")
     except Exception as e:
         print(f"❌ Firebase push error: {e}")
