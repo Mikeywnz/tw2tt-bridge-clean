@@ -226,6 +226,11 @@ async def webhook(request: Request):
     except Exception as e:
         log_to_file(f"Failed to parse JSON: {e}")
         return {"status": "invalid json", "error": str(e)}
+    
+    try:
+        trigger_points, offset_points = load_trailing_tp_settings_admin(firebase_db)
+    except Exception:
+        trigger_points, offset_points = 14.0, 5.0  # fallback defaults
 
     # -------------------------------------------------
     # PRICE UPDATE HANDLER
