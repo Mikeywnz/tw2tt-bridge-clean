@@ -8,11 +8,11 @@ import subprocess
 import firebase_active_contract
 import os
 from execute_trade_live import place_exit_trade
+from pytz import timezone
 
 NZ_TZ = timezone(timedelta(hours=12))
 processed_exit_order_ids = set()
-last_cleanup_timestamp = None
-first_zero_position_time = None  
+
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
 #================================
@@ -522,9 +522,11 @@ def monitor_trades():
 # ============================================================================
 
 
-def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
-    global first_zero_position_time
+from datetime import datetime, timedelta
+from pytz import timezone
 
+def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
+    # Fetch live total positions data from Firebase
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
 
@@ -556,23 +558,14 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
     print(f"[INFO] Zombie cleanup check - position_count: {position_count_val}, data age: {delta_seconds:.1f}s")
 
     if position_count_val != 0:
-        # Reset timer if positions open
-        first_zero_position_time = None
-        print("[INFO] Positions open; skipping zombie cleanup and resetting timer.")
+        print("[INFO] Positions open; skipping zombie cleanup.")
         return
 
-    # Position count is zero here:
-    if first_zero_position_time is None:
-        first_zero_position_time = now_nz
-        print(f"[INFO] First zero position detected at {first_zero_position_time}")
+    if delta_seconds < grace_period_seconds:
+        print(f"[INFO] Position count zero but data only {delta_seconds:.1f}s old; skipping zombie cleanup.")
         return
 
-    time_since_zero = (now_nz - first_zero_position_time).total_seconds()
-    if time_since_zero < grace_period_seconds:
-        print(f"[INFO] Zero position duration {time_since_zero:.1f}s less than grace period {grace_period_seconds}s; skipping cleanup.")
-        return
-
-    print("[INFO] Position count zero and grace period passed; running zombie cleanup...")
+    print("[INFO] Position count zero and data stale enough; running zombie cleanup...")
 
     # Proceed to archive & delete
     open_trades_ref = firebase_db.reference("/open_active_trades")
@@ -593,28 +586,26 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
                 continue
 
             try:
-                # If trade has zero contracts remaining, mark closed and archive as zombie
                 if trade.get('contracts_remaining', 0) <= 0:
                     print(f"🧟 Archiving zero-contract trade {trade_id} for symbol {symbol} as zombie")
-
-                    # Mark trade as closed before archiving
                     trade['contracts_remaining'] = 0
                     trade['trade_state'] = 'closed'
                     trade['is_open'] = False
-
-                    # Archive to zombie log
                     zombie_trades_ref.child(trade_id).set(trade)
-
-                    # Delete from active trades
                     open_trades_ref.child(symbol).child(trade_id).delete()
                     print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
                     continue
 
+                # If contracts remain > 0, also archive and delete as zombie since position count is zero
+                print(f"🧟 Archiving trade {trade_id} for symbol {symbol} as zombie (position count zero)")
+                trade['trade_state'] = 'closed'
+                trade['is_open'] = False
+                zombie_trades_ref.child(trade_id).set(trade)
+                open_trades_ref.child(symbol).child(trade_id).delete()
+                print(f"🗑️ Deleted trade {trade_id} from open_active_trades")
+
             except Exception as e:
                 print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
-
-    # Update last_cleanup_timestamp after processing all trades
-    last_cleanup_timestamp = now_nz
 
 if __name__ == '__main__':
     while True:
