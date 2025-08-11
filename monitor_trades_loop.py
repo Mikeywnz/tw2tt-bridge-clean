@@ -12,6 +12,7 @@ from execute_trade_live import place_exit_trade
 NZ_TZ = timezone(timedelta(hours=12))
 processed_exit_order_ids = set()
 last_cleanup_timestamp = None
+first_zero_position_time = None  
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
 #================================
@@ -520,10 +521,10 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
-def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
-    global last_cleanup_timestamp  # use the global variable
 
-    # Fetch live total positions data from Firebase
+def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
+    global first_zero_position_time
+
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
 
@@ -554,23 +555,24 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
 
     print(f"[INFO] Zombie cleanup check - position_count: {position_count_val}, data age: {delta_seconds:.1f}s")
 
-    # New grace period logic: skip if cleanup ran recently (prevent reset)
-    if last_cleanup_timestamp is not None:
-        elapsed_since_cleanup = (now_nz - last_cleanup_timestamp).total_seconds()
-        if elapsed_since_cleanup < grace_period_seconds:
-            print(f"[INFO] Zombie cleanup ran {elapsed_since_cleanup:.1f}s ago; skipping")
-            return
-
-    # Original checks
     if position_count_val != 0:
-        print("[INFO] Positions open; skipping zombie cleanup.")
+        # Reset timer if positions open
+        first_zero_position_time = None
+        print("[INFO] Positions open; skipping zombie cleanup and resetting timer.")
         return
 
-    if delta_seconds < grace_period_seconds:
-        print(f"[INFO] Position count zero but data only {delta_seconds:.1f}s old; skipping zombie cleanup.")
+    # Position count is zero here:
+    if first_zero_position_time is None:
+        first_zero_position_time = now_nz
+        print(f"[INFO] First zero position detected at {first_zero_position_time}")
         return
 
-    print("[INFO] Position count zero and data stale enough; running zombie cleanup...")
+    time_since_zero = (now_nz - first_zero_position_time).total_seconds()
+    if time_since_zero < grace_period_seconds:
+        print(f"[INFO] Zero position duration {time_since_zero:.1f}s less than grace period {grace_period_seconds}s; skipping cleanup.")
+        return
+
+    print("[INFO] Position count zero and grace period passed; running zombie cleanup...")
 
     # Proceed to archive & delete
     open_trades_ref = firebase_db.reference("/open_active_trades")
