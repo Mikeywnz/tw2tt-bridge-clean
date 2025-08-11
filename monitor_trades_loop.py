@@ -10,7 +10,7 @@ import os
 from execute_trade_live import place_exit_trade
 from pytz import timezone
 
-NZ_TZ = timezone(timedelta(hours=12))
+NZ_TZ = timezone("Pacific/Auckland")
 processed_exit_order_ids = set()
 
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
