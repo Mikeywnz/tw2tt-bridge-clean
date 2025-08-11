@@ -295,21 +295,6 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {oid} not a ghost, proceeding")
 
-            # ===== REPLACEMENT PATCH START FOR REMOVING NO MANS LAND TRADES =====
-            is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
-
-            if is_closed:
-                log_payload_as_closed_trade(payload)  # Log the existing payload data (trade data for sheets)
-                print(f"✅ Logged closed trade {oid} from payload")
-
-                archived_ref = db.reference(f"/archived_trades_log/{oid}")
-                archived_ref.set(payload)
-                print(f"🗄️ Archived trade {oid} to /archived_trades_log")
-
-                print(f"⚠️ Skipping closed trade {oid} for open_active_trades push")
-                continue
-            # ===== NEW PATCH END =====
-
             # ===================================End of First filtering=======================================
 
            #=========================== Extract order information for further processing ====================
@@ -382,6 +367,21 @@ def push_orders_main():
                 "exit_reason": friendly_reason,
             }
             
+
+                 # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
+            is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
+
+            if is_closed:
+                log_payload_as_closed_trade(payload)  # Log the existing payload data (trade data for sheets)
+                print(f"✅ Logged closed trade {oid} from payload")
+
+                archived_ref = db.reference(f"/archived_trades_log/{oid}")
+                archived_ref.set(payload)
+                print(f"🗄️ Archived trade {oid} to /archived_trades_log")
+
+                print(f"⚠️ Skipping closed trade {oid} for open_active_trades push")
+                continue
+            # ===== NEW PATCH END =====
             # ========================= DETECT GHOST TRADE ==================================================
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
             is_ghost_flag = filled == 0 and status in ghost_statuses
