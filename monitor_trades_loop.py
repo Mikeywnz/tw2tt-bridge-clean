@@ -520,7 +520,7 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
-def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=40):
+def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
     # Check freshness and position count
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
@@ -580,19 +580,24 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=40):
                 continue
 
             try:
-                # If trade has zero contracts remaining, archive as zombie and delete immediately
+                # If trade has zero contracts remaining, mark closed and archive as zombie
                 if trade.get('contracts_remaining', 0) <= 0:
                     print(f"🧟 Archiving zero-contract trade {trade_id} for symbol {symbol} as zombie")
+
+                    # Mark trade as closed before archiving
+                    trade['contracts_remaining'] = 0
+                    trade['trade_state'] = 'closed'
+                    trade['is_open'] = False
+
+                    # Archive to zombie log
                     zombie_trades_ref.child(trade_id).set(trade)
+
+                    # Delete from active trades
                     open_trades_ref.child(symbol).child(trade_id).delete()
                     print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
                     continue
 
-                # Regular archiving and deleting (if needed)
-                print(f"🧟 Archiving trade {trade_id} for symbol {symbol} as zombie")
-                zombie_trades_ref.child(trade_id).set(trade)
-                open_trades_ref.child(symbol).child(trade_id).delete()
-                print(f"🗑️ Deleted trade {trade_id} from open_active_trades")
+                # Existing archiving logic if needed here...
 
             except Exception as e:
                 print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
