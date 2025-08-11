@@ -1,4 +1,5 @@
 #=========================  APP.PY - PART 1  ================================
+from unittest import result
 from fastapi import FastAPI, Request
 import json
 from datetime import datetime
@@ -17,6 +18,15 @@ import firebase_active_contract
 import firebase_admin
 import time  # if not already imported
 import hashlib
+from datetime import datetime, timezone
+
+def normalize_to_utc_iso(timestr):
+    try:
+        dt = datetime.fromisoformat(timestr)
+    except Exception:
+        dt = datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S")
+    dt_utc = dt.replace(tzinfo=timezone.utc)
+    return dt_utc.isoformat().replace('+00:00', 'Z')
 
 processed_exit_order_ids = set()
 position_tracker = {}
@@ -286,6 +296,13 @@ async def webhook(request: Request):
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
     print(f"[DEBUG] Filled price from result: {result.get('filled_price')}")
+    filled_price = result.get("filled_price", 0.0)
+
+    entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
+    executed_timestamp_raw = datetime.utcnow().isoformat()
+
+    entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
+    executed_timestamp = normalize_to_utc_iso(executed_timestamp_raw)
 
       # Build the payload dict with real API values from 'result' and known data
     payload = {
@@ -301,10 +318,11 @@ async def webhook(request: Request):
         "trail_hit": False,
         "trail_peak": result.get("filled_price", 0.0),
         "filled": True,
-        "entry_timestamp": result.get("transaction_time", datetime.utcnow().isoformat() + "Z"),
+        "entry_timestamp": entry_timestamp,
+        "timestamp": exit_time_iso,
         "trade_state": "open",
         "just_executed": True,
-        "executed_timestamp": datetime.utcnow().isoformat() + "Z",
+        "executed_timestamp": executed_timestamp,
         "quantity": quantity,
         "reason": "",  # Optional: Add if available
         "liquidation": False,
@@ -366,6 +384,13 @@ async def webhook(request: Request):
 
     # Action string from your trade context
     action = payload.get("action", "BUY").upper()
+    entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
+    executed_timestamp_raw = datetime.utcnow().isoformat()
+
+    entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
+    executed_timestamp = normalize_to_utc_iso(executed_timestamp_raw)
+
+    exit_time_iso = datetime.utcnow().isoformat() + "Z"
 
     # Build new_trade dict merging existing payload to preserve info
     new_trade = {
@@ -381,14 +406,14 @@ async def webhook(request: Request):
         "trail_hit": payload.get("trail_hit", False),
         "trail_peak": payload.get("trail_peak", result.get("filled_price", 0.0)),
         "filled": payload.get("filled", True),
-        "entry_timestamp": result.get("transaction_time", datetime.utcnow().isoformat() + "Z"),
+        "entry_timestamp": entry_timestamp,
         "timestamp": exit_time_iso,
         "trade_state": payload.get("trade_state", "open"),
         "just_executed": True,
         "realized_pnl": payload.get("realized_pnl", 0.0),
         "net_pnl": payload.get("net_pnl", 0.0),
         "tiger_commissions": payload.get("tiger_commissions", 0.0),
-        "executed_timestamp": datetime.utcnow().isoformat() + "Z",
+        "executed_timestamp": executed_timestamp,
         "quantity": payload.get("quantity", 1),
         "reason": payload.get("reason", ""),
         "liquidation": payload.get("liquidation", False),
