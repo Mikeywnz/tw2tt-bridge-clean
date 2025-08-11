@@ -12,6 +12,7 @@ from pytz import timezone
 
 NZ_TZ = timezone("Pacific/Auckland")
 processed_exit_order_ids = set()
+last_cleanup_timestamp = None
 
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
@@ -521,19 +522,16 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
-
-from datetime import datetime, timedelta
-from pytz import timezone
-
 def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
-    # Fetch live total positions data from Firebase
+    global last_cleanup_timestamp  # persist across calls
+
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
 
     position_count = data.get("position_count", None)
-    last_updated_str = data.get("last_updated", None)
+    last_updated_raw = data.get("last_updated", None)
 
-    if position_count is None or last_updated_str is None:
+    if position_count is None or last_updated_raw is None:
         print("⚠️ /live_total_positions data incomplete or missing")
         return
 
@@ -543,19 +541,30 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
         print(f"⚠️ Invalid position_count value: {position_count}")
         return
 
-    try:
-        nz_tz = timezone(timedelta(hours=12))
-        last_updated_str = last_updated_str.replace(" NZST", "")
-        last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
-        last_updated = last_updated.replace(tzinfo=nz_tz)
-    except Exception as e:
-        print(f"⚠️ Failed to parse last_updated timestamp: {e}")
-        return
+    # Detect and parse timestamp correctly
+    if isinstance(last_updated_raw, str):
+        try:
+            # Try ISO format first
+            last_updated = datetime.fromisoformat(last_updated_raw.replace("Z", "+00:00"))
+        except Exception:
+            # Fallback to known format
+            last_updated = datetime.strptime(last_updated_raw.replace(" NZST", ""), "%Y-%m-%d %H:%M:%S")
+    elif isinstance(last_updated_raw, (int, float)):
+        # If it's a timestamp in milliseconds
+        last_updated = datetime.fromtimestamp(last_updated_raw / 1000)
+    else:
+        last_updated = last_updated_raw  # Assume datetime object
 
-    now_nz = datetime.now(nz_tz)
-    delta_seconds = (now_nz - last_updated).total_seconds()
+    now_utc = datetime.utcnow()
+
+    delta_seconds = (now_utc - last_updated).total_seconds()
 
     print(f"[INFO] Zombie cleanup check - position_count: {position_count_val}, data age: {delta_seconds:.1f}s")
+
+    # Skip if we already processed this timestamp
+    if last_cleanup_timestamp is not None and last_updated <= last_cleanup_timestamp:
+        print(f"[INFO] Already processed last_updated {last_updated}, skipping cleanup")
+        return
 
     if position_count_val != 0:
         print("[INFO] Positions open; skipping zombie cleanup.")
@@ -567,7 +576,6 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
 
     print("[INFO] Position count zero and data stale enough; running zombie cleanup...")
 
-    # Proceed to archive & delete
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
     all_open_trades = open_trades_ref.get() or {}
@@ -591,21 +599,15 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
                     trade['contracts_remaining'] = 0
                     trade['trade_state'] = 'closed'
                     trade['is_open'] = False
+
                     zombie_trades_ref.child(trade_id).set(trade)
                     open_trades_ref.child(symbol).child(trade_id).delete()
                     print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
-                    continue
-
-                # If contracts remain > 0, also archive and delete as zombie since position count is zero
-                print(f"🧟 Archiving trade {trade_id} for symbol {symbol} as zombie (position count zero)")
-                trade['trade_state'] = 'closed'
-                trade['is_open'] = False
-                zombie_trades_ref.child(trade_id).set(trade)
-                open_trades_ref.child(symbol).child(trade_id).delete()
-                print(f"🗑️ Deleted trade {trade_id} from open_active_trades")
 
             except Exception as e:
                 print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
+
+    last_cleanup_timestamp = last_updated
 
 if __name__ == '__main__':
     while True:
