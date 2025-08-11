@@ -523,49 +523,42 @@ def monitor_trades():
 # ============================================================================
 
 def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
-    global last_cleanup_timestamp  # persist across calls
+    global last_cleanup_timestamp
 
     live_ref = firebase_db.reference("/live_total_positions")
     data = live_ref.get() or {}
 
-    position_count = data.get("position_count", None)
-    last_updated_raw = data.get("last_updated", None)
+    position_count = data.get("position_count")
+    last_updated_raw = data.get("last_updated")
 
     if position_count is None or last_updated_raw is None:
-        print("⚠️ /live_total_positions data incomplete or missing")
+        print("⚠️ /live_total_positions data missing")
         return
 
     try:
         position_count_val = float(position_count)
     except Exception:
-        print(f"⚠️ Invalid position_count value: {position_count}")
+        print(f"⚠️ Invalid position_count: {position_count}")
         return
 
-    # Detect and parse timestamp correctly
-    if isinstance(last_updated_raw, str):
-        try:
-            # Try ISO format first
+    # Parse last_updated timestamp, robustly
+    try:
+        if isinstance(last_updated_raw, str):
             last_updated = datetime.fromisoformat(last_updated_raw.replace("Z", "+00:00"))
-        except Exception:
-            # Fallback to known format
-            last_updated = datetime.strptime(last_updated_raw.replace(" NZST", ""), "%Y-%m-%d %H:%M:%S")
-    elif isinstance(last_updated_raw, (int, float)):
-        # If it's a timestamp in milliseconds
-        last_updated = datetime.fromtimestamp(last_updated_raw / 1000)
-    else:
-        last_updated = last_updated_raw  # Assume datetime object
+        elif isinstance(last_updated_raw, (int, float)):
+            last_updated = datetime.utcfromtimestamp(last_updated_raw / 1000)
+        else:
+            last_updated = last_updated_raw
+    except Exception as e:
+        print(f"⚠️ Failed parsing last_updated: {e}")
+        return
 
     now_utc = datetime.utcnow()
-
     delta_seconds = (now_utc - last_updated).total_seconds()
 
-    print(f"[INFO] Zombie cleanup check - position_count: {position_count_val}, data age: {delta_seconds:.1f}s")
+    print(f"[INFO] Zombie cleanup check - pos count: {position_count_val}, data age: {delta_seconds:.1f}s")
 
-    # Skip if we already processed this timestamp
-    if last_cleanup_timestamp is not None and last_updated <= last_cleanup_timestamp:
-        print(f"[INFO] Already processed last_updated {last_updated}, skipping cleanup")
-        return
-
+    # No skipping — run every loop when pos=0 and grace period passed
     if position_count_val != 0:
         print("[INFO] Positions open; skipping zombie cleanup.")
         return
@@ -574,19 +567,19 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
         print(f"[INFO] Position count zero but data only {delta_seconds:.1f}s old; skipping zombie cleanup.")
         return
 
-    print("[INFO] Position count zero and data stale enough; running zombie cleanup...")
+    print("[INFO] Running zombie cleanup now...")
 
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
     all_open_trades = open_trades_ref.get() or {}
 
     if not isinstance(all_open_trades, dict):
-        print("⚠️ all_open_trades is not a dict, skipping trade processing")
+        print("⚠️ open_active_trades not dict; skipping")
         return
 
     for symbol, trades_by_id in all_open_trades.items():
         if not isinstance(trades_by_id, dict):
-            print(f"⚠️ Skipping trades for symbol {symbol} because it's not a dict")
+            print(f"⚠️ Skipping {symbol}, not dict")
             continue
 
         for trade_id, trade in trades_by_id.items():
@@ -595,7 +588,7 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
 
             try:
                 if trade.get('contracts_remaining', 0) <= 0:
-                    print(f"🧟 Archiving zero-contract trade {trade_id} for symbol {symbol} as zombie")
+                    print(f"🧟 Archiving zero-contract trade {trade_id} for {symbol} as zombie")
                     trade['contracts_remaining'] = 0
                     trade['trade_state'] = 'closed'
                     trade['is_open'] = False
@@ -603,11 +596,8 @@ def run_zombie_cleanup_if_ready(firebase_db, grace_period_seconds=20):
                     zombie_trades_ref.child(trade_id).set(trade)
                     open_trades_ref.child(symbol).child(trade_id).delete()
                     print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
-
             except Exception as e:
                 print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
-
-    last_cleanup_timestamp = last_updated
 
 if __name__ == '__main__':
     while True:
