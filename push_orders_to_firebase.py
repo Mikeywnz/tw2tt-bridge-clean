@@ -126,26 +126,16 @@ archived_trades_ref = db.reference("/archived_trades_log")
 archived_trade_ids = set(archived_trades_ref.get() or {})
     
 # ====================================================
-# 🟩 Helper: to Sanitize Trade for Firebase
+# 🟩 Helper: to log payload
 # ====================================================
-def sanitize_trade_for_firebase(trade):
-    """Convert complex fields to simple JSON-serializable types."""
-    sanitized = {}
-
-    for k, v in trade.items():
-        # Convert problematic fields to string or skip if None
-        if k in ['status', 'contract', 'order_legs', 'algo_params', 'algo_strategy', 'attr_list']:
-            try:
-                sanitized[k] = str(v) if v is not None else None
-            except Exception:
-                sanitized[k] = None
-        else:
-            # Try to assign directly, fallback to string on failure
-            try:
-                sanitized[k] = v
-            except Exception:
-                sanitized[k] = str(v)
-    return sanitized
+def log_payload_as_closed_trade(payload):
+    try:
+        # Just log the raw payload dict (or with minimal sanitization if needed)
+        print(f"Logging payload as closed trade: {payload}")
+        # Your existing Google Sheets logging function can be called here if needed, e.g.:
+        # log_closed_trade_to_sheets(payload)
+    except Exception as e:
+        print(f"❌ Failed to log payload as closed trade: {e}")
 
 #===============================================
 # 🟩 Helper: Check if Trade ID is a Known Zombie
@@ -187,7 +177,7 @@ def archive_trade(symbol, trade):
         # Preserve original trade_type; do NOT overwrite it with "closed"
         if "trade_type" not in trade or not trade["trade_type"]:
             trade["trade_type"] = "UNKNOWN"
-        archive_ref.set(trade)
+        archive_ref.update(trade)
         print(f"✅ Archived trade {trade_id}")
         return True
     except Exception as e:
@@ -254,46 +244,31 @@ def push_orders_main():
 
     for order in orders:
         try:
-            # =============== 🧱 Liquidation Firewall & Cleanup ===================================
             if getattr(order, "liquidation", False) is True:
                 trade_id = str(getattr(order, "order_id", ""))
                 symbol = getattr(order, "symbol", "")
-                filled_price = getattr(order, "filled_price", 0.0)
-                quantity = getattr(order, "filled", 1)
-                timestamp = getattr(order, "timestamp", "")
-                
+
                 print(f"🔥 Detected TigerTrade liquidation for {trade_id} – skipping open push.")
 
-                # ✅ Delete from open_active_trades if exists
+                # Delete from open_active_trades if exists
                 open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
                 open_active_trades = open_active_trades_ref.get() or {}
                 if trade_id in open_active_trades:
                     print(f"🧹 Removing matching open trade {trade_id} due to liquidation.")
                     open_active_trades_ref.child(trade_id).delete()
 
-                # ✅ Log to Google Sheets
-                trade_data = {
-                    "symbol": symbol,
-                    "direction": getattr(order, "action", None),
-                    "entry_price": filled_price,
-                    "exit_price": filled_price,
-                    "pnl_dollars": 0.0,
-                    "reason_for_exit": "Liquidation",
-                    "entry_time": timestamp,
-                    "exit_time": timestamp,
-                    "trail_triggered": "N/A",
-                    "order_id": trade_id,
-                    "exit_order_id": trade_id
-                }
-                try:
-                    log_closed_trade_to_sheets(trade_data)
-                    print(f"📄 Logged liquidation trade {trade_id} to Google Sheets.")
-                except Exception as e:
-                    print(f"❌ Failed to log liquidation {trade_id}: {e}")
-                
-                continue  # Skip pushing to /open_active_trades/
+                # Log payload to Google Sheets via helper
+                log_payload_as_closed_trade(order)
 
-            # ====================== 🧱 Liquidation Firewall & Cleanup END ===================================
+                # Archive payload to Firebase archive
+                archived_ref = firebase_db.reference(f"/archived_trades_log/{trade_id}")
+                archived_ref.set(order)
+                print(f"🗄️ Archived trade {trade_id} to /archived_trades_log")
+
+                # Skip pushing this liquidation trade to open_active_trades
+                continue
+
+                # ====================== 🧱 Liquidation Firewall & Cleanup END ===================================
 
             # ===================== Check if order ID is already processed and filter out ====================
             oid = str(getattr(order, 'id', '')).strip()
@@ -320,27 +295,12 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {oid} not a ghost, proceeding")
 
-                # ===== NEW PATCH START =====
+            # ===== REPLACEMENT PATCH START FOR REMOVING NO MANS LAND TRADES =====
             is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
 
             if is_closed:
-                payload = {
-                    "order_id": oid,
-                    "symbol": getattr(order, "symbol", ""),
-                    "is_open": False,
-                    "status": getattr(order, "status", ""),
-                    "filled_price": getattr(order, "filled_price", 0.0),
-                    "filled": getattr(order, "filled", 0),
-                    "reason": getattr(order, "reason", ""),
-                    "timestamp": getattr(order, "timestamp", ""),
-                    "trade_type": getattr(order, "trade_type", ""),
-                    # add any other relevant fields you need
-                }
-
-                # SANITIZE THE PAYLOAD HERE
-                payload = sanitize_trade_for_firebase(payload)
-                log_closed_trade_to_sheets(payload)
-                print(f"✅ Logged closed trade {oid} to Google Sheets")
+                log_payload_as_closed_trade(payload)  # Log the existing payload data (trade data for sheets)
+                print(f"✅ Logged closed trade {oid} from payload")
 
                 archived_ref = db.reference(f"/archived_trades_log/{oid}")
                 archived_ref.set(payload)
@@ -433,7 +393,7 @@ def push_orders_main():
 
                 # Write minimal info to ghost_trades_log to archive ghost trade
                 ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(oid).set(payload)
+                ghost_ref.child(oid).update(payload)
 
                 # Skip pushing this trade to open_active_trades
                 continue

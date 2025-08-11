@@ -286,6 +286,7 @@ async def webhook(request: Request):
 
     if not is_valid_trade_id(result.get("order_id")):
         log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
+        print(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
         return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
 
     # Explicitly set status here for new trade
@@ -301,53 +302,78 @@ async def webhook(request: Request):
 
     if not result.get("status") == "SUCCESS":
         log_to_file(f"❌ place_entry_trade failed or returned invalid result: {result}")
+        print(f"❌ place_entry_trade failed or returned invalid result: {result}")
         try:
             ref = firebase_db.reference(f"/ghost_trades_log/{request_symbol}/{result.get('order_id')}")
             ref.set(data)  # Use original data or create new_trade dict if available
             log_to_file(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
+            print(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
         except Exception as e:
             log_to_file(f"❌ Firebase push error: {e}")
+            print(f"❌ Firebase push error: {e}")
         return {"status": "error", "message": "Trade execution failed", "detail": result}
 
+        # Get active symbol from Firebase or your config
     symbol = firebase_active_contract.get_active_contract()
     if not symbol:
-        log_to_file("❌ No active contract symbol found in Firebase; aborting trade action")
-        return {"status": "error", "message": "No active contract symbol configured"}
+        print("❌ No active contract symbol found; aborting new trade creation")
+        return
 
-    # Load trailing TP settings via Admin SDK, no Firebase URL string needed
+    # Load trailing TP settings from admin SDK or use defaults
     try:
         trigger_points, offset_points = load_trailing_tp_settings_admin(firebase_db)
     except Exception:
         trigger_points, offset_points = 14.0, 5.0
 
-    # --- Order composed for Firebase ---
+    # Assume 'result' and 'payload' come from your previous API call or processing
+    # For example, 'result' from Tiger API trade placement response
+    # 'payload' is your existing dictionary with trade info (can be empty or partial)
+
+    # Action string from your trade context
+    action = payload.get("action", "BUY").upper()
+
+    # Build new_trade dict merging existing payload to preserve info
     new_trade = {
         "trade_id": result.get("order_id"),
         "symbol": symbol,
         "filled_price": result.get("filled_price", 0.0),
         "action": action,
-        "trade_type": result.get("trade_type", ""),
+        "trade_type": result.get("trade_type", payload.get("trade_type", "")),
         "status": "FILLED" if result.get("status", "UNKNOWN") == "SUCCESS" else "UNFILLED",
-        "contracts_remaining": 1,
+        "contracts_remaining": payload.get("contracts_remaining", 1),
         "trail_trigger": trigger_points,
         "trail_offset": offset_points,
-        "trail_hit": False,
-        "trail_peak": result.get("filled_price", 0.0),
-        "filled": True,
+        "trail_hit": payload.get("trail_hit", False),
+        "trail_peak": payload.get("trail_peak", result.get("filled_price", 0.0)),
+        "filled": payload.get("filled", True),
         "entry_timestamp": result.get("transaction_time", datetime.utcnow().isoformat() + "Z"),
-        "trade_state": "open",
+        "timestamp": exit_time_iso,
+        "trade_state": payload.get("trade_state", "open"),
         "just_executed": True,
-        "executed_timestamp": datetime.utcnow().isoformat() + "Z"
+        "realized_pnl": payload.get("realized_pnl", 0.0),
+        "net_pnl": payload.get("net_pnl", 0.0),
+        "tiger_commissions": payload.get("tiger_commissions", 0.0),
+        "executed_timestamp": datetime.utcnow().isoformat() + "Z",
+        "quantity": payload.get("quantity", 1),
+        "reason": payload.get("reason", ""),
+        "liquidation": payload.get("liquidation", False),
+        "source": map_source(payload.get("source", None)),
+        "is_open": payload.get("is_open", True),
+        "is_ghost": payload.get("is_ghost", False),
+        "exit_reason": payload.get("exit_reason", ""),
     }
+     # Merge new_trade with existing trade data (if any)
+    try:
+        ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['trade_id']}")
+        existing_trade = ref.get() or {}
+        merged_trade = {**existing_trade, **new_trade}  # Merge to preserve prior data
+        ref.update(merged_trade)
+        print(f"✅ Firebase open_active_trades updated at key: {new_trade['trade_id']}")
+    except Exception as e:
+        print(f"❌ Firebase push error: {e}")
 
     # --- Admin SDK: Push to Firebase ---
-    try:
-        ref = firebase_db.reference(f"/open_active_trades/{symbol}/{result.get('order_id')}")
-        ref.set(new_trade)
-        log_to_file(f"✅ Firebase open_active_trades updated at key: {result.get('order_id')}")
-    except Exception as e:
-        log_to_file(f"❌ Firebase push error: {e}")
-
+   
     # ====================================================================================================
     # =============================✅ LOG TO GOOGLE SHEETS — NOW CLOSED TRADES JOURNAL ==========================
     # ====================================================================================================
@@ -394,27 +420,27 @@ async def webhook(request: Request):
         day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
 
         sheet.append_row([
-            day_date,                           # 1. day_date
-            symbol_for_log,                    # 2. symbol
-            action,                           # 3. action
-            trade_type,                       # 4. trade_type (Short/Long)
-            safe_float(trade_data.get("entry_price", 0.0)),  # 5. entry_price
-            trade_data.get("trail_trigger_value", 0),       # 6. trail_trigger (pts)
-            trade_data.get("trail_offset", 0),              # 7. trail_offset (pts)
-            trailing_take_profit_price,        # 8. trailing_take_profit price
-            trade_id,                         # 9. tiger_order_id
-            entry_timestamp,                  # 10. entry_time (UTC)
-            map_source(source),               # 11. source
-            trade_data.get("fifo_match", "No"),           # 12. fifo_match (Yes/No)
-            trade_data.get("fifo_match_order_id", "N/A"), # 13. fifo_match_order_id
-            trade_data.get("exit_price", "N/A"),          # 14. exit_price (N/A for open trades)
-            trade_data.get("ema_flatten_type", "N/A"),    # 15. ema_flatten_type
-            trade_data.get("ema_flatten_triggered", "N/A"), # 16. ema_flatten_triggered
-            trade_data.get("spread", "N/A"),               # 17. spread
-            trade_data.get("net_pnl", "N/A"),              # 18. net_pnl
-            trade_data.get("tiger_commissions", "N/A"),   # 19. tiger_commissions
-            trade_data.get("realized_pnl", "N/A"),         # 20. realized_pnl
-            trade_data.get("manual_notes", "")             # 21. manual_notes
+            day_date,                                # 1. Day Date
+            entry_timestamp,                         # 2. Entry/Exit Time
+            trade_data.get("number_of_contracts", 1),  # 3. Number of Contracts
+            trade_data.get("trade_type", ""),          # 4. Trade Type (Short/Long)
+            trade_data.get("fifo_match", "No"),         # 5. FIFO Match
+            safe_float(trade_data.get("entry_price", 0.0)),  # 6. Entry Price
+            trade_data.get("exit_price", "N/A"),            # 7. Exit Price
+            trade_data.get("trail_trigger_value", 0),       # 8. Trail Trigger Value
+            trade_data.get("trail_offset", 0),               # 9. Trail Offset
+            trade_data.get("trailing_take_profit", 0),       # 10. Trailing Take Profit Hit
+            safe_float(trade_data.get("trail_offset_amount", 0.0)),  # 11. Trail Offset $ Amount
+            trade_data.get("ema_flatten_type", "N/A"),          # 12. EMA Flatten Type
+            trade_data.get("ema_flatten_triggered", "N/A"),     # 13. EMA Flatten Triggered
+            safe_float(trade_data.get("spread", 0.0)),          # 14. Spread
+            safe_float(trade_data.get("net_pnl", 0.0)),         # 15. Net PnL
+            safe_float(trade_data.get("tiger_commissions", 0.0)),  # 16. Tiger Commissions
+            safe_float(trade_data.get("realized_pnl", 0.0)),     # 17. Realized PnL
+            trade_id,                                           # 18. Order ID
+            trade_data.get("fifo_match_order_id", "N/A"),      # 19. FIFO Match Order ID
+            trade_data.get("source", ""),                        # 20. Source
+            trade_data.get("manual_notes", "")                   # 21. Manually Filled Notes
         ])
 
         # Call your helper to log to Google Sheets (if you want to log full data as well)

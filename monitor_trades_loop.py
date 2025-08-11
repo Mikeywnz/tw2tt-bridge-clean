@@ -217,7 +217,7 @@ def save_open_trades(symbol, trades):
             trade_id = t.get("trade_id")
             if not trade_id:
                 continue
-            ref.child(trade_id).set(t)
+            ref.child(trade_id).update(t)
             print(f"✅ Open Active Trade {trade_id} saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
