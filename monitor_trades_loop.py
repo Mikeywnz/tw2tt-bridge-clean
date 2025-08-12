@@ -502,7 +502,7 @@ def monitor_trades():
     active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points, exit_in_progress)
 
     # FIFO matching and flattening
-    fifo_match_and_flatten(active_trades, symbol)
+    fifo_match_and_flatten(active_trades, symbol, firebase_db)
 
     # Archive and delete matched trades
     matched_trades = [t for t in active_trades if t.get('exited') or t.get('trade_state') == 'closed']
