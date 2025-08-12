@@ -314,7 +314,7 @@ def push_orders_main():
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
             raw_reason = getattr(order, "reason", "")
             filled = getattr(order, "filled", 0)
-            is_open = getattr(order, "is_open", True)
+            is_open = getattr(order, "is_open", False)
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
             
             
@@ -337,8 +337,6 @@ def push_orders_main():
             if not symbol:
                 print(f"❌ No active contract symbol found in Firebase; skipping order ID {order_id}")
                 continue  # Skip processing this order
-
-            is_open = getattr(order, 'is_open', False)
 
             order_data = order
             original_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
@@ -392,7 +390,7 @@ def push_orders_main():
             }
            
             # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
-            is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
+            is_closed = not getattr(order, 'is_open', False) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
 
             order_id = payload.get("order_id", "")
 
@@ -469,7 +467,7 @@ def push_orders_main():
             ref = db.reference(f'/open_active_trades/{symbol}/{order_id}')
 
             # Simple guard: skip closed but filled trades
-            if not payload.get("is_open", True) and payload.get("status", "").upper() == "FILLED":
+            if not payload.get("is_open", False) and payload.get("status", "").upper() == "FILLED":
                 print(f"⚠️ Skipping closed filled trade {payload.get('order_id')} before open check")
                 continue
 
@@ -478,8 +476,7 @@ def push_orders_main():
 
     # =============================== Prepare trade data for google sheets =======================================================  
 
-            trade_state = "open" if payload.get("is_open", True) else "closed"
-            if not payload.get("is_open", True) or trade_state == "closed":
+            if not payload.get("is_open", False):
                 entry_price = safe_float(payload.get("entry_fill_price", 0.0))
                 trailing_take_profit_points = payload.get("trail_trigger", 0)  # trigger distance in points
                 trail_offset_points = payload.get("trail_offset", 0)          # offset buffer in points

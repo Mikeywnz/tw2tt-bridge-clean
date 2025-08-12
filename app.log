@@ -48,3 +48,8 @@
 [2025-08-06T22:54:45.198108+12:00] ❌ place_entry_trade failed or returned invalid result: {'status': 'GHOST_TRADE', 'order_id': '40052783178973184', 'trade_type': 'LONG_ENTRY', 'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1, 'filled_price': 0.0, 'filled_quantity': 1, 'transaction_time': ''}
 [2025-08-06T22:54:45.200276+12:00] ❌ Firebase push error: local variable 'symbol' referenced before assignment
 [2025-08-06T22:56:14.014869+12:00] ✅ Firebase open_active_trades updated at key: 40052794344473600
+[2025-08-12T21:01:58.887593+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-12T21:03:18.282461+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-12T21:09:06.225998+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-12T21:21:11.007793+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-12T21:46:50.522400+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
