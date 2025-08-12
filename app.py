@@ -303,14 +303,14 @@ async def webhook(request: Request):
 
     # Build the payload dict with real API values from 'result' and known data
 
-    # === Guard clause: abort if trade_id invalid to avoid None bug ===
-    def is_valid_trade_id(tid):
-        return isinstance(tid, str) and tid.isdigit()
+    # === Guard clause: abort if order_id invalid to avoid None bug ===
+    def is_valid_order_id(oid):
+        return isinstance(oid, str) and oid.isdigit()
 
-    if not is_valid_trade_id(result.get("order_id")):
-        log_to_file(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
-        print(f"❌ Aborting Firebase push due to invalid trade_id: {result.get('order_id')}")
-        return {"status": "error", "message": "Aborted push due to invalid trade_id"}, 555
+    if not is_valid_order_id(result.get("order_id")):
+        log_to_file(f"❌ Aborting Firebase push due to invalid order_id: {result.get('order_id')}")
+        print(f"❌ Aborting Firebase push due to invalid order_id: {result.get('order_id')}")
+        return {"status": "error", "message": "Aborted push due to invalid order_id"}, 555
 
     # Explicitly set status here for new trade
     status = "FILLED"  # You can adjust logic later if needed
@@ -361,7 +361,7 @@ async def webhook(request: Request):
 
     # Build new_trade dict merging existing payload to preserve info
     new_trade = {
-        "trade_id": result.get("order_id"),
+        "order_id": result.get("order_id"),
         "symbol": symbol,
         "exit_in_progress": False,
         "filled_price": result.get("filled_price", 0.0),
@@ -392,9 +392,9 @@ async def webhook(request: Request):
 
     print(f"[DEBUG] New trade payload to push to Firebase: {new_trade}")
     try:
-        ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['trade_id']}")
+        ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['order_id']}")
         ref.set(new_trade)  # Use set() here for new trade creation to fully overwrite old data
-        print(f"✅ Firebase open_active_trades updated at key: {new_trade['trade_id']}")
+        print(f"✅ Firebase open_active_trades updated at key: {new_trade['order_id']}")
     except Exception as e:
         print(f"❌ Firebase push error: {e}")
 
@@ -404,7 +404,7 @@ async def webhook(request: Request):
     # =============================✅ LOG TO GOOGLE SHEETS — NOW CLOSED TRADES JOURNAL ==========================
     # ====================================================================================================
     price = safe_float(result.get("filled_price", 0.0))
-    trade_id = result.get("order_id")
+    order_id = result.get("order_id")
     entry_timestamp = result.get("transaction_time", datetime.utcnow().isoformat() + "Z")
     source = data.get("source", "webhook")
     symbol_for_log = request_symbol
@@ -421,7 +421,7 @@ async def webhook(request: Request):
     trail_offset_amount = float(offset_points)
 
     trade_data = {
-        "order_id": trade_id,
+        "order_id": order_id,
         "entry_exit_time": entry_timestamp or "N/A",
         "number_of_contracts": quantity,
         "trade_type": trade_type,
@@ -464,7 +464,7 @@ async def webhook(request: Request):
             safe_float(trade_data.get("net_pnl", 0.0)),         # 15. Net PnL
             safe_float(trade_data.get("tiger_commissions", 0.0)),  # 16. Tiger Commissions
             safe_float(trade_data.get("realized_pnl", 0.0)),     # 17. Realized PnL
-            trade_id,                                           # 18. Order ID
+            order_id,                                           # 18. Order ID
             trade_data.get("fifo_match_order_id", "N/A"),      # 19. FIFO Match Order ID
             trade_data.get("source", ""),                        # 20. Source
             trade_data.get("manual_notes", "")                   # 21. Manually Filled Notes
@@ -473,7 +473,7 @@ async def webhook(request: Request):
         # Call your helper to log to Google Sheets (if you want to log full data as well)
         log_closed_trade_to_sheets(trade_data)
 
-        print(f"✅ Logged to Close Trades Sheet: {trade_id}")
+        print(f"✅ Logged to Close Trades Sheet: {order_id}")
     except Exception as e:
         print(f"❌ Close sheet log failed: {e}")
 

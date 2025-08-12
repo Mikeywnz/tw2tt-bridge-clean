@@ -19,7 +19,7 @@ import os
 import time
 
 grace_cache = {}
-_logged_trade_ids = set()
+_logged_order_ids = set()
 
 #================================
 # 🟩 FIREBASE INITIALIZATION======
@@ -125,7 +125,7 @@ def load_trailing_tp_settings():
     return 14.0, 5.0
 
 archived_trades_ref = db.reference("/archived_trades_log")
-archived_trade_ids = set(archived_trades_ref.get() or {})
+archived_order_ids = set() = set(archived_trades_ref.get() or {})
     
 # ====================================================
 # 🟩 Helper: to log payload
@@ -143,47 +143,47 @@ def log_payload_as_closed_trade(payload):
 # 🟩 Helper: Check if Trade ID is a Known Zombie
 #===============================================
 
-def is_zombie_trade(trade_id, firebase_db):
+def is_zombie_trade(order_id, firebase_db):
     zombie_ref = firebase_db.reference("/zombie_trades_log")
     zombies = zombie_ref.get() or {}
-    return trade_id in zombies
+    return order_id in zombies
 
 #======================================================
 # 🟩 Helper: Check if Trade ID is a Known Archived Trade
 #======================================================
 
-def is_archived_trade(trade_id, firebase_db):
+def is_archived_trade(order_id, firebase_db):
     archived_ref = firebase_db.reference("/archived_trades_log")
     archived_trades = archived_ref.get() or {}
-    return trade_id in archived_trades
+    return order_id in archived_trades
 
 # ====================================================
 #🟩 Helper to Check if Trade ID is a Known Ghost Trade
 # ====================================================
-def is_ghostflag_trade(trade_id, firebase_db):
+def is_ghostflag_trade(order_id, firebase_db):
     ghost_ref = firebase_db.reference("/ghost_trades_log")
     ghosts = ghost_ref.get() or {}
-    return trade_id in ghosts
+    return order_id in ghosts
 
 #================================
 #Archived_trade() helper function
 #================================
 
 def archive_trade(symbol, trade):
-    trade_id = trade.get("trade_id")
-    if not trade_id:
-        print(f"❌ Cannot archive trade without trade_id")
+    order_id = trade.get("order_id")
+    if not order_id:
+        print(f"❌ Cannot archive trade without order_id")
         return False
     try:
-        archive_ref = db.reference(f"/archived_trades_log/{trade_id}")  # <-- changed here
+        archive_ref = db.reference(f"/archived_trades_log/{order_id}")  # <-- changed here
         # Preserve original trade_type; do NOT overwrite it with "closed"
         if "trade_type" not in trade or not trade["trade_type"]:
             trade["trade_type"] = "UNKNOWN"
         archive_ref.update(trade)
-        print(f"✅ Archived trade {trade_id}")
+        print(f"✅ Archived trade {order_id}")
         return True
     except Exception as e:
-        print(f"❌ Failed to archive trade {trade_id}: {e}")
+        print(f"❌ Failed to archive trade {order_id}: {e}")
         return False
 
 #################### END OF ALL HELPERS FOR THIS SCRIPT ####################
@@ -240,42 +240,41 @@ def push_orders_main():
     #=========================================================================================
 
     # 🟩 Refresh archived trades cache inside main loop
-    archived_trade_ids = set(archived_trades_ref.get() or {})
+    archived_order_ids = set(archived_trades_ref.get() or {})
 
     tiger_ids = set()
 
     for order in orders:
         try:
-            # Assign trade_id once and validate immediately
-            trade_id = str(getattr(order, 'order_id', '')).strip()
+            # Assign order_id once and validate immediately
+            order_id = str(getattr(order, 'order_id', '')).strip()
 
-            def is_valid_trade_id(tid):
-                return isinstance(tid, str) and tid.isdigit() and len(tid) > 5
+            def is_valid_order_id(oid):
+                return isinstance(oid, str) and oid.isdigit()
 
-            if not is_valid_trade_id(trade_id):
-                print(f"❌ Skipping order due to invalid trade_id: '{trade_id}'. Order raw data: {order}")
+            if not is_valid_order_id(order_id):
+                print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
                 continue
 
             if getattr(order, "liquidation", False) is True:
-                trade_id = str(getattr(order, "order_id", ""))
                 symbol = getattr(order, "symbol", "")
 
-                print(f"🔥 Detected TigerTrade liquidation for {trade_id} – skipping open push.")
+                print(f"🔥 Detected TigerTrade liquidation for {order_id} – skipping open push.")
 
                 # Delete from open_active_trades if exists
                 open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
                 open_active_trades = open_active_trades_ref.get() or {}
-                if trade_id in open_active_trades:
-                    print(f"🧹 Removing matching open trade {trade_id} due to liquidation.")
-                    open_active_trades_ref.child(trade_id).delete()
+                if order_id in open_active_trades:
+                    print(f"🧹 Removing matching open trade {order_id} due to liquidation.")
+                    open_active_trades_ref.child(order_id).delete()
 
                 # Log payload to Google Sheets via helper
                 log_payload_as_closed_trade(order)
 
                 # Archive payload to Firebase archive
-                archived_ref = firebase_db.reference(f"/archived_trades_log/{trade_id}")
+                archived_ref = firebase_db.reference(f"/archived_trades_log/{order_id}")
                 archived_ref.set(order)
-                print(f"🗄️ Archived trade {trade_id} to /archived_trades_log")
+                print(f"🗄️ Archived trade {order_id} to /archived_trades_log")
 
                 # Skip pushing this liquidation trade to open_active_trades
                 continue
@@ -284,32 +283,32 @@ def push_orders_main():
 
             # ===================== Check if order ID is already processed and filter out ====================
             
-            if not trade_id:
-                print("⚠️ Skipping order with empty or missing trade_id")
+            if not order_id:
+                print("⚠️ Skipping order with empty or missing order_id")
                 continue
-            print(f"🔍 Processing trade_id: {trade_id}")
+            print(f"🔍 Processing order_id: {order_id}")
 
-            if is_zombie_trade(trade_id, db):
-                print(f"⏭️ ⛔ Skipping zombie trade {trade_id} during API push")
+            if is_zombie_trade(order_id, db):
+                print(f"⏭️ ⛔ Skipping zombie trade {order_id} during API push")
                 continue
             else:
-                print(f"✅ Trade ID {trade_id} not a zombie, proceeding")
+                print(f"✅ Order ID {order_id} not a zombie, proceeding")
 
-            if is_archived_trade(trade_id, db):
-                print(f"⏭️ ⛔ Skipping archived trade {trade_id} during API push")
+            if is_archived_trade(order_id, db):
+                print(f"⏭️ ⛔ Skipping archived trade {order_id} during API push")
                 continue
 
-            if is_ghostflag_trade(trade_id, db):
-                print(f"⏭️ ⛔ Skipping ghost trade {trade_id} during API push (detected by helper)")
+            if is_ghostflag_trade(order_id, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {order_id} during API push (detected by helper)")
                 continue
             else:
-                print(f"✅ Trade ID {trade_id} not a ghost, proceeding")
+                print(f"✅ Order ID {order_id} not a ghost, proceeding")
 
             # ===================================End of First filtering=======================================
 
            #=========================== Extract order information for further processing ====================
             
-            tiger_ids.add(trade_id)
+            tiger_ids.add(order_id)
 
             raw_status = getattr(order, "status", "")
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
@@ -336,14 +335,13 @@ def push_orders_main():
 
             symbol = firebase_active_contract.get_active_contract()
             if not symbol:
-                print(f"❌ No active contract symbol found in Firebase; skipping order ID {trade_id}")
+                print(f"❌ No active contract symbol found in Firebase; skipping order ID {order_id}")
                 continue  # Skip processing this order
 
             is_open = getattr(order, 'is_open', False)
 
             order_data = order
-            trade_id = str(getattr(order, "order_id", "")) 
-            original_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
+            original_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
             exit_timestamp = datetime.utcnow().isoformat() + "Z"
             exit_time_iso = datetime.utcnow().isoformat() + "Z"
             entry_timestamp = getattr(order, "transaction_time", None)
@@ -351,7 +349,7 @@ def push_orders_main():
                 entry_timestamp = datetime.utcnow().isoformat() + "Z" 
 
             trigger_points, offset_points = load_trailing_tp_settings()
-            existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
+            existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
             filled_price_new = getattr(order, "filled_price", 0.0)
             filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)
 
@@ -364,7 +362,7 @@ def push_orders_main():
             print(f"[DEBUG] filled_price_new: {filled_price_new}, filled_price_final: {filled_price_final}")
             
             payload = {
-                "trade_id": trade_id,
+                "order_id": order_id,
                 "symbol": symbol,
                 "exit_in_progress": False,
                 "filled_price": filled_price_final,
@@ -396,66 +394,65 @@ def push_orders_main():
             # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
             is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
 
-            trade_id = payload.get("trade_id", "")
+            order_id = payload.get("order_id", "")
 
             if is_closed:
-                if trade_id == "0" or not trade_id:
-                    print(f"[WARN] Skipping closed trade logging due to invalid trade_id: {trade_id}")
+                if order_id == "0" or not order_id:
+                    print(f"[WARN] Skipping closed trade logging due to invalid order_id: {order_id}")
                     continue
 
                 log_payload_as_closed_trade(payload)  # Log the existing payload data (trade data for sheets)
-                print(f"✅ Logged closed trade {trade_id} from payload")
+                print(f"✅ Logged closed trade {order_id} from payload")
 
-                archived_ref = db.reference(f"/archived_trades_log/{trade_id}")
+                archived_ref = db.reference(f"/archived_trades_log/{order_id}")
                 archived_ref.set(payload)
-                print(f"🗄️ Archived trade {trade_id} to /archived_trades_log")
+                print(f"🗄️ Archived trade {order_id} to /archived_trades_log")
 
-                print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
+                print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
                 continue
             # ===== NEW PATCH END =====
             # ========================= DETECT GHOST TRADE ==================================================
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
             is_ghost_flag = filled == 0 and status in ghost_statuses
             if is_ghost_flag:
-                print(f"👻 Ghost trade detected: {trade_id} (status={status}, filled={filled}) logged to ghost_trades_log")
+                print(f"👻 Ghost trade detected: {order_id} (status={status}, filled={filled}) logged to ghost_trades_log")
 
                 # Update payload ghost flag
                 payload["is_ghost"] = True
 
                 # Write minimal info to ghost_trades_log to archive ghost trade
                 ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(trade_id).update(payload)
+                ghost_ref.child(order_id).update(payload)
 
                 # Skip pushing this trade to open_active_trades
                 continue
 
             # Re-check if already logged as ghost
-            is_ghost_flag = is_ghostflag_trade(trade_id, db)
+            is_ghost_flag = is_ghostflag_trade(order_id, db)
 
             # Define the validation function (can be outside the loop)
-            def is_valid_trade_id(tid):
-                return isinstance(tid, str) and tid.isdigit()
-
+            def is_valid_order_id(oid):
+                return isinstance(oid, str) and oid.isdigit()
 
             # Validate the raw order ID BEFORE doing anything else with it
-            if not is_valid_trade_id(trade_id):
-                print(f"❌ Skipping order due to invalid trade_id: {trade_id}")
+            if not is_valid_order_id(order_id):
+                print(f"❌ Skipping order due to invalid order_id: {order_id}")
                 continue  # Skip this order and move to the next
 
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
-            if trade_id in archived_trade_ids:
-                print(f"⏭️ ⛔ Archived trade {trade_id} already processed this run; skipping duplicate archive")
+            if order_id in archived_order_ids:
+                print(f"⏭️ ⛔ Archived trade {order_id} already processed this run; skipping duplicate archive")
                 continue
 
-            if is_ghostflag_trade(trade_id, db):
-                print(f"⏭️ ⛔ Skipping ghost trade {trade_id} during API push (detected by helper)")
+            if is_ghostflag_trade(order_id, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {order_id} during API push (detected by helper)")
                 continue
 
-            if is_zombie_trade(trade_id, db):
-                print(f"⏭️ ⛔ Skipping zombie trade {trade_id} during API push (detected by helper)")
+            if is_zombie_trade(order_id, db):
+                print(f"⏭️ ⛔ Skipping zombie trade {order_id} during API push (detected by helper)")
                 continue
 
-            print(f"Order ID {trade_id} not archived, ghost, or zombie; proceeding")
+            print(f"Order ID {order_id} not archived, ghost, or zombie; proceeding")
 
             if payload.get("is_open", False):
                 open_trades_count += 1
@@ -466,10 +463,10 @@ def push_orders_main():
             else:
                 unknown_count += 1
 
-            archived_trade_ids.add(trade_id)
+            archived_order_ids.add(order_id)
 
-            # Use trade_id safely from here on
-            ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')
+            # Use order_id safely from here on
+            ref = db.reference(f'/open_active_trades/{symbol}/{order_id}')
 
             # Simple guard: skip closed but filled trades
             if not payload.get("is_open", True) and payload.get("status", "").upper() == "FILLED":
@@ -513,7 +510,7 @@ def push_orders_main():
   
                     
                 trade_data = {
-                    "order_id": trade_id,
+                    "order_id": order_id,
                     "entry_exit_time": exit_time_str,
                     "number_of_contracts": getattr(order, 'quantity', 1),
                     "trade_type": payload.get("trade_type", ""),
@@ -536,17 +533,17 @@ def push_orders_main():
                 }
                 log_closed_trade_to_sheets(trade_data)
 
-                print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
+                print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
                 continue  # Skip pushing closed trades
 
-            ref = firebase_db.reference(f'/open_active_trades/{symbol}/{trade_id}')
+            ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
             try:
                 existing_trade = ref.get() or {}
                 merged_trade = {**existing_trade, **payload}
                 ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
-                print(f"✅ /open_active_trades/{symbol}/{trade_id} successfully merged and updated")
+                print(f"✅ /open_active_trades/{symbol}/{order_id} successfully merged and updated")
             except Exception as e:
-                print(f"❌ Failed to update /open_active_trades/{symbol}/{trade_id}: {e}")
+                print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
         except Exception as e:
             print(f"❌ Error processing order {order}: {e}")
             continue
@@ -576,9 +573,9 @@ def push_orders_main():
 #=================================================================================
 
 def log_closed_trade_to_sheets(trade):
-    trade_id = trade.get("order_id")
-    if trade_id in _logged_trade_ids:
-        print(f"⏭️ Trade {trade_id} already logged this session; skipping duplicate log.")
+    order_id = trade.get("order_id")
+    if order_id in _logged_order_ids:
+        print(f"⏭️ Trade {order_id} already logged this session; skipping duplicate log.")
         return
     try:
         sheet = get_google_sheet()
@@ -603,13 +600,13 @@ def log_closed_trade_to_sheets(trade):
             safe_float(trade.get("net_pnl", 0.0)),
             safe_float(trade.get("tiger_commissions", 0.0)),
             safe_float(trade.get("realized_pnl", 0.0)),
-            trade_id,
+            order_id,
             trade.get("fifo_match_order_id", ""),
             trade.get("source", ""),
             trade.get("manual_notes", "")
         ])
-        print(f"✅ Logged closed trade {trade_id} to Google Sheets")
-        _logged_trade_ids.add(trade_id)
+        print(f"✅ Logged closed trade {order_id} to Google Sheets")
+        _logged_order_ids.add(order_id)
     except Exception as e:
         print(f"❌ Failed to log trade to Google Sheets: {e}")
 
