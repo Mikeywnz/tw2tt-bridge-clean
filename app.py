@@ -313,6 +313,7 @@ async def webhook(request: Request):
 
     # Explicitly set status here for new trade
     status = "FILLED"  # You can adjust logic later if needed
+    payload = data.copy()
 
     # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
     trade_type = result.get("trade_type", "").lower()
