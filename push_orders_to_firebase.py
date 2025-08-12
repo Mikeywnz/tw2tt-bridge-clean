@@ -89,8 +89,6 @@ def map_source(raw_source):
     return "unknown"
 
 def get_exit_reason(status, reason, filled, is_open=False):
-    if is_open:
-        return "In Progress"
     if status == "CANCELLED" and filled == 0:
         return "CANCELLED"
     elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
@@ -312,10 +310,10 @@ def push_orders_main():
 
             raw_status = getattr(order, "status", "")
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
-            raw_reason = getattr(order, "reason", "")
+            #raw_reason = getattr(order, "reason", "")
             filled = getattr(order, "filled", 0)
             is_open = getattr(order, "is_open", False)
-            exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
+            #exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
             
             
 
