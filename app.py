@@ -34,6 +34,7 @@ position_tracker = {}
 app = FastAPI()
 recent_payloads = {}
 
+
 DEDUP_WINDOW = 10  # seconds
 PRICE_FILE = "live_prices.json"
 TRADE_LOG = "trade_log.json"
@@ -415,6 +416,7 @@ async def webhook(request: Request):
     trigger_points = trigger_points if 'trigger_points' in locals() else 14.0  # fallback default
     offset_points = offset_points if 'offset_points' in locals() else 5.0      # fallback default
     direction = 1 if action.upper() == "BUY" else -1
+    sheet = get_google_sheet()
     trailing_take_profit_price = price + (trigger_points * direction)
     trail_offset_amount = float(offset_points)
 
