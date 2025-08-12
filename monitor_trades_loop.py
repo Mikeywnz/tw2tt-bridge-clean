@@ -440,7 +440,11 @@ def monitor_trades():
     
     # Load open trades from Firebase
     all_trades = load_open_trades(symbol)
-    run_zombie_cleanup_if_ready(all_trades, firebase_db, grace_period_seconds=20)
+
+    live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
+    position_count = live_pos_data.get("position_count", 0)
+
+    run_zombie_cleanup_if_ready(all_trades, firebase_db, position_count, grace_period_seconds=20)
 
     print(f"ALL TRADES TO PROCESS ARE: {all_trades}")
     # Filter active trades
@@ -522,7 +526,7 @@ def monitor_trades():
 
 zombie_first_seen = {}
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, grace_period_seconds=20):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=20):
     now = time.time()
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
