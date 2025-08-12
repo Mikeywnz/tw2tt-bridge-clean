@@ -530,17 +530,19 @@ def run_zombie_cleanup_if_ready(trades_list, firebase_db, grace_period_seconds=2
     for trade in trades_list:
         trade_id = trade.get("trade_id")
         symbol = trade.get("symbol", "UNKNOWN")
-        contracts_remaining = trade.get("contracts_remaining", 1)
 
-        if contracts_remaining == 0:
+        # Check global position count outside or passed in separately
+        # Assuming you have a variable position_count elsewhere
+
+        if position_count == 0:
             if trade_id not in zombie_first_seen:
                 zombie_first_seen[trade_id] = now
-                print(f"⏳ Started timer for zero-contract trade {trade_id} on {symbol}")
+                print(f"⏳ Started timer for trade {trade_id} on {symbol} due to zero global position")
                 continue
 
             elapsed = now - zombie_first_seen[trade_id]
             if elapsed >= grace_period_seconds:
-                print(f"🧟 Archiving zero-contract trade {trade_id} on {symbol} as zombie after {elapsed:.1f}s")
+                print(f"🧟 Archiving trade {trade_id} on {symbol} as zombie after {elapsed:.1f}s global zero position")
                 trade['contracts_remaining'] = 0
                 trade['trade_state'] = 'closed'
                 trade['is_open'] = False
@@ -548,14 +550,14 @@ def run_zombie_cleanup_if_ready(trades_list, firebase_db, grace_period_seconds=2
                 try:
                     zombie_trades_ref.child(trade_id).set(trade)
                     open_trades_ref.child(symbol).child(trade_id).delete()
-                    print(f"🗑️ Deleted zero-contract trade {trade_id} from open_active_trades")
+                    print(f"🗑️ Deleted trade {trade_id} from open_active_trades")
                 except Exception as e:
                     print(f"❌ Failed to archive/delete trade {trade_id}: {e}")
 
                 zombie_first_seen.pop(trade_id, None)
         else:
             if trade_id in zombie_first_seen:
-                print(f"✅ Trade {trade_id} on {symbol} no longer zero-contract; clearing timer")
+                print(f"✅ Trade {trade_id} on {symbol} no longer zero global position; clearing timer")
                 zombie_first_seen.pop(trade_id)
 
 if __name__ == '__main__':
