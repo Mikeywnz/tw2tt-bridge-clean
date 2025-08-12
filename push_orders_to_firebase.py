@@ -247,8 +247,8 @@ def push_orders_main():
             # Assign order_id once and validate immediately
             order_id = str(getattr(order, 'order_id', '')).strip()
 
-            def is_valid_order_id(oid):
-                return isinstance(oid, str) and oid.isdigit()
+            def is_valid_order_id(order_id):
+                return isinstance(order_id, str) and order_id.isdigit()
 
             if not is_valid_order_id(order_id):
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
@@ -432,15 +432,6 @@ def push_orders_main():
             # Re-check if already logged as ghost
             is_ghost_flag = is_ghostflag_trade(order_id, db)
 
-            # Define the validation function (can be outside the loop)
-            def is_valid_order_id(oid):
-                return isinstance(oid, str) and oid.isdigit()
-
-            # Validate the raw order ID BEFORE doing anything else with it
-            if not is_valid_order_id(order_id):
-                print(f"❌ Skipping order due to invalid order_id: {order_id}")
-                continue  # Skip this order and move to the next
-
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
             if order_id in archived_order_ids:
                 print(f"⏭️ ⛔ Archived trade {order_id} already processed this run; skipping duplicate archive")
@@ -486,6 +477,7 @@ def push_orders_main():
                 trail_offset_points = payload.get("trail_offset", 0)          # offset buffer in points
                 direction = 1 if payload.get("action", "").upper() == "BUY" else -1
                 commissions = safe_float(payload.get("tiger_commissions", 7.02))
+                trail_trigger_price = entry_price + (payload.get("trail_trigger", 0) * direction)
 
                 # Calculate actual trailing take profit price level
                 trailing_take_profit_price = entry_price + (trailing_take_profit_points * direction)

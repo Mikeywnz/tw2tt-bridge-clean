@@ -304,8 +304,8 @@ async def webhook(request: Request):
     # Build the payload dict with real API values from 'result' and known data
 
     # === Guard clause: abort if order_id invalid to avoid None bug ===
-    def is_valid_order_id(oid):
-        return isinstance(oid, str) and oid.isdigit()
+    def is_valid_order_id(order_id):
+        return isinstance(order_id, str) and order_id.isdigit()
 
     if not is_valid_order_id(result.get("order_id")):
         log_to_file(f"❌ Aborting Firebase push due to invalid order_id: {result.get('order_id')}")

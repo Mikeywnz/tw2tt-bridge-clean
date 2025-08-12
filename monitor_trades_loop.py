@@ -203,8 +203,8 @@ def load_open_trades(symbol):
         data = ref.get() or {}
         trades = []
         if isinstance(data, dict):
-            for oid, td in data.items():
-                td['order_id'] = oid
+            for order_id, td in data.items():
+                td['order_id'] = order_id
                 trades.append(td)
         print(f"🔄 Loaded {len(trades)} open trades from Firebase.")
         return trades
@@ -216,12 +216,11 @@ def save_open_trades(symbol, trades):
     ref = db.reference(f"/open_active_trades/{symbol}")
     try:
         for t in trades:
-            for t in trades:
-                order_id = t.get("order_id")
-                if not order_id:
-                    continue
-                ref.child(order_id).update(t)
-                print(f"✅ Open Active Trade {order_id} saved to Firebase.")
+            order_id = t.get("order_id")
+            if not order_id:
+                continue
+            ref.child(order_id).update(t)
+            print(f"✅ Open Active Trade {order_id} saved to Firebase.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
@@ -460,35 +459,35 @@ def monitor_trades():
         print("PRINTOUT OUT TRADE")
         print(t)
         print("CLOSING PRINT OUT TRADE")
-        oid = t.get('order_id')
+        order_id = t.get('order_id')
         # Skip no order id
-        if not oid:
+        if not order_id:
             print("⚠️ Skipping trade with no order_id")
             continue
         # Skip archived trades
-        if is_archived_trade(oid, firebase_db):
-            print(f"⏭️ Skipping archived trade {oid}")
+        if is_archived_trade(order_id, firebase_db):
+            print(f"⏭️ Skipping archived trade {order_id}")
             continue
         # Skip Zombie Trades in Zombie Log
-        if oid in existing_zombies:
-            print(f"⏭️ Skipping zombie trade {oid}")
+        if order_id in existing_zombies:
+            print(f"⏭️ Skipping zombie trade {order_id}")
             continue
         # Skip Ghost Trades in Ghost Log
-        if oid in existing_ghosts:
-            print(f"⏭️ Skipping ghost trade {oid}")
+        if order_id in existing_ghosts:
+            print(f"⏭️ Skipping ghost trade {order_id}")
             continue
         # Skip exited/closed trades
         if t.get('exited') or t.get('status') in ['failed', 'closed']:
-            print(f"🔁 Skipping exited/closed trade {oid}")
+            print(f"🔁 Skipping exited/closed trade {order_id}")
             continue
         # Skip trades that are not filled or have no contracts remaining unless they are ghost trades
         if not t.get('filled') and t.get('status', '').upper() not in GHOST_STATUSES:
-            print(f"🧾 Skipping {oid} ⚠️ not filled and not a ghost trade")
+            print(f"🧾 Skipping {order_id} ⚠️ not filled and not a ghost trade")
             continue
         status = t.get('status', '').upper()
         # Skip trades with no trigger points or offset points
         if trigger_points < 0.01 or offset_points < 0.01:
-            print(f"⚠️ Skipping trade {oid} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
+            print(f"⚠️ Skipping trade {order_id} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
             continue
         active_trades.append(t)
 
