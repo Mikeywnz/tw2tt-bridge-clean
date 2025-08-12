@@ -325,7 +325,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 # 🟩 FIFO MATCH AND FLATTEN WITH FIREBASE UPDATE
 # ==============================================
 
-def fifo_match_and_flatten(active_trades, symbol):
+def fifo_match_and_flatten(active_trades, symbol, firebase_db):
     print(f"[DEBUG] fifo_match_and_flatten() called with {len(active_trades)} active trades")
     # ===== Archive and Delete Matched Trades =====
     matched_trades = [t for t in active_trades if t.get('exited') or t.get('trade_state') == 'closed']
@@ -348,7 +348,8 @@ def fifo_match_and_flatten(active_trades, symbol):
     for exit_trade in exit_trades:
         matched = False
         for open_trade in open_trades:
-            if open_trade.get('action') != exit_trade.get('exit_action') and not open_trade.get('exited'):
+            print(f"Trying to match exit trade {exit_trade.get('trade_id')} with open trade {open_trade.get('trade_id')}")
+            if not open_trade.get('exited'):
                 open_trade['exited'] = True
                 open_trade['trade_state'] = 'closed'
                 open_trade['contracts_remaining'] = 0
@@ -356,9 +357,11 @@ def fifo_match_and_flatten(active_trades, symbol):
                 # Calculate PnL here
                 try:
                     entry_price = open_trade.get("filled_price")
-                    exit_price = exit_trade.get("filled_price")  # or exit_fill_price if set elsewhere
-                    quantity = exit_trade.get("exit_filled_qty", 1)  # fallback to 1
-                    
+                    exit_price = exit_trade.get("filled_price")
+                    quantity = exit_trade.get("exit_filled_qty")
+                    if not quantity or quantity <= 0:
+                        quantity = 1
+
                     pnl = 0.0
                     if entry_price is not None and exit_price is not None:
                         if open_trade.get('action') == 'BUY':
@@ -378,7 +381,7 @@ def fifo_match_and_flatten(active_trades, symbol):
 
                 try:
                     open_trades_ref = firebase_db.reference(f"/open_active_trades/{open_trade['symbol']}")
-                    commissions = 7.02  
+                    commissions = 7.02
                     net_pnl = pnl - commissions
 
                     # Update Firebase to reflect trade exit and realized PnL on the open trade
@@ -407,7 +410,6 @@ def fifo_match_and_flatten(active_trades, symbol):
             print(f"[WARN] No matching open trade found for exit trade {exit_trade.get('trade_id')}")
 
     return active_trades
-
 # ========================================================
 # MONITOR TRADES LOOP - CENTRAL LOOP 
 # ========================================================
