@@ -273,34 +273,33 @@ def push_orders_main():
                 # ====================== 🧱 Liquidation Firewall & Cleanup END ===================================
 
             # ===================== Check if order ID is already processed and filter out ====================
-            oid = str(getattr(order, 'id', '')).strip()
-            # Skip if order ID is empty or None
-            if not oid:
-                print("⚠️ Skipping order with empty or missing ID")
+            trade_id = str(getattr(order, 'order_id', '')).strip()
+            if not trade_id:
+                print("⚠️ Skipping order with empty or missing trade_id")
                 continue
-            print(f"🔍 Processing order ID: {oid}")
-            # Skip if Zombie Trade
-            if is_zombie_trade(oid, db):
-                print(f"⏭️ ⛔ Skipping zombie trade {oid} during API push")
-                continue
-            else:
-                print(f"✅ Order ID {oid} not a zombie, proceeding")
-            # Skip if already archived
-            if is_archived_trade(oid, db):
-                print(f"⏭️ ⛔ Skipping archived trade {oid} during API push")
-                continue
-            # Skip if ghost trade
-            is_ghost_flag = is_ghostflag_trade(oid, db)
-            if is_ghost_flag:
-                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+            print(f"🔍 Processing trade_id: {trade_id}")
+
+            if is_zombie_trade(trade_id, db):
+                print(f"⏭️ ⛔ Skipping zombie trade {trade_id} during API push")
                 continue
             else:
-                print(f"✅ Order ID {oid} not a ghost, proceeding")
+                print(f"✅ Trade ID {trade_id} not a zombie, proceeding")
+
+            if is_archived_trade(trade_id, db):
+                print(f"⏭️ ⛔ Skipping archived trade {trade_id} during API push")
+                continue
+
+            if is_ghostflag_trade(trade_id, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {trade_id} during API push (detected by helper)")
+                continue
+            else:
+                print(f"✅ Trade ID {trade_id} not a ghost, proceeding")
 
             # ===================================End of First filtering=======================================
 
            #=========================== Extract order information for further processing ====================
-            tiger_ids.add(oid)
+            trade_id = str(getattr(order, "order_id", "")).strip()
+            tiger_ids.add(trade_id)
 
             raw_status = getattr(order, "status", "")
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
@@ -327,7 +326,7 @@ def push_orders_main():
 
             symbol = firebase_active_contract.get_active_contract()
             if not symbol:
-                print(f"❌ No active contract symbol found in Firebase; skipping order ID {oid}")
+                print(f"❌ No active contract symbol found in Firebase; skipping order ID {trade_id}")
                 continue  # Skip processing this order
 
             is_open = getattr(order, 'is_open', False)
@@ -344,7 +343,11 @@ def push_orders_main():
             trigger_points, offset_points = load_trailing_tp_settings()
             existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
             filled_price_new = getattr(order, "filled_price", 0.0)
-            filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)  
+            filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)
+
+            trade_type_final = existing_trade.get("trade_type", "")
+            if result.get("trade_type"):
+                trade_type_final = result.get("trade_type")
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
             print(f"[DEBUG] existing_trade data: {existing_trade}")
@@ -404,47 +407,47 @@ def push_orders_main():
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
             is_ghost_flag = filled == 0 and status in ghost_statuses
             if is_ghost_flag:
-                print(f"👻 Ghost trade detected: {oid} (status={status}, filled={filled}) logged to ghost_trades_log")
+                print(f"👻 Ghost trade detected: {trade_id} (status={status}, filled={filled}) logged to ghost_trades_log")
 
                 # Update payload ghost flag
                 payload["is_ghost"] = True
 
                 # Write minimal info to ghost_trades_log to archive ghost trade
                 ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(oid).update(payload)
+                ghost_ref.child(trade_id).update(payload)
 
                 # Skip pushing this trade to open_active_trades
                 continue
 
             # Re-check if already logged as ghost
-            is_ghost_flag = is_ghostflag_trade(oid, db)
+            is_ghost_flag = is_ghostflag_trade(trade_id, db)
 
             # Define the validation function (can be outside the loop)
             def is_valid_trade_id(tid):
                 return isinstance(tid, str) and tid.isdigit()
 
             # Extract and clean the raw order ID first
-            oid = str(getattr(order, 'id', '')).strip()
+            trade_id = str(getattr(order, 'order_id', '')).strip()
 
             # Validate the raw order ID BEFORE doing anything else with it
-            if not is_valid_trade_id(oid):
-                print(f"❌ Skipping order due to invalid trade_id: {oid}")
+            if not is_valid_trade_id(trade_id):
+                print(f"❌ Skipping order due to invalid trade_id: {trade_id}")
                 continue  # Skip this order and move to the next
 
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
-            if oid in archived_trade_ids:
-                print(f"⏭️ ⛔ Archived trade {oid} already processed this run; skipping duplicate archive")
+            if trade_id in archived_trade_ids:
+                print(f"⏭️ ⛔ Archived trade {trade_id} already processed this run; skipping duplicate archive")
                 continue
 
-            if is_ghostflag_trade(oid, db):
-                print(f"⏭️ ⛔ Skipping ghost trade {oid} during API push (detected by helper)")
+            if is_ghostflag_trade(trade_id, db):
+                print(f"⏭️ ⛔ Skipping ghost trade {trade_id} during API push (detected by helper)")
                 continue
 
-            if is_zombie_trade(oid, db):
-                print(f"⏭️ ⛔ Skipping zombie trade {oid} during API push (detected by helper)")
+            if is_zombie_trade(trade_id, db):
+                print(f"⏭️ ⛔ Skipping zombie trade {trade_id} during API push (detected by helper)")
                 continue
 
-            print(f"Order ID {oid} not archived, ghost, or zombie; proceeding")
+            print(f"Order ID {trade_id} not archived, ghost, or zombie; proceeding")
 
             if payload.get("is_open", False):
                 open_trades_count += 1
@@ -455,10 +458,7 @@ def push_orders_main():
             else:
                 unknown_count += 1
 
-            archived_trade_ids.add(oid)
-
-            # Now assign trade_id safely, knowing it is valid
-            trade_id = oid
+            archived_trade_ids.add(trade_id)
 
             # Use trade_id safely from here on
             ref = db.reference(f'/open_active_trades/{symbol}/{trade_id}')

@@ -35,17 +35,17 @@ client = TradeClient(config)
 
 
 # === Helper: Fetch Trade Transactions from Tiger (for accurate entry prices) ===
-def fetch_trade_transactions(account_id):
-    try:
-        active_symbol = firebase_active_contract.get_active_contract()
-        if not active_symbol:
-            print("❌ No active contract symbol found in Firebase; aborting fetch_trade_transactions")
-            return []
-        transactions = client.get_transactions(account=account_id, symbol=active_symbol, limit=10)
-        return transactions or []
-    except Exception as e:
-        print(f"❌ Failed to fetch trade transactions: {e}")
-        return []
+# def fetch_trade_transactions(account_id):
+#     try:
+#         active_symbol = firebase_active_contract.get_active_contract()
+#         if not active_symbol:
+#             print("❌ No active contract symbol found in Firebase; aborting fetch_trade_transactions")
+#             return []
+#         transactions = client.get_transactions(account=account_id, symbol=active_symbol, limit=10)
+#         return transactions or []
+#     except Exception as e:
+#         print(f"❌ Failed to fetch trade transactions: {e}")
+#         return []
 
 
 
