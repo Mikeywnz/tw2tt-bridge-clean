@@ -310,10 +310,10 @@ def push_orders_main():
 
             raw_status = getattr(order, "status", "")
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
-            #raw_reason = getattr(order, "reason", "")
+            raw_reason = getattr(order, "reason", "")
             filled = getattr(order, "filled", 0)
             is_open = getattr(order, "is_open", False)
-            #exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
+            exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
             
             
 
@@ -322,11 +322,9 @@ def push_orders_main():
             try:
                 ts_dt = datetime.utcfromtimestamp(raw_ts / 1000.0)
                 exit_time_str = ts_dt.strftime("%Y-%m-%d %H:%M:%S")  # For Google Sheets
-                exit_time_iso = ts_dt.isoformat() + "Z"              # For Firebase
             except Exception as e:
                 print(f"⚠️ Failed to parse Tiger order_time: {raw_ts} → {e}")
                 exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-                exit_time_iso = datetime.utcnow().isoformat() + "Z"
                 exit_reason_raw = "UNKNOWN"
 
             friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
@@ -337,17 +335,14 @@ def push_orders_main():
                 continue  # Skip processing this order
 
             order_data = order
-            original_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
             exit_timestamp = datetime.utcnow().isoformat() + "Z"
-            exit_time_iso = datetime.utcnow().isoformat() + "Z"
             entry_timestamp = getattr(order, "transaction_time", None)
             if entry_timestamp is None:
                 entry_timestamp = datetime.utcnow().isoformat() + "Z" 
 
             trigger_points, offset_points = load_trailing_tp_settings()
             existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
-            filled_price_new = getattr(order, "filled_price", 0.0)
-            filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)
+            filled_price_final = existing_trade.get("filled_price", 0.0)
 
             trade_type_final = existing_trade.get("trade_type", "")
             if getattr(order, "trade_type", None):
@@ -363,7 +358,7 @@ def push_orders_main():
                 "exit_in_progress": False,
                 "filled_price": filled_price_final,
                 "action": str(getattr(order, 'action', '')).upper(),
-                "trade_type": existing_trade.get("trade_type", ""),
+                "trade_type": trade_type_final,
                 "status": status,
                 "contracts_remaining": getattr(order, "contracts_remaining", 1),
                 "trail_trigger": existing_trade.get("trail_trigger", trigger_points),
@@ -373,7 +368,7 @@ def push_orders_main():
                 "filled": bool(filled),
                 "entry_timestamp": entry_timestamp,
                 "just_executed": True,
-                "exit_timestamp": exit_time_iso,
+                "exit_timestamp": exit_timestamp,
                 "trade_state": "open" if status == "FILLED" and is_open else "closed",         
                 "quantity": getattr(order, 'quantity', 0),
                 "realized_pnl": 0.0,
@@ -387,6 +382,17 @@ def push_orders_main():
                 "exit_reason": friendly_reason,
             }
            
+
+            ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
+            try:
+                existing_trade = ref.get() or {}
+                merged_trade = {**existing_trade, **payload}
+                ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
+                print(f"✅ /open_active_trades/{symbol}/{order_id} successfully merged and updated")
+            except Exception as e:
+                print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
+
+
             # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
             is_closed = not getattr(order, 'is_open', False) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
 
@@ -493,7 +499,7 @@ def push_orders_main():
                 trail_offset_amount = float(trail_offset_points)
 
 #                # Calculate net PnL
-                net_pnl = safe_float(payload.get("realized_pnl", 0.0)) - commissions
+                net_pnl_value = safe_float(payload.get("realized_pnl", 0.0)) - commissions
 
                 # Determine if this is an exit (flattening) trade
                 is_exit_trade = payload.get("trade_type", "").startswith("FLATTENING") or payload.get("trade_type", "").startswith("EXIT")
@@ -531,14 +537,6 @@ def push_orders_main():
                 print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
                 continue  # Skip pushing closed trades
 
-            ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
-            try:
-                existing_trade = ref.get() or {}
-                merged_trade = {**existing_trade, **payload}
-                ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
-                print(f"✅ /open_active_trades/{symbol}/{order_id} successfully merged and updated")
-            except Exception as e:
-                print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
         except Exception as e:
             print(f"❌ Error processing order {order}: {e}")
             continue
