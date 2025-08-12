@@ -347,7 +347,9 @@ def push_orders_main():
             filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)  
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
-        
+            print(f"[DEBUG] existing_trade data: {existing_trade}")
+            print(f"[DEBUG] filled_price_new: {filled_price_new}, filled_price_final: {filled_price_final}")
+            
             payload = {
                 "trade_id": trade_id,
                 "symbol": symbol,
@@ -381,15 +383,21 @@ def push_orders_main():
             # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
             is_closed = not getattr(order, 'is_open', True) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
 
+            trade_id = payload.get("trade_id", "")
+
             if is_closed:
+                if trade_id == "0" or not trade_id:
+                    print(f"[WARN] Skipping closed trade logging due to invalid trade_id: {trade_id}")
+                    continue
+
                 log_payload_as_closed_trade(payload)  # Log the existing payload data (trade data for sheets)
-                print(f"✅ Logged closed trade {oid} from payload")
+                print(f"✅ Logged closed trade {trade_id} from payload")
 
-                archived_ref = db.reference(f"/archived_trades_log/{oid}")
+                archived_ref = db.reference(f"/archived_trades_log/{trade_id}")
                 archived_ref.set(payload)
-                print(f"🗄️ Archived trade {oid} to /archived_trades_log")
+                print(f"🗄️ Archived trade {trade_id} to /archived_trades_log")
 
-                print(f"⚠️ Skipping closed trade {oid} for open_active_trades push")
+                print(f"⚠️ Skipping closed trade {trade_id} for open_active_trades push")
                 continue
             # ===== NEW PATCH END =====
             # ========================= DETECT GHOST TRADE ==================================================

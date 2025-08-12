@@ -71,6 +71,7 @@ def place_entry_trade(symbol, action, quantity, db):
     try:
         response = client.place_order(order)
         print(f"[DEBUG] Tiger order response (entry): {response}")
+        print(f"[DEBUG] Full order placement response: {response}")
     except Exception as e:
         print(f"[ERROR] Exception placing entry order: {e}")
         return {"status": "ERROR", "reason": str(e)}
