@@ -350,7 +350,7 @@ def push_orders_main():
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
             print(f"[DEBUG] existing_trade data: {existing_trade}")
-            print(f"[DEBUG] filled_price_new: {filled_price_new}, filled_price_final: {filled_price_final}")
+            print(f"[DEBUG] filled_price_final: {filled_price_final}")
             
             payload = {
                 "order_id": order_id,

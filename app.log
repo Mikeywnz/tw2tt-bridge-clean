@@ -60,3 +60,5 @@
 [2025-08-12T22:30:00.590054+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
 [2025-08-12T22:35:41.542779+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
 [2025-08-12T23:29:05.461067+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-13T09:26:10.982170+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-13T09:26:12.035919+12:00] ❌ Aborting Firebase push due to invalid order_id: None
