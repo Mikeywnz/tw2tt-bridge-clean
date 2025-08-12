@@ -246,6 +246,16 @@ def push_orders_main():
 
     for order in orders:
         try:
+            # Assign trade_id once and validate immediately
+            trade_id = str(getattr(order, 'order_id', '')).strip()
+
+            def is_valid_trade_id(tid):
+                return isinstance(tid, str) and tid.isdigit() and len(tid) > 5
+
+            if not is_valid_trade_id(trade_id):
+                print(f"❌ Skipping order due to invalid trade_id: '{trade_id}'. Order raw data: {order}")
+                continue
+
             if getattr(order, "liquidation", False) is True:
                 trade_id = str(getattr(order, "order_id", ""))
                 symbol = getattr(order, "symbol", "")
@@ -273,7 +283,7 @@ def push_orders_main():
                 # ====================== 🧱 Liquidation Firewall & Cleanup END ===================================
 
             # ===================== Check if order ID is already processed and filter out ====================
-            trade_id = str(getattr(order, 'order_id', '')).strip()
+            
             if not trade_id:
                 print("⚠️ Skipping order with empty or missing trade_id")
                 continue
@@ -298,7 +308,7 @@ def push_orders_main():
             # ===================================End of First filtering=======================================
 
            #=========================== Extract order information for further processing ====================
-            trade_id = str(getattr(order, "order_id", "")).strip()
+            
             tiger_ids.add(trade_id)
 
             raw_status = getattr(order, "status", "")
@@ -346,8 +356,8 @@ def push_orders_main():
             filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)
 
             trade_type_final = existing_trade.get("trade_type", "")
-            if result.get("trade_type"):
-                trade_type_final = result.get("trade_type")
+            if getattr(order, "trade_type", None):
+                trade_type_final = getattr(order, "trade_type")
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
             print(f"[DEBUG] existing_trade data: {existing_trade}")
@@ -426,8 +436,6 @@ def push_orders_main():
             def is_valid_trade_id(tid):
                 return isinstance(tid, str) and tid.isdigit()
 
-            # Extract and clean the raw order ID first
-            trade_id = str(getattr(order, 'order_id', '')).strip()
 
             # Validate the raw order ID BEFORE doing anything else with it
             if not is_valid_trade_id(trade_id):
