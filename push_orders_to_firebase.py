@@ -306,8 +306,7 @@ def push_orders_main():
             reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
             filled = getattr(order, "filled", 0)
             exit_reason_raw = get_exit_reason(status, reason, filled)
-            trigger_points = 0  # or your actual trailing trigger value
-            offset_points = 0   # or your actual trailing offset value
+            
 
             # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
             raw_ts = getattr(order, 'order_time', 0)
@@ -338,6 +337,9 @@ def push_orders_main():
             entry_timestamp = getattr(order, "transaction_time", None)
             if entry_timestamp is None:
                 entry_timestamp = datetime.utcnow().isoformat() + "Z" 
+
+            trigger_points, offset_points = load_trailing_tp_settings()
+            existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
         
@@ -345,13 +347,13 @@ def push_orders_main():
                 "trade_id": trade_id,
                 "symbol": symbol,
                 "exit_in_progress": False,
-                "filled_price": getattr(order, "filled_price", 0.0),
+                "filled_price": existing_trade.get("filled_price", getattr(order, "filled_price", 0.0)),
                 "action": str(getattr(order, 'action', '')).upper(),
-                "trade_type": original_trade.get("trade_type", ""),
+                "trade_type": existing_trade.get("trade_type", ""),
                 "status": status,
                 "contracts_remaining": getattr(order, "contracts_remaining", 1),
-                "trail_trigger": trigger_points,
-                "trail_offset": offset_points,
+                "trail_trigger": existing_trade.get("trail_trigger", trigger_points),
+                "trail_offset": existing_trade.get("trail_offset", offset_points),
                 "trail_hit": False,
                 "trail_peak": getattr(order, "filled_price", 0.0),
                 "filled": bool(filled),
