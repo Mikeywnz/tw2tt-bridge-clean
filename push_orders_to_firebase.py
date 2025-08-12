@@ -88,7 +88,9 @@ def map_source(raw_source):
         return "Tiger Liquidation"
     return "unknown"
 
-def get_exit_reason(status, reason, filled):
+def get_exit_reason(status, reason, filled, is_open=False):
+    if is_open:
+        return "In Progress"
     if status == "CANCELLED" and filled == 0:
         return "CANCELLED"
     elif status == "EXPIRED" and filled == 0 and reason and ("资金" in reason or "margin" in reason.lower()):
@@ -300,12 +302,13 @@ def push_orders_main():
            #=========================== Extract order information for further processing ====================
             tiger_ids.add(oid)
 
-            exit_reason_raw = "UNKNOWN"
             raw_status = getattr(order, "status", "")
             status = "FILLED" if raw_status == "SUCCESS" else str(raw_status).split('.')[-1].upper()
-            reason = str(getattr(order, "reason", "")).split('.')[-1] if getattr(order, "reason", "") else ""
+            raw_reason = getattr(order, "reason", "")
             filled = getattr(order, "filled", 0)
-            exit_reason_raw = get_exit_reason(status, reason, filled)
+            is_open = getattr(order, "is_open", True)
+            exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
+            
             
 
             # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
@@ -340,6 +343,8 @@ def push_orders_main():
 
             trigger_points, offset_points = load_trailing_tp_settings()
             existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{trade_id}").get() or {}
+            filled_price_new = getattr(order, "filled_price", 0.0)
+            filled_price_final = filled_price_new if filled_price_new > 0 else existing_trade.get("filled_price", 0.0)  
             
             # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
         
@@ -347,7 +352,7 @@ def push_orders_main():
                 "trade_id": trade_id,
                 "symbol": symbol,
                 "exit_in_progress": False,
-                "filled_price": existing_trade.get("filled_price", getattr(order, "filled_price", 0.0)),
+                "filled_price": filled_price_final,
                 "action": str(getattr(order, 'action', '')).upper(),
                 "trade_type": existing_trade.get("trade_type", ""),
                 "status": status,

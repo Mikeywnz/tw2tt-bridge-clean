@@ -317,8 +317,8 @@ async def webhook(request: Request):
     payload = data.copy()
 
     # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
-    trade_type = result.get("trade_type", "").lower()
-    if trade_type == "closed":
+    trade_type = (result.get("trade_type") or "UNKNOWN").upper()
+    if trade_type == "CLOSED":
         if action.upper() == "BUY":
             trade_type = "LONG_ENTRY"
         else:
@@ -357,7 +357,7 @@ async def webhook(request: Request):
     action = payload.get("action", "BUY").upper()
     entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
     entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
-    exit_timestamp = datetime.utcnow().isoformat() + "Z"  #
+    exit_timestamp = None
 
     # Build new_trade dict merging existing payload to preserve info
     new_trade = {
