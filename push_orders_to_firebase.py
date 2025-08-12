@@ -125,7 +125,7 @@ def load_trailing_tp_settings():
     return 14.0, 5.0
 
 archived_trades_ref = db.reference("/archived_trades_log")
-archived_order_ids = set() = set(archived_trades_ref.get() or {})
+archived_order_ids = set(archived_trades_ref.get() or {})
     
 # ====================================================
 # 🟩 Helper: to log payload
