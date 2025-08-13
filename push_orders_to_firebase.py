@@ -338,14 +338,11 @@ def push_orders_main():
             if not entry_timestamp:
                 entry_timestamp = getattr(order, "transaction_time", None) or datetime.utcnow().isoformat() + "Z"
             filled_price_final = existing_trade.get("filled_price", 0.0)
-            exit_timestamp = None
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
             just_executed_final = existing_trade.get("just_executed", False)
             payload["just_executed"] = just_executed_final
             trail_peak = existing_trade.get("trail_peak", existing_trade.get("filled_price"))
             payload["trail_peak"] = trail_peak
-
-
             trade_type_final = existing_trade.get("trade_type", "")
             if getattr(order, "trade_type", None):
                 trade_type_final = getattr(order, "trade_type")
@@ -357,7 +354,6 @@ def push_orders_main():
             payload = {
                 "order_id": order_id,
                 "symbol": symbol,
-                "exit_in_progress": False,
                 "filled_price": filled_price_final,
                 "action": str(getattr(order, 'action', '')).upper(),
                 "trade_type": trade_type_final,
