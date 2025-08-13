@@ -244,13 +244,11 @@ def push_orders_main():
 
     for order in orders:
         try:
-            # Assign order_id once and validate immediately
-            order_id = str(getattr(order, 'order_id', '')).strip()
+            # Always use the TigerTrade long ID from get_orders()
+            order_id = str(getattr(order, 'id', '')).strip()
 
-            def is_valid_order_id(order_id):
-                return isinstance(order_id, str) and order_id.isdigit()
-
-            if not is_valid_order_id(order_id):
+             # Single validation – ensures it's a numeric string
+            if not (isinstance(order_id, str) and order_id.isdigit()):
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
                 continue
 

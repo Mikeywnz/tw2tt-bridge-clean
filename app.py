@@ -20,6 +20,7 @@ import firebase_admin
 import time  # if not already imported
 import hashlib
 from datetime import datetime, timezone
+from fastapi import Request
 
 def normalize_to_utc_iso(timestr):
     try:
