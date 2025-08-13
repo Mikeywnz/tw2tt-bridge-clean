@@ -309,7 +309,10 @@ def push_orders_main():
             is_open = getattr(order, "is_open", False)
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
             
-            
+            # 🛑 Skip closed or held orders (Tiger API returns HELD in uppercase)
+            if status in ["CLOSED", "FILLED"] or str(raw_status).upper() == "HELD":
+                print(f"⏭️ Skipping closed/held order {order_id} for {symbol}")
+                continue
 
             # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
             raw_ts = getattr(order, 'order_time', 0)
@@ -337,7 +340,10 @@ def push_orders_main():
             filled_price_final = existing_trade.get("filled_price", 0.0)
             exit_timestamp = None
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
-            
+            just_executed_final = existing_trade.get("just_executed", False)
+            payload["just_executed"] = just_executed_final
+            trail_peak = existing_trade.get("trail_peak", existing_trade.get("filled_price"))
+            payload["trail_peak"] = trail_peak
 
 
             trade_type_final = existing_trade.get("trade_type", "")
@@ -363,7 +369,7 @@ def push_orders_main():
                 "trail_peak": getattr(order, "filled_price", 0.0),
                 "filled": bool(filled),
                 "entry_timestamp": entry_timestamp,
-                "just_executed": True,
+                "just_executed": just_executed_final,
                 "exit_timestamp": existing_trade.get("exit_timestamp") or None,
                 "trade_state": "open" if status == "FILLED" and is_open else "closed",         
                 "quantity": getattr(order, 'quantity', 0),

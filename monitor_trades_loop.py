@@ -287,16 +287,30 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     print(f"❌ Failed to update trail_hit in Firebase for trade {order_id}: {e}")
 
         if trade.get('trail_hit'):
-            if (direction == 1 and current_price > trade['trail_peak']) or (direction == -1 and current_price < trade['trail_peak']):
-                trade['trail_peak'] = current_price
-            buffer_amt = offset_points
-            if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
-                print(f"🚨 Trailing TP exit for {order_id}: price={current_price}, peak={trade['trail_peak']}")
-                print(f"[INFO] Trailing TP EXIT triggered for trade {order_id}: current price={current_price:.2f}, trail peak={trade['trail_peak']:.2f}, buffer={buffer_amt}")
+            prev_peak = trade.get('trail_peak', entry)
+            if direction == 1:   # LONG
+                new_peak = max(prev_peak, current_price)
+            else:                # SHORT
+                new_peak = min(prev_peak, current_price)
 
-                if trade.get("exit_in_progress", False):
-                    print(f"⏭️ Exit order already in progress for trade {order_id}, skipping new exit order.")
-                    continue
+            if new_peak != prev_peak:
+                print(f"[DEBUG] New trail peak for {order_id}: {new_peak:.2f} (prev: {prev_peak:.2f})")
+                trade['trail_peak'] = new_peak
+                try:
+                    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+                    open_trades_ref.child(order_id).update({"trail_peak": new_peak})
+                except Exception as e:
+                    print(f"❌ Failed to update trail_peak for {order_id}: {e}")
+            else:
+                print(f"[DEBUG] Trail peak unchanged for {order_id}: {trade['trail_peak']:.2f}")
+
+            buffer_amt = offset_points
+            print(f"[DEBUG] Buffer amount for {order_id}: {buffer_amt:.2f}")
+
+            # Exit trigger check
+            if (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or \
+            (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt):
+                print(f"[INFO] Trailing TP EXIT condition met for {order_id}: price={current_price:.2f}, peak={trade['trail_peak']:.2f}, buffer={buffer_amt:.2f}")
 
                 try:
                     result = place_exit_trade(symbol, 'SELL' if trade['action'] == 'BUY' else 'BUY', 1, firebase_db)
