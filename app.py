@@ -383,12 +383,11 @@ async def webhook(request: Request):
         "realized_pnl": 0.0,
         "net_pnl": 0.0,
         "tiger_commissions": 0.0,
-        "reason": payload.get("reason", ""),
+        "exit_reason": "",  # ✅ only set after actual exit
         "liquidation": payload.get("liquidation", False),
         "source": map_source(payload.get("source", None)),
         "is_open": payload.get("is_open", True),
-        "is_ghost": payload.get("is_ghost", False),
-        "exit_reason": payload.get("exit_reason", ""),
+        "is_ghost": payload.get("is_ghost", False), 
     }
 
     print(f"[DEBUG] New trade payload to push to Firebase: {new_trade}")

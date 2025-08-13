@@ -34,6 +34,19 @@ if not firebase_admin._apps:
 
 firebase_db = db
 
+# ==============================================
+# 🟩 HELPER: Reason Map for Friendly Definitions
+# ==============================================
+REASON_MAP = {
+    "trailing_tp_exit": "Trailing Take Profit",
+    "manual_close": "Manual Close",
+    "ema_flattening_exit": "EMA Flattening",
+    "liquidation": "Liquidation",
+    "LACK_OF_MARGIN": "Lack of Margin",
+    "CANCELLED": "Cancelled",
+    "EXPIRED": "Lack of Margin",
+}
+
 # =========================================
 # 🟩 HELPER: Load Live Prices from Firebase
 # =========================================
@@ -383,6 +396,8 @@ def fifo_match_and_flatten(active_trades, symbol, firebase_db):
                     open_trades_ref = firebase_db.reference(f"/open_active_trades/{open_trade['symbol']}")
                     commissions = 7.02
                     net_pnl = pnl - commissions
+                    reason_raw = (open_trade.get("exit_reason_raw") or "").upper()
+                    friendly = REASON_MAP.get(reason_raw, "FILLED")
 
                     # Update Firebase to reflect trade exit and realized PnL on the open trade
                     open_trades_ref.child(open_trade['order_id']).update({
@@ -391,7 +406,9 @@ def fifo_match_and_flatten(active_trades, symbol, firebase_db):
                         "contracts_remaining": 0,
                         "realized_pnl": pnl,
                         "tiger_commissions": commissions,
-                        "net_pnl": net_pnl
+                        "net_pnl": net_pnl,
+                        "exit_timestamp": datetime.utcnow().isoformat() + "Z",
+                        "exit_reason": friendly_reason
                     })
 
                     # Update Firebase for exit trade with FIFO info

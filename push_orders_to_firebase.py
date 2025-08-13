@@ -192,12 +192,8 @@ def archive_trade(symbol, trade):
 def push_orders_main():
 
     #=======Definitions ===========
-    tiger_orders_ref = db.reference("/ghost_trades_log")  # rename from tiger_orders_log
     symbol = firebase_active_contract.get_active_contract()
-    open_trades_ref = db.reference(f"open_active_trades/{symbol}")
-    sheet = get_google_sheet()
-    
-    #=====Time function ===
+     #=====Time function ===
     now = datetime.utcnow()
    
     #====Initialize counters here, BEFORE the order loop: =====
@@ -325,22 +321,24 @@ def push_orders_main():
                 exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 exit_reason_raw = "UNKNOWN"
 
-            friendly_reason = REASON_MAP.get(exit_reason_raw, exit_reason_raw)
+            
 
             symbol = firebase_active_contract.get_active_contract()
             if not symbol:
                 print(f"❌ No active contract symbol found in Firebase; skipping order ID {order_id}")
                 continue  # Skip processing this order
-
-            order_data = order
-            exit_timestamp = datetime.utcnow().isoformat() + "Z"
-            entry_timestamp = getattr(order, "transaction_time", None)
-            if entry_timestamp is None:
-                entry_timestamp = datetime.utcnow().isoformat() + "Z" 
-
-            trigger_points, offset_points = load_trailing_tp_settings()
+        
             existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
+            trigger_points, offset_points = load_trailing_tp_settings()
+            # Keep original entry timestamp if it exists
+            entry_timestamp = existing_trade.get("entry_timestamp")
+            if not entry_timestamp:
+                entry_timestamp = getattr(order, "transaction_time", None) or datetime.utcnow().isoformat() + "Z"
             filled_price_final = existing_trade.get("filled_price", 0.0)
+            exit_timestamp = None
+            exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
+            
+
 
             trade_type_final = existing_trade.get("trade_type", "")
             if getattr(order, "trade_type", None):
@@ -366,18 +364,17 @@ def push_orders_main():
                 "filled": bool(filled),
                 "entry_timestamp": entry_timestamp,
                 "just_executed": True,
-                "exit_timestamp": exit_timestamp,
+                "exit_timestamp": existing_trade.get("exit_timestamp") or None,
                 "trade_state": "open" if status == "FILLED" and is_open else "closed",         
                 "quantity": getattr(order, 'quantity', 0),
                 "realized_pnl": 0.0,
                 "net_pnl": 0.0,
                 "tiger_commissions": 0.0,
-                "reason": friendly_reason,
+                "exit_reason": existing_trade.get("exit_reason", exit_reason_raw),
                 "liquidation": getattr(order, 'liquidation', False),
                 "source": map_source(getattr(order, 'source', None)),
                 "is_open": getattr(order, 'is_open', False),
-                "is_ghost": False,
-                "exit_reason": friendly_reason,
+                "is_ghost": False,    
             }
            
 
