@@ -361,25 +361,27 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Failed to update anchor {anchor_oid}: {e}")
         return False
 
-       # 6) Archive & delete anchor
+    # 6) Archive & delete anchor (minimal + deterministic)
     try:
-        archive_ref = firebase_db.reference(f"/archived_trades_log/{anchor_oid}")
-        archive_ref.set({**anchor, **update})
-        open_ref.child(anchor_oid).delete()
-        print(f"[INFO] Archived+deleted anchor {anchor_oid}")
+        firebase_db.reference(f"/archived_trades_log/{anchor_oid}").set({**anchor, **update})
+        firebase_db.reference(f"/open_active_trades/{symbol}/{anchor_oid}").delete()
+        print(f"[INFO] Archived + deleted anchor {anchor_oid}")
     except Exception as e:
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
-        return None  # return None on failure
-    
-   # ✅ Mark exit ticket as handled to prevent duplicate processing
-    firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({
-        "_handled": True,  # local handler done
-        "anchor_id": anchor_oid
-    })
+        return None
 
-    # 7) Keep ticket (audit only; ignored by open loop)
+    # 7) Mark exit ticket handled/processed (prevents reprocessing)
+    try:
+        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({
+            "_handled": True,
+            "_processed": True,
+            "anchor_id": anchor_oid,
+        })
+    except Exception as e:
+        print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
+
     print(f"[INFO] Exit ticket retained under /exit_orders_log/{symbol}/{exit_oid}")
-    return anchor_oid  # ← tell caller which open trade was closed
+    return anchor_oid
 
 # ========================================================
 # MONITOR TRADES LOOP - CENTRAL LOOP 
