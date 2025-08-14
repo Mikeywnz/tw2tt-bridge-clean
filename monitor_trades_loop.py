@@ -129,8 +129,21 @@ def load_open_trades(symbol):
 def save_open_trades(symbol, trades):
     ref = db.reference(f"/open_active_trades/{symbol}")
     try:
-        payload = {t["order_id"]: t for t in trades if t.get("order_id")}
-        ref.set(payload)  # atomic overwrite → prunes anything not in payload
+        payload = {}
+        for t in trades:
+            if not isinstance(t, dict):
+                continue
+            oid = t.get("order_id")
+            if not oid:
+                continue
+            if t.get("symbol") not in (None, "", symbol):  # drop mismatched symbols
+                continue
+            status = (t.get("status") or "").lower()
+            if t.get("exited") or status in ("closed", "failed") or t.get("contracts_remaining", 0) <= 0:
+                continue
+            payload[oid] = t
+
+        ref.set(payload)  # atomic overwrite
         print(f"✅ Open Active Trades replaced atomically ({len(payload)})")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
@@ -447,17 +460,21 @@ def monitor_trades():
     # Prices (single fetch per loop)
     prices = load_live_prices()
 
-    # Trailing TP & exit placement
+   # Trailing TP & exit placement
     print(f"[DEBUG] Processing {len(active_trades)} active trades for trailing TP and exits")
     try:
         active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points)
     except Exception as e:
         print(f"❌ process_trailing_tp_and_exits error: {e}")
 
+    # [ADD] Track anchors closed in this loop so they cannot be written back
+    closed_anchor_ids = set()
+
     # Only drain exit tickets if we actually have open anchors to match
     if not active_trades:
         print("⏭️ No open anchors; skipping exit ticket drain this loop.")
     else:
+        
         # 🔽 EXIT LOGIC: drain exit tickets
         try:
             tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
@@ -475,6 +492,11 @@ def monitor_trades():
                     print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
 
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
+
+                # [ADD] If handler returned the closed anchor_id, remember it
+                if isinstance(ok, str):
+                    closed_anchor_ids.add(ok)
+
                 if ok:
                     tickets_ref.child(tx_id).update({"_processed": True})
                     print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
@@ -497,6 +519,10 @@ def monitor_trades():
                 print(f"🗑️ Removed closed trade {oid} from Firebase after exit match")
             except Exception as e:
                 print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
+
+    # Prevent resurrection: drop just-closed anchors from memory
+    if closed_anchor_ids:
+        active_trades = [t for t in active_trades if t.get("order_id") not in closed_anchor_ids]
 
     # Save remaining active trades (strict prune; no closed/exited)
     active_trades = [
