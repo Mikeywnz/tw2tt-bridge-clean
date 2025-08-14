@@ -364,7 +364,6 @@ async def webhook(request: Request):
     new_trade = {
         "order_id": result.get("order_id"),
         "symbol": symbol,
-        "exit_in_progress": False,
         "filled_price": result.get("filled_price", 0.0),
         "action": action,
         "trade_type": trade_type,  # uses your remap

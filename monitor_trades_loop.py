@@ -141,40 +141,42 @@ def save_open_trades(symbol, trades):
 # ==========================================================
 # 🟢 TRAILING TP & EXIT (minimal, FIFO-first; uses handle_exit_fill_from_tx)
 # ==========================================================
+# ==========================================================
+# 🟩 TRAILING TP AND EXIT PROCESSING WITH place_exit_trade()
+# ==========================================================
 def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points):
+    closed_ids = set()
     print(f"[DEBUG] process_trailing_tp_and_exits() called with {len(active_trades)} active trades")
 
-    for i, trade in enumerate(active_trades): 
+    for i, trade in enumerate(active_trades):
         if not trade or not isinstance(trade, dict):
             continue
-        if trade.get("status") == "closed" or trade.get("exited"):
-            print(f"🔒 Skipping closed/exited trade {trade.get('order_id')}")
+        if trade.get("status") == "closed":
+            print(f"🔒 Skipping closed trade {trade.get('order_id')}")
             continue
 
         order_id = trade.get('order_id', 'unknown')
-        symbol   = trade.get('symbol')
-        action   = trade.get('action', '').upper()
-        direction = 1 if action == 'BUY' else -1
+        symbol = trade.get('symbol')
+        print(f"🔄 Processing trade {order_id}")
 
-        # Live price
+        direction = 1 if trade.get('action') == 'BUY' else -1
         current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
         if current_price is None:
             print(f"⚠️ No price for {symbol} — skipping {order_id}")
             continue
 
-        # Entry price required
         entry = trade.get('filled_price')
         if entry is None:
             print(f"❌ Trade {order_id} missing filled_price, skipping.")
             continue
 
-        # 🟩 Prime trigger if not yet hit
+        # ---- Trigger arming ----
         if not trade.get('trail_hit'):
-            trigger_price = entry + trigger_points if direction == 1 else entry - trigger_points
             trade['trail_peak'] = entry
+            trigger_price = entry + trigger_points if direction == 1 else entry - trigger_points
             print(f"[DEBUG] {order_id} trigger @ {trigger_price:.2f} (entry {entry:.2f}, dir {'LONG' if direction==1 else 'SHORT'})")
             if (direction == 1 and current_price >= trigger_price) or (direction == -1 and current_price <= trigger_price):
-                trade['trail_hit']  = True
+                trade['trail_hit'] = True
                 trade['trail_peak'] = current_price
                 print(f"[INFO] TP trigger HIT for {order_id} at {current_price:.2f}")
                 try:
@@ -183,69 +185,68 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
 
-        # 🟩 Monotonic trail_peak + buffer / exit check
+        # ---- Trail peak monotonic update + exit check ----
         if trade.get('trail_hit'):
             prev_peak = trade.get('trail_peak', entry)
-            new_peak  = max(prev_peak, current_price) if direction == 1 else min(prev_peak, current_price)
+            new_peak = max(prev_peak, current_price) if direction == 1 else min(prev_peak, current_price)
+
             if new_peak != prev_peak:
-                print(f"[DEBUG] New trail peak for {order_id}: {new_peak:.2f} (prev {prev_peak:.2f})")
+                print(f"[DEBUG] New trail peak for {order_id}: {new_peak:.2f} (prev: {prev_peak:.2f})")
                 trade['trail_peak'] = new_peak
                 try:
-                    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-                    open_trades_ref.child(order_id).update({"trail_peak": new_peak})
+                    firebase_db.reference(f"/open_active_trades/{symbol}").child(order_id).update({"trail_peak": new_peak})
                 except Exception as e:
-                    print(f"❌ Failed to persist trail_peak for {order_id}: {e}")
+                    print(f"❌ Failed to update trail_peak for {order_id}: {e}")
             else:
                 print(f"[DEBUG] Trail peak unchanged for {order_id}: {prev_peak:.2f}")
 
             buffer_amt = float(offset_points)
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
-            # Exit condition (guard against re-placing)
-            if not trade.get("exit_in_progress"):
-                should_exit_long  = direction == 1 and current_price <= trade['trail_peak'] - buffer_amt
-                should_exit_short = direction == -1 and current_price >= trade['trail_peak'] + buffer_amt
-                if should_exit_long or should_exit_short:
-                    print(f"[INFO] Trailing TP EXIT condition met for {order_id}")
+            exit_trigger = (
+                (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or
+                (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt)
+            )
 
-                    try:
-                        # Place exit
-                        exit_side = 'SELL' if action == 'BUY' else 'BUY'
-                        result = place_exit_trade(symbol, exit_side, 1, firebase_db)
-                        print(f"[DEBUG] place_exit_trade result: {result}")
+            if exit_trigger:
+                print(f"[INFO] Trailing TP EXIT condition met for {order_id}")
+                try:
+                    exit_side = 'SELL' if trade.get('action') == 'BUY' else 'BUY'
+                    result = place_exit_trade(symbol, exit_side, 1, firebase_db)
+                    if result.get("status") == "SUCCESS":
+                        print(f"📤 Exit order placed successfully for {order_id}")
 
-                        if result.get("status") == "SUCCESS":
-                            # Mark in-flight + persist
-                            trade['exit_in_progress'] = True
-                            trade['exit_order_id']    = result.get("order_id")
-                            open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-                            open_trades_ref.child(order_id).update({
-                                "exit_in_progress": True,
-                                "exit_order_id": trade['exit_order_id']
-                            })
+                        # Build tx_dict exactly like execute_trades_live returns
+                        tx_dict = {
+                            "status": result.get("status", "SUCCESS"),
+                            "order_id": str(result.get("order_id", "")),
+                            "trade_type": result.get("trade_type", "EXIT"),
+                            "symbol": symbol,
+                            "action": result.get("action", exit_side),
+                            "quantity": result.get("quantity", 1),
+                            "filled_price": result.get("filled_price"),
+                            "transaction_time": result.get("transaction_time"),
+                        }
 
-                            # Hand off to the minimal FIFO-closer
-                            tx_dict = {
-                                "status": "SUCCESS",
-                                "order_id": result.get("order_id"),
-                                "trade_type": result.get("trade_type", "EXIT"),
-                                "symbol": symbol,
-                                "action": exit_side,
-                                "quantity": result.get("quantity", 1),
-                                "filled_price": result.get("filled_price"),
-                                "transaction_time": result.get("transaction_time"),
-                            }
-                            handle_exit_fill_from_tx(firebase_db, tx_dict)
-                            print(f"[INFO] Exit ticket processed for {order_id} → {trade.get('exit_order_id')}")
+                        # Hand off → close FIFO anchor, returns closed anchor_id
+                        anchor_id = handle_exit_fill_from_tx(firebase_db, tx_dict)
+                        if anchor_id:
+                            closed_ids.add(anchor_id)
+                            if order_id == anchor_id:
+                                trade['exited'] = True
+                                trade['contracts_remaining'] = 0
+                            print(f"[INFO] Exit ticket processed for {anchor_id} → {tx_dict['order_id']}")
                         else:
-                            print(f"❌ Exit order failed for {order_id}: {result}")
-                    except Exception as e:
-                        print(f"❌ Exception placing exit for {order_id}: {e}")
+                            print(f"⚠️ Exit handler did not return anchor id for {order_id}")
+                    else:
+                        print(f"❌ Exit order failed for {order_id}: {result}")
+                except Exception as e:
+                    print(f"❌ Exception placing exit for {order_id}: {e}")
 
         # Write back in-place
         active_trades[i] = trade
 
-    return active_trades
+    return active_trades, closed_ids
 # ==============================================
 # 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE
 # ==============================================
@@ -360,9 +361,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
         return False
 
-    # 7) Keep ticket (audit only; ignored by open loop)
+    # 🟩 7) Keep ticket (audit only; ignored by open loop)
     print(f"[INFO] Exit ticket retained under /exit_orders_log/{symbol}/{exit_oid}")
-    return True
+    return anchor_oid  # ← return which open open_active_trade was closed
 
 # ========================================================
 # MONITOR TRADES LOOP - CENTRAL LOOP 
@@ -440,19 +441,37 @@ def monitor_trades():
     except Exception as e:
         print(f"❌ process_trailing_tp_and_exits error: {e}")
 
+    # 3A: Reload open trades from Firebase to get latest state after TP exits
+    all_trades = load_open_trades(symbol)
+    active_trades = [t for t in all_trades if t.get('contracts_remaining', 0) > 0]
+
     # 🔽 EXIT LOGIC: drain exit tickets (placed by app.py or TP logic) and run FIFO close
     try:
         tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
         tickets = tickets_ref.get() or {}
-        for tx_id, tx in tickets.items():
-            if isinstance(tx, dict) and tx.get("_processed"):
+        # drain exit tickets
+        for tx_id, tx in (tickets or {}).items():
+            if not isinstance(tx, dict) or tx.get("_processed"):
                 continue
-            ok = handle_exit_fill_from_tx(firebase_db, tx)  # uses your minimal FIFO close
+            ok = handle_exit_fill_from_tx(firebase_db, tx)
             if ok:
                 tickets_ref.child(tx_id).update({"_processed": True})
                 print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
     except Exception as e:
         print(f"❌ Exit ticket drain error: {e}")
+
+    # 3B: Remove any trades from Firebase that were closed by exit tickets
+    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+    for t in list(active_trades):
+        if t.get('exited') or t.get('contracts_remaining', 0) <= 0:
+            oid = t.get('order_id')
+            if not oid:
+                continue
+            try:
+                open_trades_ref.child(oid).delete()
+                print(f"🗑️ Removed closed trade {oid} from Firebase after exit match")
+            except Exception as e:
+                print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
 
     # Save remaining active trades (filter zero-qty)
     active_trades = [t for t in active_trades if t.get('contracts_remaining', 0) > 0]
