@@ -17,6 +17,7 @@ import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 import os
 import time
+from typing import Optional
 
 grace_cache = {}
 _logged_order_ids = set()
@@ -184,13 +185,12 @@ def archive_trade(symbol, trade):
         print(f"❌ Failed to archive trade {order_id}: {e}")
         return False
     
-    
 
 # ====================================================
 #🟩 Helper: Liquidation Handler
 # ====================================================
 
-def _safe_iso(ts_ms: int | None) -> str:
+def _safe_iso(ts_ms: Optional[int]) -> str:
     try:
         if ts_ms:
             return datetime.utcfromtimestamp(int(ts_ms) / 1000).isoformat() + "Z"
@@ -198,7 +198,7 @@ def _safe_iso(ts_ms: int | None) -> str:
         pass
     return datetime.utcnow().isoformat() + "Z"
 
-def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> str | None:
+def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
     """
     Archives + deletes FIFO open trade for `symbol` immediately when Tiger flags liquidation.
 
@@ -354,7 +354,7 @@ def push_orders_main():
                 continue
 
             # ===================== Check if order ID is already processed and filter out ====================
-            
+
             if not order_id:
                 print("⚠️ Skipping order with empty or missing order_id")
                 continue
