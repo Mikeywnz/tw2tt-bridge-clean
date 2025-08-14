@@ -248,6 +248,13 @@ def push_orders_main():
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
                 continue
 
+            # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens
+            active_symbol = getattr(order, "symbol", "")
+            exit_ref_early = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}")
+            if exit_ref_early.get():
+                print(f"⏭️ Skipping EXIT ticket {order_id} (early fence)")
+                continue
+
             if getattr(order, "liquidation", False) is True:
                 symbol = getattr(order, "symbol", "")
 
@@ -316,6 +323,12 @@ def push_orders_main():
             filled = getattr(order, "filled", 0)
             is_open = getattr(order, "is_open", False)
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
+
+            # 🚫 Hard rule: never accept Tiger orders whose status is FILLED.
+            # (Prevents exit fills & historical fills from reappearing as new opens.)
+            if status == "FILLED":
+                print(f"⏭️ Skipping FILLED order {order_id} for {active_symbol}")
+                continue
 
                         # ===== NO-MAN'S-LAND GUARD: treat truly closed orders as closed, not opens =====
             status_up = str(getattr(order, 'status', '')).split('.')[-1].upper()
@@ -468,6 +481,12 @@ def push_orders_main():
         # 🛑 Never write ghosts into open_active_trades
         if payload.get("is_ghost"):
             print(f"👻 Skipping write of ghost {order_id} to /open_active_trades/{symbol}")
+            continue
+
+        # 🔒 LATE EXIT‑TICKET FENCE — last check before we touch /open_active_trades
+        exit_ref_late = firebase_db.reference(f"/exit_orders_log/{symbol}/{order_id}").get()
+        if exit_ref_late:
+            print(f"⏭️ Skipping EXIT ticket {order_id} (late fence)")
             continue
 
         ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
