@@ -9,7 +9,7 @@ def main():
     symbol = "MGC2510"
 
     try:
-        transactions = client.get_transactions(account=account, symbol=symbol, limit=10)
+        transactions = client.get_transactions(account=account, symbol=symbol, limit=20)
         for tx in transactions:
             print("Transaction:")
             for key, value in vars(tx).items():

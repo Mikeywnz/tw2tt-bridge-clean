@@ -213,6 +213,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 try:
                     exit_side = 'SELL' if trade.get('action') == 'BUY' else 'BUY'
                     result = place_exit_trade(symbol, exit_side, 1, firebase_db)
+
                     if result.get("status") == "SUCCESS":
                         print(f"📤 Exit order placed successfully for {order_id}")
 
@@ -227,20 +228,18 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                             "filled_price": result.get("filled_price"),
                             "transaction_time": result.get("transaction_time"),
                         }
-                        
-                        # Hand off → close FIFO anchor, returns closed anchor_id
-                        anchor_id = handle_exit_fill_from_tx(firebase_db, tx_dict)
-                        if anchor_id:
-                            closed_ids.add(anchor_id)
-                            if order_id == anchor_id:
-                                trade['exited'] = True
-                                trade['trade_state'] = 'closed'
-                                trade['contracts_remaining'] = 0
-                            print(f"[INFO] Exit ticket processed for {anchor_id} → {tx_dict['order_id']}")
+
+                        # Enqueue the exit ticket; drain loop will process it exactly once
+                        tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
+                        try:
+                            tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
+                        except Exception as e2:
+                            print(f"❌ Failed to enqueue exit ticket {tx_dict.get('order_id')}: {e2}")
                         else:
-                            print(f"⚠️ Exit handler did not return anchor id for {order_id}")
+                            print(f"[INFO] Exit ticket enqueued (not processed here): {tx_dict['order_id']}")
                     else:
                         print(f"❌ Exit order failed for {order_id}: {result}")
+
                 except Exception as e:
                     print(f"❌ Exception placing exit for {order_id}: {e}")
 
@@ -283,6 +282,15 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     if not (exit_oid and exit_oid.isdigit() and symbol and exit_price is not None):
         print(f"❌ Invalid exit payload: order_id={exit_oid}, symbol={symbol}, price={exit_price}")
         return False
+    
+      # 🔒 Idempotency guard (insert THIS block)
+    ticket_ref = firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}")
+    existing = ticket_ref.get() or {}
+    # If already processed by the drain loop or by a prior call, bail early
+    if existing.get("_processed") or existing.get("_handled"):
+        anchor_already = existing.get("anchor_id")
+        print(f"[SKIP] Exit {exit_oid} already handled. anchor_id={anchor_already}")
+        return anchor_already or True
 
     # 2) Log/Upsert exit ticket (never in open_active_trades)
     tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
@@ -362,6 +370,12 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
         return None  # return None on failure
+    
+   # ✅ Mark exit ticket as handled to prevent duplicate processing
+    firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({
+        "_handled": True,  # local handler done
+        "anchor_id": anchor_oid
+    })
 
     # 7) Keep ticket (audit only; ignored by open loop)
     print(f"[INFO] Exit ticket retained under /exit_orders_log/{symbol}/{exit_oid}")

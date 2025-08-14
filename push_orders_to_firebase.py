@@ -310,6 +310,39 @@ def push_orders_main():
                 print(f"⏭️ Skipping closed/held order {order_id} for {active_symbol}")
                 continue
 
+            # 🧱 GHOST GATE — EXPIRED / CANCELLED / LACK_OF_MARGIN
+            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+            is_ghost = (status in ghost_statuses) or (not is_open and filled == 0 and status != "FILLED")
+
+            if is_ghost:
+                reason_text = (str(raw_reason) or status).strip()
+                ghost_record = {
+                    "order_id": order_id,
+                    "symbol": active_symbol,  # already resolved above
+                    "status": status,
+                    "reason": reason_text,
+                    "filled": int(filled or 0),
+                    "is_open": bool(is_open),
+                    "ghost": True,
+                    "source": map_source(getattr(order, 'source', None)),
+                    "order_time": getattr(order, "order_time", None),
+                    "update_time": getattr(order, "update_time", None),
+                }
+                try:
+                    # 1) Archive (audit)
+                    firebase_db.reference(f"/archived_trades_log/{order_id}").set(ghost_record)
+                    # 2) Index in ghost log
+                    firebase_db.reference(f"/ghost_trades_log/{order_id}").set(ghost_record)
+                    # 3) Remove any live copy from open_active_trades
+                    open_ref = firebase_db.reference(f"/open_active_trades/{active_symbol}")
+                    if open_ref.child(order_id).get() is not None:
+                        open_ref.child(order_id).delete()
+                        print(f"🗑️ Removed ghost {order_id} from /open_active_trades/{active_symbol}")
+                    print(f"👻 Archived ghost trade {order_id} ({status}: {reason_text})")
+                except Exception as e:
+                    print(f"❌ Ghost archive/delete failed for {order_id}: {e}")
+                continue
+
             # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
             raw_ts = getattr(order, 'order_time', 0)
             try:
@@ -377,6 +410,11 @@ def push_orders_main():
             "is_ghost": False,
         }
 
+        # 🛑 Safety guard: never write ghosts into open_active_trades
+        if payload.get("is_ghost"):
+            print(f"👻 Skipping write of ghost {order_id} to /open_active_trades/{symbol}")
+            continue
+
         ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
         try:
             existing_trade = ref.get() or {}
@@ -407,25 +445,7 @@ def push_orders_main():
                 print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
                 continue
             # ===== NEW PATCH END =====
-            # ========================= DETECT GHOST TRADE ==================================================
-            ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-            is_ghost_flag = filled == 0 and status in ghost_statuses
-            if is_ghost_flag:
-                print(f"👻 Ghost trade detected: {order_id} (status={status}, filled={filled}) logged to ghost_trades_log")
-
-                # Update payload ghost flag
-                payload["is_ghost"] = True
-
-                # Write minimal info to ghost_trades_log to archive ghost trade
-                ghost_ref = db.reference("/ghost_trades_log")
-                ghost_ref.child(order_id).update(payload)
-
-                # Skip pushing this trade to open_active_trades
-                continue
-
-            # Re-check if already logged as ghost
-            is_ghost_flag = is_ghostflag_trade(order_id, db)
-
+        
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
             if order_id in archived_order_ids:
                 print(f"⏭️ ⛔ Archived trade {order_id} already processed this run; skipping duplicate archive")
