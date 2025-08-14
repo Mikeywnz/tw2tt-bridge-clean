@@ -225,7 +225,7 @@ def push_orders_main():
         account="21807597867063647",
         seg_type=SegmentType.FUT,
         symbol=active_symbol,  # if you added this from patch
-        limit=30
+        limit=20
     )
     print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
 
@@ -242,14 +242,27 @@ def push_orders_main():
         try:
             # Always use the TigerTrade long ID from get_orders()
             order_id = str(getattr(order, 'id', '')).strip()
+            active_symbol = getattr(order, "symbol", "")
 
             # Single validation – ensures it's a numeric string
             if not (isinstance(order_id, str) and order_id.isdigit()):
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
                 continue
 
+            # 🟩 PATCH 1: Hard stop if this order was already archived
+            archived_snap = firebase_db.reference(f"/archived_trades_log/{order_id}").get()
+            if archived_snap:
+                print(f"⏭️ Skipping archived order {order_id} (found in /archived_trades_log)")
+                continue
+
+            # 🧹 Skip known EXIT tickets (we never treat these as entries)
+            exit_ticket = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get()
+            if exit_ticket:
+                print(f"⏭️ Skipping EXIT ticket {order_id} from /exit_orders_log — not an entry.")
+                continue
+
             # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens
-            active_symbol = getattr(order, "symbol", "")
+            
             exit_ref_early = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}")
             if exit_ref_early.get():
                 print(f"⏭️ Skipping EXIT ticket {order_id} (early fence)")
@@ -300,17 +313,6 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {order_id} not a ghost, proceeding")
 
-                # 🟩 PATCH 1: Hard stop if this order was already archived
-            archived_snap = firebase_db.reference(f"/archived_trades_log/{order_id}").get()
-            if archived_snap:
-                print(f"⏭️ Skipping archived order {order_id} (found in /archived_trades_log)")
-                continue
-
-            # 🧹 Skip known EXIT tickets (we never treat these as entries)
-            exit_ticket = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get()
-            if exit_ticket:
-                print(f"⏭️ Skipping EXIT ticket {order_id} from /exit_orders_log — not an entry.")
-                continue
 
             # ===================================End of First filtering=======================================
 
@@ -484,7 +486,7 @@ def push_orders_main():
             continue
 
         # 🔒 LATE EXIT‑TICKET FENCE — last check before we touch /open_active_trades
-        exit_ref_late = firebase_db.reference(f"/exit_orders_log/{symbol}/{order_id}").get()
+        exit_ref_late = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get()
         if exit_ref_late:
             print(f"⏭️ Skipping EXIT ticket {order_id} (late fence)")
             continue
