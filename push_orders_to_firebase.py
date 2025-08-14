@@ -156,16 +156,16 @@ def is_archived_trade(order_id, firebase_db):
     return order_id in archived_trades
 
 # ====================================================
-#🟩 Helper to Check if Trade ID is a Known Ghost Trade
+#🟩 Helper: to Check if Trade ID is a Known Ghost Trade
 # ====================================================
 def is_ghostflag_trade(order_id, firebase_db):
     ghost_ref = firebase_db.reference("/ghost_trades_log")
     ghosts = ghost_ref.get() or {}
     return order_id in ghosts
 
-#================================
-#Archived_trade() helper function
-#================================
+#===========================================
+#🟩 Helper: Archived_trade() helper function
+#===========================================
 
 def archive_trade(symbol, trade):
     order_id = trade.get("order_id")
@@ -183,6 +183,91 @@ def archive_trade(symbol, trade):
     except Exception as e:
         print(f"❌ Failed to archive trade {order_id}: {e}")
         return False
+    
+    
+
+# ====================================================
+#🟩 Helper: Liquidation Handler
+# ====================================================
+
+def _safe_iso(ts_ms: int | None) -> str:
+    try:
+        if ts_ms:
+            return datetime.utcfromtimestamp(int(ts_ms) / 1000).isoformat() + "Z"
+    except Exception:
+        pass
+    return datetime.utcnow().isoformat() + "Z"
+
+def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> str | None:
+    """
+    Archives + deletes FIFO open trade for `symbol` immediately when Tiger flags liquidation.
+
+    Returns the closed anchor_id (str) if something was archived/deleted, else None.
+    """
+    # --- Pull liquidation fill details (best-effort) ---
+    exit_oid   = str(getattr(order_obj, "id", "") or getattr(order_obj, "order_id", "")).strip()
+    exit_px    = (getattr(order_obj, "avg_fill_price", None)
+                  or getattr(order_obj, "filled_price", None)
+                  or getattr(order_obj, "latest_price", None)
+                  or 0.0)
+    exit_time  = (getattr(order_obj, "update_time", None)
+                  or getattr(order_obj, "trade_time", None)
+                  or getattr(order_obj, "order_time", None))
+    exit_iso   = _safe_iso(exit_time)
+    exit_side  = str(getattr(order_obj, "action", "") or "").upper()  # BUY/SELL
+    status_up  = str(getattr(order_obj, "status", "")).split(".")[-1].upper() or "LIQUIDATION"
+
+    # --- Get all opens for this symbol ---
+    open_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+    opens: dict = open_ref.get() or {}
+    if not opens:
+        print(f"[LIQ] No open trades under /open_active_trades/{symbol}; nothing to close.")
+        return None
+
+    # --- FIFO select: earliest entry_timestamp wins (fallbacks included) ---
+    def _ts_key(rec: dict) -> str:
+        return (
+            rec.get("entry_timestamp")
+            or rec.get("transaction_time")
+            or "9999-12-31T23:59:59Z"
+        )
+
+    anchor_oid, anchor = min(opens.items(), key=lambda kv: _ts_key(kv[1]))
+    if not anchor:
+        print(f"[LIQ] FIFO selection failed for {symbol}.")
+        return None
+
+    # --- P&L (best-effort): sign by direction of entry ---
+    entry_px = float(anchor.get("filled_price") or 0.0)
+    qty      = int(anchor.get("quantity") or 1)
+    side_in  = str(anchor.get("action", "")).upper()  # BUY/SELL
+    # + For futures, you probably have a contract multiplier elsewhere; keep raw diff here:
+    if side_in == "BUY":
+        pnl_raw = (float(exit_px) - entry_px) * qty
+    else:  # entered short
+        pnl_raw = (entry_px - float(exit_px)) * qty
+
+    update = {
+        "exited": True,
+        "exit_reason": "LIQUIDATION",
+        "exit_timestamp": exit_iso,
+        "exit_order_id": exit_oid,
+        "exit_action": exit_side,
+        "filled_exit_price": float(exit_px),
+        "status": status_up,
+        "realized_pnl": float(pnl_raw),   # raw; adjust later if you apply multipliers/fees elsewhere
+    }
+
+    # --- Archive + delete (immediate) ---
+    try:
+        archive_ref = firebase_db.reference(f"/archived_trades_log/{anchor_oid}")
+        archive_ref.set({**anchor, **update})
+        open_ref.child(anchor_oid).delete()
+        print(f"[LIQ] Archived+deleted FIFO anchor {anchor_oid} ({symbol}) at {exit_px} — reason LIQUIDATION")
+        return anchor_oid
+    except Exception as e:
+        print(f"[LIQ] ❌ Archive/delete failed for {anchor_oid}: {e}")
+        return None
 
 #################### END OF ALL HELPERS FOR THIS SCRIPT ####################
     
@@ -255,43 +340,21 @@ def push_orders_main():
                 print(f"⏭️ Skipping archived order {order_id} (found in /archived_trades_log)")
                 continue
 
-            # 🧹 Skip known EXIT tickets (we never treat these as entries)
-            exit_ticket = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get()
-            if exit_ticket:
-                print(f"⏭️ Skipping EXIT ticket {order_id} from /exit_orders_log — not an entry.")
-                continue
-
-            # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens
-            
+            # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens    
             exit_ref_early = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}")
             if exit_ref_early.get():
                 print(f"⏭️ Skipping EXIT ticket {order_id} (early fence)")
                 continue
 
+            # Send liqudations to Liquidation handler 
             if getattr(order, "liquidation", False) is True:
-                symbol = getattr(order, "symbol", "")
-
-                print(f"🔥 Detected TigerTrade liquidation for {order_id} – skipping open push.")
-
-                # Delete from open_active_trades if exists
-                open_active_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-                open_active_trades = open_active_trades_ref.get() or {}
-                if order_id in open_active_trades:
-                    print(f"🧹 Removing matching open trade {order_id} due to liquidation.")
-                    open_active_trades_ref.child(order_id).delete()
-
-                # Log payload to Google Sheets via helper
-                log_payload_as_closed_trade(order)
-
-                # Archive payload to Firebase archive
-                archived_ref = firebase_db.reference(f"/archived_trades_log/{order_id}")
-                archived_ref.set(order)
-                print(f"🗄️ Archived trade {order_id} to /archived_trades_log")
-
-                # Skip pushing this liquidation trade to open_active_trades
+                active_symbol = getattr(order, "symbol", "") or active_symbol
+                print(f"🔥 Detected TigerTrade liquidation for {order_id} – invoking FIFO archive/delete.")
+                closed_anchor = handle_liquidation_fifo(firebase_db, active_symbol, order)
                 continue
 
             # ===================== Check if order ID is already processed and filter out ====================
+            
             if not order_id:
                 print("⚠️ Skipping order with empty or missing order_id")
                 continue
