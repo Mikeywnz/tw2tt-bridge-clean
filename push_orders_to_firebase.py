@@ -229,7 +229,7 @@ def push_orders_main():
     )
     print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
 
-    #=========================================================================================
+   #=========================================================================================
     # ====================== START THE FUNCTION: Push Orders Processing ======================
     #=========================================================================================
 
@@ -243,7 +243,7 @@ def push_orders_main():
             # Always use the TigerTrade long ID from get_orders()
             order_id = str(getattr(order, 'id', '')).strip()
 
-             # Single validation – ensures it's a numeric string
+            # Single validation – ensures it's a numeric string
             if not (isinstance(order_id, str) and order_id.isdigit()):
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
                 continue
@@ -271,10 +271,7 @@ def push_orders_main():
                 # Skip pushing this liquidation trade to open_active_trades
                 continue
 
-                # ====================== 🧱 Liquidation Firewall & Cleanup END ===================================
-
             # ===================== Check if order ID is already processed and filter out ====================
-            
             if not order_id:
                 print("⚠️ Skipping order with empty or missing order_id")
                 continue
@@ -298,8 +295,7 @@ def push_orders_main():
 
             # ===================================End of First filtering=======================================
 
-           #=========================== Extract order information for further processing ====================
-            
+            #=========================== Extract order information for further processing ====================
             tiger_ids.add(order_id)
 
             raw_status = getattr(order, "status", "")
@@ -308,10 +304,10 @@ def push_orders_main():
             filled = getattr(order, "filled", 0)
             is_open = getattr(order, "is_open", False)
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
-            
+
             # 🛑 Skip closed or held orders (Tiger API returns HELD in uppercase)
             if status in ["CLOSED", "FILLED"] or str(raw_status).upper() == "HELD":
-                print(f"⏭️ Skipping closed/held order {order_id} for {symbol}")
+                print(f"⏭️ Skipping closed/held order {order_id} for {active_symbol}")
                 continue
 
             # ======================= Normalize TigerTrade timestamp (raw ms → ISO UTC) ======================
@@ -324,70 +320,71 @@ def push_orders_main():
                 exit_time_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 exit_reason_raw = "UNKNOWN"
 
-            
-
             symbol = firebase_active_contract.get_active_contract()
             if not symbol:
                 print(f"❌ No active contract symbol found in Firebase; skipping order ID {order_id}")
                 continue  # Skip processing this order
-        
+
             existing_trade = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").get() or {}
             trigger_points, offset_points = load_trailing_tp_settings()
+
             # Keep original entry timestamp if it exists
             entry_timestamp = existing_trade.get("entry_timestamp")
             if not entry_timestamp:
                 entry_timestamp = getattr(order, "transaction_time", None) or datetime.utcnow().isoformat() + "Z"
+
             filled_price_final = existing_trade.get("filled_price", 0.0)
-            exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
             just_executed_final = existing_trade.get("just_executed", False)
-            payload["just_executed"] = just_executed_final
+            trail_hit = existing_trade.get("trail_hit", False)
             trail_peak = existing_trade.get("trail_peak", existing_trade.get("filled_price"))
-            payload["trail_peak"] = trail_peak
             trade_type_final = existing_trade.get("trade_type", "")
             if getattr(order, "trade_type", None):
                 trade_type_final = getattr(order, "trade_type")
-            
-            # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ====================================================
-            print(f"[DEBUG] existing_trade data: {existing_trade}")
-            print(f"[DEBUG] filled_price_final: {filled_price_final}")
-            
-            payload = {
-                "order_id": order_id,
-                "symbol": symbol,
-                "filled_price": filled_price_final,
-                "action": str(getattr(order, 'action', '')).upper(),
-                "trade_type": trade_type_final,
-                "status": status,
-                "contracts_remaining": getattr(order, "contracts_remaining", 1),
-                "trail_trigger": existing_trade.get("trail_trigger", trigger_points),
-                "trail_offset": existing_trade.get("trail_offset", offset_points),
-                "trail_hit": False,
-                "trail_peak": getattr(order, "filled_price", 0.0),
-                "filled": bool(filled),
-                "entry_timestamp": entry_timestamp,
-                "just_executed": just_executed_final,
-                "exit_timestamp": existing_trade.get("exit_timestamp") or None,
-                "trade_state": "open" if status == "FILLED" and is_open else "closed",         
-                "quantity": getattr(order, 'quantity', 0),
-                "realized_pnl": 0.0,
-                "net_pnl": 0.0,
-                "tiger_commissions": 0.0,
-                "exit_reason": existing_trade.get("exit_reason", exit_reason_raw),
-                "liquidation": getattr(order, 'liquidation', False),
-                "source": map_source(getattr(order, 'source', None)),
-                "is_open": getattr(order, 'is_open', False),
-                "is_ghost": False,    
-            }
-           
 
-            ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
-            try:
-                existing_trade = ref.get() or {}
-                merged_trade = {**existing_trade, **payload}
-                ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
-                print(f"✅ /open_active_trades/{symbol}/{order_id} successfully merged and updated")
-            except Exception as e:
-                print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
+        except Exception as e:
+            print(f"❌ push_orders_main pre-update error for order {locals().get('order_id', '<unknown>')}: {e}")
+            continue
+
+        # ========================= BUILD PAYLOAD READY TO PUSH TO FIREBASE ================================
+        print(f"[DEBUG] existing_trade data: {existing_trade}")
+        print(f"[DEBUG] filled_price_final: {filled_price_final}")
+
+        payload = {
+            "order_id": order_id,
+            "symbol": symbol,
+            "filled_price": filled_price_final,  # preserve original from app.py
+            "action": str(getattr(order, 'action', '')).upper(),
+            "trade_type": trade_type_final,
+            "status": status,
+            "contracts_remaining": getattr(order, "contracts_remaining", 1),
+            "trail_trigger": existing_trade.get("trail_trigger", trigger_points),
+            "trail_offset": existing_trade.get("trail_offset", offset_points),
+            "trail_hit": trail_hit,                                   # preserve
+            "trail_peak": trail_peak,                                 # preserve
+            "filled": bool(filled),
+            "entry_timestamp": entry_timestamp,                       # sticky
+            "just_executed": just_executed_final,                     # sticky
+            "exit_timestamp": existing_trade.get("exit_timestamp") or None,  # preserve only
+            "trade_state": "open" if status == "FILLED" and is_open else "closed",
+            "quantity": getattr(order, 'quantity', 0),
+            "realized_pnl": 0.0,
+            "net_pnl": 0.0,
+            "tiger_commissions": 0.0,
+            "exit_reason": existing_trade.get("exit_reason", exit_reason_raw),  # raw; FIFO will prettify
+            "liquidation": getattr(order, 'liquidation', False),
+            "source": map_source(getattr(order, 'source', None)),
+            "is_open": getattr(order, 'is_open', False),
+            "is_ghost": False,
+        }
+
+        ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
+        try:
+            existing_trade = ref.get() or {}
+            merged_trade = {**existing_trade, **payload}
+            ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
+            print(f"✅ /open_active_trades/{symbol}/{order_id} successfully merged and updated")
+        except Exception as e:
+            print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
 
 
             # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
