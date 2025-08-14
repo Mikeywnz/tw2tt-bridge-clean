@@ -293,6 +293,18 @@ def push_orders_main():
             else:
                 print(f"✅ Order ID {order_id} not a ghost, proceeding")
 
+                # 🟩 PATCH 1: Hard stop if this order was already archived
+            archived_snap = firebase_db.reference(f"/archived_trades_log/{order_id}").get()
+            if archived_snap:
+                print(f"⏭️ Skipping archived order {order_id} (found in /archived_trades_log)")
+                continue
+
+            # 🧹 Skip known EXIT tickets (we never treat these as entries)
+            exit_ticket = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get()
+            if exit_ticket:
+                print(f"⏭️ Skipping EXIT ticket {order_id} from /exit_orders_log — not an entry.")
+                continue
+
             # ===================================End of First filtering=======================================
 
             #=========================== Extract order information for further processing ====================
@@ -305,10 +317,49 @@ def push_orders_main():
             is_open = getattr(order, "is_open", False)
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
 
-            # 🛑 Skip closed or held orders (Tiger API returns HELD in uppercase)
-            if status in ["CLOSED", "FILLED"] or str(raw_status).upper() == "HELD":
-                print(f"⏭️ Skipping closed/held order {order_id} for {active_symbol}")
+                        # ===== NO-MAN'S-LAND GUARD: treat truly closed orders as closed, not opens =====
+            status_up = str(getattr(order, 'status', '')).split('.')[-1].upper()
+            is_open   = bool(getattr(order, 'is_open', False))
+
+            # CLOSED if: explicit CLOSED/EXPIRED/CANCELLED, OR FILLED but not open.
+            is_truly_closed = (
+                status_up in {'CLOSED', 'EXPIRED', 'CANCELLED'} or
+                (status_up == 'FILLED' and not is_open)
+            )
+
+            if is_truly_closed:
+                # Build a minimal record for logging/archiving without touching open_active_trades
+                closed_payload = {
+                    "order_id":        order_id,
+                    "symbol":          active_symbol,
+                    "status":          status_up,
+                    "is_open":         is_open,
+                    "filled":          int(getattr(order, "filled", 0) or 0),
+                    "action":          str(getattr(order, 'action', '')).upper(),
+                    "reason":          str(getattr(order, "reason", "") or status_up),
+                    "source":          map_source(getattr(order, 'source', None)),
+                    "order_time":      getattr(order, "order_time", None),
+                    "update_time":     getattr(order, "update_time", None),
+                    "is_ghost":        False,
+                    "trade_state":     "closed",
+                }
+
+                # Optional: your Sheets hook if you want it for closed orders
+                try:
+                    log_payload_as_closed_trade(closed_payload)
+                    print(f"✅ Logged closed trade {order_id} to Sheets (No-Man's-Land)")
+                except Exception as e:
+                    print(f"⚠️ Sheets log failed for closed trade {order_id}: {e}")
+
+                try:
+                    firebase_db.reference(f"/archived_trades_log/{order_id}").set(closed_payload)
+                    print(f"🗄️ Archived closed trade {order_id} to /archived_trades_log")
+                except Exception as e:
+                    print(f"⚠️ Archive failed for closed trade {order_id}: {e}")
+
+                print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
                 continue
+            # ===== END NO-MAN'S-LAND GUARD =====
 
             # 🧱 GHOST GATE — EXPIRED / CANCELLED / LACK_OF_MARGIN
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
@@ -410,41 +461,30 @@ def push_orders_main():
             "is_ghost": False,
         }
 
-        # 🛑 Safety guard: never write ghosts into open_active_trades
+            # 🛡️ Do not resurrect closed/exited trades
+        if existing_trade.get("exited") or existing_trade.get("trade_state") == "closed":
+            print(f"⏭️ Not resurrecting closed trade {order_id}; skipping write.")
+            continue
+        # 🛑 Never write ghosts into open_active_trades
         if payload.get("is_ghost"):
             print(f"👻 Skipping write of ghost {order_id} to /open_active_trades/{symbol}")
             continue
 
-        ref = firebase_db.reference(f'/open_active_trades/{symbol}/{order_id}')
+        ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
         try:
             existing_trade = ref.get() or {}
+
+            # ⛔ MERGE-ONLY: if nothing exists already, do NOT create a new record here
+            if not existing_trade:
+                print(f"⏭️ Merge-only: skipping new order {order_id} (no existing open trade in Firebase)")
+                continue
+
             merged_trade = {**existing_trade, **payload}
-            ref.update(merged_trade)  # Use update() instead of set() to merge fields safely
-            print(f"✅ /open_active_trades/{symbol}/{order_id} successfully merged and updated")
+            ref.update(merged_trade)
+            print(f"✅ Merged into existing open trade {order_id}")
         except Exception as e:
             print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
 
-
-            # ===== REPLACEMENT PATCH START FOR DETECT NO MANS LAND TRADES =====
-            is_closed = not getattr(order, 'is_open', False) or str(getattr(order, 'status', '')).upper() in ['FILLED', 'CANCELLED', 'EXPIRED']
-
-            order_id = payload.get("order_id", "")
-
-            if is_closed:
-                if order_id == "0" or not order_id:
-                    print(f"[WARN] Skipping closed trade logging due to invalid order_id: {order_id}")
-                    continue
-
-                log_payload_as_closed_trade(payload)  # Log the existing payload data (trade data for sheets)
-                print(f"✅ Logged closed trade {order_id} from payload")
-
-                archived_ref = db.reference(f"/archived_trades_log/{order_id}")
-                archived_ref.set(payload)
-                print(f"🗄️ Archived trade {order_id} to /archived_trades_log")
-
-                print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
-                continue
-            # ===== NEW PATCH END =====
         
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
             if order_id in archived_order_ids:
