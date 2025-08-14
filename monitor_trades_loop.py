@@ -129,21 +129,16 @@ def load_open_trades(symbol):
 def save_open_trades(symbol, trades):
     ref = db.reference(f"/open_active_trades/{symbol}")
     try:
-        for t in trades:
-            order_id = t.get("order_id")
-            if not order_id:
-                continue
-            ref.child(order_id).update(t)
-            print(f"✅ Open Active Trade {order_id} saved to Firebase.")
+        payload = {t["order_id"]: t for t in trades if t.get("order_id")}
+        ref.set(payload)  # atomic overwrite → prunes anything not in payload
+        print(f"✅ Open Active Trades replaced atomically ({len(payload)})")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
-# ==========================================================
+# =========================================================================
 # 🟢 TRAILING TP & EXIT (minimal, FIFO-first; uses handle_exit_fill_from_tx)
-# ==========================================================
-# ==========================================================
-# 🟩 TRAILING TP AND EXIT PROCESSING WITH place_exit_trade()
-# ==========================================================
+# ==========================================================================
+
 def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points):
     closed_ids = set()
     print(f"[DEBUG] process_trailing_tp_and_exits() called with {len(active_trades)} active trades")
@@ -459,14 +454,6 @@ def monitor_trades():
     except Exception as e:
         print(f"❌ process_trailing_tp_and_exits error: {e}")
 
-    # 3A: Reload open trades from Firebase to get latest state after TP exits
-    all_trades = load_open_trades(symbol)
-    active_trades = [t for t in all_trades if t.get('contracts_remaining', 0) > 0]
-
-    # 🔽 EXIT LOGIC: drain exit tickets (placed by app.py or TP logic) and run FIFO close
-    all_trades = load_open_trades(symbol)
-    active_trades = [t for t in all_trades if t.get('contracts_remaining', 0) > 0]
-
     # Only drain exit tickets if we actually have open anchors to match
     if not active_trades:
         print("⏭️ No open anchors; skipping exit ticket drain this loop.")
@@ -511,8 +498,13 @@ def monitor_trades():
             except Exception as e:
                 print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
 
-    # Save remaining active trades (filter zero-qty)
-    active_trades = [t for t in active_trades if t.get('contracts_remaining', 0) > 0]
+    # Save remaining active trades (strict prune; no closed/exited)
+    active_trades = [
+        t for t in active_trades
+        if t.get('contracts_remaining', 0) > 0
+        and not t.get('exited')
+        and t.get('status') not in ('closed', 'failed')
+    ]
     save_open_trades(symbol, active_trades)
     print(f"[DEBUG] Saved {len(active_trades)} active trades after processing")
 
