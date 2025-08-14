@@ -288,6 +288,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
     tickets_ref.child(exit_oid).update({
         "order_id": exit_oid,
+        "symbol": symbol, 
         "action": exit_act,
         "filled_price": exit_price,
         "filled_qty": exit_qty,
@@ -454,16 +455,30 @@ def monitor_trades():
     if not active_trades:
         print("⏭️ No open anchors; skipping exit ticket drain this loop.")
     else:
+        # 🔽 EXIT LOGIC: drain exit tickets
         try:
             tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
             tickets = tickets_ref.get() or {}
             for tx_id, tx in tickets.items():
-                if isinstance(tx, dict) and tx.get("_processed"):
+                if not isinstance(tx, dict):
                     continue
+                if tx.get("_processed"):
+                    continue
+
+                # Add symbol if missing (legacy tickets)
+                if not tx.get("symbol"):
+                    tx["symbol"] = symbol
+                    tickets_ref.child(tx_id).update({"symbol": symbol})
+                    print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
+
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
                 if ok:
                     tickets_ref.child(tx_id).update({"_processed": True})
                     print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
+                else:
+                    # stop endless retries on malformed / no-open cases
+                    tickets_ref.child(tx_id).update({"_processed": True, "_note": "auto-marked; no opens/malformed"})
+                    print(f"[WARN] Exit ticket {tx_id} auto-marked _processed (no opens/malformed)")
         except Exception as e:
             print(f"❌ Exit ticket drain error: {e}")
 
