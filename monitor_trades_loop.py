@@ -227,13 +227,14 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                             "filled_price": result.get("filled_price"),
                             "transaction_time": result.get("transaction_time"),
                         }
-
+                        
                         # Hand off → close FIFO anchor, returns closed anchor_id
                         anchor_id = handle_exit_fill_from_tx(firebase_db, tx_dict)
                         if anchor_id:
                             closed_ids.add(anchor_id)
                             if order_id == anchor_id:
                                 trade['exited'] = True
+                                trade['trade_state'] = 'closed'
                                 trade['contracts_remaining'] = 0
                             print(f"[INFO] Exit ticket processed for {anchor_id} → {tx_dict['order_id']}")
                         else:
@@ -246,7 +247,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
         # Write back in-place
         active_trades[i] = trade
 
-    return active_trades, closed_ids
+    return active_trades
 # ==============================================
 # 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE
 # ==============================================
@@ -351,7 +352,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Failed to update anchor {anchor_oid}: {e}")
         return False
 
-    # 6) Archive & delete anchor
+       # 6) Archive & delete anchor
     try:
         archive_ref = firebase_db.reference(f"/archived_trades_log/{anchor_oid}")
         archive_ref.set({**anchor, **update})
@@ -359,11 +360,11 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"[INFO] Archived+deleted anchor {anchor_oid}")
     except Exception as e:
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
-        return False
+        return None  # return None on failure
 
-    # 🟩 7) Keep ticket (audit only; ignored by open loop)
+    # 7) Keep ticket (audit only; ignored by open loop)
     print(f"[INFO] Exit ticket retained under /exit_orders_log/{symbol}/{exit_oid}")
-    return anchor_oid  # ← return which open open_active_trade was closed
+    return anchor_oid  # ← tell caller which open trade was closed
 
 # ========================================================
 # MONITOR TRADES LOOP - CENTRAL LOOP 
@@ -450,9 +451,14 @@ def monitor_trades():
         tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
         tickets = tickets_ref.get() or {}
         # drain exit tickets
-        for tx_id, tx in (tickets or {}).items():
-            if not isinstance(tx, dict) or tx.get("_processed"):
+        for tx_id, tx in tickets.items():
+            if not isinstance(tx, dict):
                 continue
+            if tx.get("_processed"):
+                continue
+            # Ensure symbol present (older tickets may miss it)
+            if not tx.get("symbol"):
+                tx["symbol"] = symbol
             ok = handle_exit_fill_from_tx(firebase_db, tx)
             if ok:
                 tickets_ref.child(tx_id).update({"_processed": True})
