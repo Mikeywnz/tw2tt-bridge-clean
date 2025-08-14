@@ -447,24 +447,25 @@ def monitor_trades():
     active_trades = [t for t in all_trades if t.get('contracts_remaining', 0) > 0]
 
     # 🔽 EXIT LOGIC: drain exit tickets (placed by app.py or TP logic) and run FIFO close
-    try:
-        tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
-        tickets = tickets_ref.get() or {}
-        # drain exit tickets
-        for tx_id, tx in tickets.items():
-            if not isinstance(tx, dict):
-                continue
-            if tx.get("_processed"):
-                continue
-            # Ensure symbol present (older tickets may miss it)
-            if not tx.get("symbol"):
-                tx["symbol"] = symbol
-            ok = handle_exit_fill_from_tx(firebase_db, tx)
-            if ok:
-                tickets_ref.child(tx_id).update({"_processed": True})
-                print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
-    except Exception as e:
-        print(f"❌ Exit ticket drain error: {e}")
+    all_trades = load_open_trades(symbol)
+    active_trades = [t for t in all_trades if t.get('contracts_remaining', 0) > 0]
+
+    # Only drain exit tickets if we actually have open anchors to match
+    if not active_trades:
+        print("⏭️ No open anchors; skipping exit ticket drain this loop.")
+    else:
+        try:
+            tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
+            tickets = tickets_ref.get() or {}
+            for tx_id, tx in tickets.items():
+                if isinstance(tx, dict) and tx.get("_processed"):
+                    continue
+                ok = handle_exit_fill_from_tx(firebase_db, tx)
+                if ok:
+                    tickets_ref.child(tx_id).update({"_processed": True})
+                    print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
+        except Exception as e:
+            print(f"❌ Exit ticket drain error: {e}")
 
     # 3B: Remove any trades from Firebase that were closed by exit tickets
     open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
