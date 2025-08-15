@@ -266,7 +266,8 @@ async def webhook(request: Request):
         print("⚠️ Duplicate webhook call detected; ignoring.")
         return JSONResponse({"status": "duplicate_skipped"}, status_code=200)
     recent_payloads[payload_hash] = current_time
-    print(f"[LOG] Webhook received: {data}"); log_to_file(f"Webhook received: {data}")
+    print(f"[LOG] Webhook received: {data}")
+    log_to_file(f"Webhook received: {data}")
 
     # ---------- flatten-before-reverse ----------
     def net_position(firebase_db, symbol: str) -> int:
@@ -282,7 +283,7 @@ async def webhook(request: Request):
                 net -= 1
         return net
 
-    symbol   = request_symbol  # use the symbol in the alert
+    symbol   = request_symbol
     incoming = 1 if action == "BUY" else -1
     current  = net_position(firebase_db, symbol)
 
@@ -327,22 +328,14 @@ async def webhook(request: Request):
             print("⏸️ Still not flat after 12s; skipping reverse entry.")
             return JSONResponse({"status": "flatten_in_progress"}, status_code=202)
 
-    # ✅ Place the new entry (either we flattened, or no flatten was needed)
-    result = place_entry_trade(request_symbol, action, quantity, firebase_db)
-    return JSONResponse(
-        {"status": result.get("status", "UNKNOWN"), "result": result},
-        status_code=200 if result.get("status") == "SUCCESS" else 500
-    )
-
-# ---------- end flatten-before-reverse ----------
     # ---------- place entry ----------
     print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
     filled_price = result.get("filled_price")
-
-    # guard invalid order_id
     order_id = result.get("order_id")
+
+    # guard invalid order_id / failures
     if not (isinstance(order_id, str) and order_id.isdigit()):
         log_to_file(f"❌ Aborting Firebase push due to invalid order_id: {order_id}")
         print(f"❌ Aborting Firebase push due to invalid order_id: {order_id}")
@@ -372,7 +365,7 @@ async def webhook(request: Request):
         "action": action,
         "trade_type": trade_type,
         "status": "FILLED",
-        "contracts_remaining": data.get("contracts_remaining", 1),
+        "contracts_remaining": data.get("contracts_remaining", quantity or 1),
         "trail_trigger": trigger_points,
         "trail_offset": offset_points,
         "trail_hit": False,
@@ -399,88 +392,80 @@ async def webhook(request: Request):
     except Exception as e:
         print(f"❌ Firebase push error: {e}")
 
-    return JSONResponse({"status": "ok", "order_id": order_id}, status_code=200)
-
-    #END OF MAIN FUNCTION==========================================
-   
-    # ====================================================================================================
-    # =============================✅ LOG TO GOOGLE SHEETS — NOW CLOSED TRADES JOURNAL ==========================
-    # ====================================================================================================
-    price = safe_float(result.get("filled_price", 0.0))
-    order_id = result.get("order_id")
-    entry_timestamp = result.get("transaction_time", datetime.utcnow().isoformat() + "Z")
-    source = data.get("source", "webhook")
-    symbol_for_log = request_symbol
-
-    trade_type, updated_position = classify_trade(symbol_for_log, action, quantity, position_tracker, firebase_db)
-    print(f"🟢 [LOG] Trade classified as: {trade_type}, updated net position: {updated_position}")
-
-    # Calculate trailing TP and offset amounts
-    trigger_points = trigger_points if 'trigger_points' in locals() else 14.0  # fallback default
-    offset_points = offset_points if 'offset_points' in locals() else 5.0      # fallback default
-    direction = 1 if action.upper() == "BUY" else -1
-    sheet = get_google_sheet()
-    trailing_take_profit_price = price + (trigger_points * direction)
-    trail_offset_amount = float(offset_points)
-
-    trade_data = {
-        "order_id": order_id,
-        "entry_exit_time": entry_timestamp or "N/A",
-        "number_of_contracts": quantity,
-        "trade_type": trade_type,
-        "fifo_match": "No",                    # Placeholder for FIFO match status
-        "fifo_match_order_id": "N/A",         # Placeholder for FIFO match order id
-        "entry_price": price,
-        "exit_price": "N/A",
-        "trail_trigger_value": trigger_points,
-        "trail_offset": offset_points,
-        "trailing_take_profit": trailing_take_profit_price,
-        "trail_offset_amount": trail_offset_amount,
-        "ema_flatten_type": "N/A",
-        "ema_flatten_triggered": "N/A",
-        "spread": "N/A",
-        "net_pnl": "N/A",
-        "tiger_commissions": "N/A",
-        "realized_pnl": "N/A",
-        "source": map_source(source),
-        "manual_notes": ""
-    }
-
+    # ---------- (optional) Google Sheets journal for entries ----------
     try:
-        day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
+        price = safe_float(result.get("filled_price", 0.0))
+        entry_ts_for_sheet = result.get("transaction_time", datetime.utcnow().isoformat() + "Z")
+        source = data.get("source", "webhook")
+        symbol_for_log = request_symbol
 
+        # minimal classify if you keep it; otherwise comment these two lines
+        trade_type_for_sheet, updated_position = classify_trade(symbol_for_log, action, quantity, position_tracker, firebase_db)
+        print(f"🟢 [LOG] Trade classified as: {trade_type_for_sheet}, updated net position: {updated_position}")
+
+        direction = 1 if action == "BUY" else -1
+        sheet = get_google_sheet()
+        trailing_take_profit_price = price + (trigger_points * direction)
+        trail_offset_amount = float(offset_points)
+
+        trade_data = {
+            "order_id": order_id,
+            "entry_exit_time": entry_ts_for_sheet or "N/A",
+            "number_of_contracts": quantity,
+            "trade_type": trade_type_for_sheet,
+            "fifo_match": "No",
+            "fifo_match_order_id": "N/A",
+            "entry_price": price,
+            "exit_price": "N/A",
+            "trail_trigger_value": trigger_points,
+            "trail_offset": offset_points,
+            "trailing_take_profit": trailing_take_profit_price,
+            "trail_offset_amount": trail_offset_amount,
+            "ema_flatten_type": "N/A",
+            "ema_flatten_triggered": "N/A",
+            "spread": "N/A",
+            "net_pnl": "N/A",
+            "tiger_commissions": "N/A",
+            "realized_pnl": "N/A",
+            "source": map_source(source),
+            "manual_notes": ""
+        }
+
+        day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
         sheet.append_row([
-            day_date,                                # 1. Day Date
-            entry_timestamp,                         # 2. Entry/Exit Time
-            trade_data.get("number_of_contracts", 1),  # 3. Number of Contracts
-            trade_data.get("trade_type", ""),          # 4. Trade Type (Short/Long)
-            trade_data.get("fifo_match", "No"),         # 5. FIFO Match
-            safe_float(trade_data.get("entry_price", 0.0)),  # 6. Entry Price
-            trade_data.get("exit_price", "N/A"),            # 7. Exit Price
-            trade_data.get("trail_trigger_value", 0),       # 8. Trail Trigger Value
-            trade_data.get("trail_offset", 0),               # 9. Trail Offset
-            trade_data.get("trailing_take_profit", 0),       # 10. Trailing Take Profit Hit
-            safe_float(trade_data.get("trail_offset_amount", 0.0)),  # 11. Trail Offset $ Amount
-            trade_data.get("ema_flatten_type", "N/A"),          # 12. EMA Flatten Type
-            trade_data.get("ema_flatten_triggered", "N/A"),     # 13. EMA Flatten Triggered
-            safe_float(trade_data.get("spread", 0.0)),          # 14. Spread
-            safe_float(trade_data.get("net_pnl", 0.0)),         # 15. Net PnL
-            safe_float(trade_data.get("tiger_commissions", 0.0)),  # 16. Tiger Commissions
-            safe_float(trade_data.get("realized_pnl", 0.0)),     # 17. Realized PnL
-            order_id,                                           # 18. Order ID
-            trade_data.get("fifo_match_order_id", "N/A"),      # 19. FIFO Match Order ID
-            trade_data.get("source", ""),                        # 20. Source
-            trade_data.get("manual_notes", "")                   # 21. Manually Filled Notes
+            day_date,
+            entry_ts_for_sheet,
+            trade_data.get("number_of_contracts", 1),
+            trade_data.get("trade_type", ""),
+            trade_data.get("fifo_match", "No"),
+            safe_float(trade_data.get("entry_price", 0.0)),
+            trade_data.get("exit_price", "N/A"),
+            trade_data.get("trail_trigger_value", 0),
+            trade_data.get("trail_offset", 0),
+            trade_data.get("trailing_take_profit", 0),
+            safe_float(trade_data.get("trail_offset_amount", 0.0)),
+            trade_data.get("ema_flatten_type", "N/A"),
+            trade_data.get("ema_flatten_triggered", "N/A"),
+            safe_float(trade_data.get("spread", 0.0)),
+            safe_float(trade_data.get("net_pnl", 0.0)),
+            safe_float(trade_data.get("tiger_commissions", 0.0)),
+            safe_float(trade_data.get("realized_pnl", 0.0)),
+            order_id,
+            trade_data.get("fifo_match_order_id", "N/A"),
+            trade_data.get("source", ""),
+            trade_data.get("manual_notes", "")
         ])
 
-        # Call your helper to log to Google Sheets (if you want to log full data as well)
         log_closed_trade_to_sheets(trade_data)
-
         print(f"✅ Logged to Close Trades Sheet: {order_id}")
     except Exception as e:
         print(f"❌ Close sheet log failed: {e}")
 
-    return {"status": "success", "message": "Trade processed"}
+    # ---------- single return ----------
+    return JSONResponse(
+        {"status": result.get("status", "UNKNOWN"), "result": result},
+        status_code=200 if result.get("status") == "SUCCESS" else 500
+    )
 
     # =============================== END OF SCRIPT =======================================================  
 
