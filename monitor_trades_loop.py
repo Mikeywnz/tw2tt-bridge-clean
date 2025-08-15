@@ -10,7 +10,7 @@ import os
 from execute_trade_live import place_exit_trade
 from pytz import timezone
 import pprint
-from fb_runtime_logger import install_print_hook
+
 
 NZ_TZ = timezone("Pacific/Auckland")
 processed_exit_order_ids = set()
@@ -36,8 +36,7 @@ if not firebase_admin._apps:
 
 firebase_db = db
 
-#tracking the loop on local machine 
-install_print_hook("monitor")
+
 
 # ==============================================
 # 🟩 HELPER: Reason Map for Friendly Definitions

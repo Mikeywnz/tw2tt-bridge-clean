@@ -18,7 +18,7 @@ from firebase_admin import credentials, initialize_app, db
 import os
 import time
 from typing import Optional
-from fb_runtime_logger import install_print_hook
+
 
 grace_cache = {}
 _logged_order_ids = set()
@@ -40,8 +40,7 @@ if not firebase_admin._apps:
     })
 
 firebase_db = db
-# watch from local machine
-install_print_hook("orders")
+
 #================================
 # 🟩 TIGER API SET UP ============
 #================================
