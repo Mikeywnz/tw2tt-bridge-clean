@@ -24,6 +24,7 @@ from fastapi import Request
 from execute_trade_live import place_exit_trade
 from fastapi.responses import JSONResponse
 import json, hashlib, time
+from fifo_close import handle_exit_fill_from_tx
 
 
 def normalize_to_utc_iso(timestr):
@@ -288,11 +289,34 @@ async def webhook(request: Request):
     if current * incoming < 0:
         print(f"🧹 Flatten-first: net={current}, incoming={action}")
         exit_side = "SELL" if current > 0 else "BUY"
-        for _ in range(abs(current)):
-            place_exit_trade(symbol, exit_side, 1, firebase_db)  # no exit_reason arg
 
-        import time
-        deadline = time.time() + 8
+        for _ in range(abs(current)):
+            r = place_exit_trade(symbol, exit_side, 1, firebase_db)
+
+            # Only push to FIFO if exit actually succeeded and has a valid order_id
+            if not r or r.get("status") != "SUCCESS" or not str(r.get("order_id", "")).isdigit():
+                print(f"[WARN] exit place failed; skipping FIFO push for this leg: {r}")
+                continue
+
+            try:
+                tx = {
+                    "status": r.get("status", "SUCCESS"),
+                    "order_id": str(r.get("order_id", "")).strip(),
+                    "trade_type": r.get("trade_type", "EXIT"),
+                    "symbol": symbol,
+                    "action": exit_side,  # SELL to close longs / BUY to close shorts
+                    "quantity": 1,
+                    "filled_price": r.get("filled_price"),
+                    "transaction_time": normalize_to_utc_iso(
+                        r.get("transaction_time") or datetime.utcnow().isoformat()
+                    ),
+                }
+                handle_exit_fill_from_tx(firebase_db, tx)
+            except Exception as e:
+                print(f"[WARN] FIFO close in app.py failed softly: {e}")
+
+        # brief wait so we don't race the reverse entry
+        deadline = time.time() + 12
         while time.time() < deadline:
             if net_position(firebase_db, symbol) == 0:
                 print("✅ Flat confirmed; proceeding with new entry.")
@@ -300,10 +324,17 @@ async def webhook(request: Request):
             time.sleep(0.5)
 
         if net_position(firebase_db, symbol) != 0:
-            print("⏸️ Still not flat after 8s; skipping reverse entry.")
+            print("⏸️ Still not flat after 12s; skipping reverse entry.")
             return JSONResponse({"status": "flatten_in_progress"}, status_code=202)
-    
-# --- end guard ---
+
+    # ✅ Place the new entry (either we flattened, or no flatten was needed)
+    result = place_entry_trade(request_symbol, action, quantity, firebase_db)
+    return JSONResponse(
+        {"status": result.get("status", "UNKNOWN"), "result": result},
+        status_code=200 if result.get("status") == "SUCCESS" else 500
+    )
+
+# ---------- end flatten-before-reverse ----------
     # ---------- place entry ----------
     print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
