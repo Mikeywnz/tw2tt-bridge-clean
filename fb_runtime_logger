@@ -17,7 +17,7 @@
 #     q: "queue.Queue[str]" = queue.Queue(maxsize=1000)
 #     orig_print = builtins.print
 
-#     def worker():
+   def worker():
 #         while True:
 #             line = q.get()
 #             if line is None:
