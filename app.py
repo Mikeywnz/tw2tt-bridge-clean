@@ -22,6 +22,8 @@ import hashlib
 from datetime import datetime, timezone
 from fastapi import Request
 from execute_trade_live import place_exit_trade
+from fastapi.responses import JSONResponse
+import json, hashlib, time
 
 
 def normalize_to_utc_iso(timestr):
@@ -224,190 +226,138 @@ def perform_price_update(data):
 
 #################### END OF ALL HELPERS FOR THIS SCRIPT ####################
 
-# ====================================================================================================
+# ==
 # ====================================================================================================
 # ===================================== MAIN FUNCTION ==APP WEBHOOK ===================================
 # ====================================================================================================
+
+
 
 @app.post("/webhook")
 async def webhook(request: Request):
     current_time = time.time()
 
-    #---------------------------------------------------
-    # RECEIVING ORDER FORM TRADING VIEW WEBHOOK
-    # ---------------------------------------------------
+    # ---------- read body ----------
     try:
         data = await request.json()
-        print("Logging data...")
-        print(data)
-        print("Finished data")
+        print("Logging data..."); print(data); print("Finished data")
     except Exception as e:
         log_to_file(f"Failed to parse JSON: {e}")
-        return {"status": "invalid json", "error": str(e)}
-    
-    try:
-        trigger_points, offset_points = load_trailing_tp_settings_admin(firebase_db)
-    except Exception:
-        trigger_points, offset_points = 14.0, 5.0  # fallback defaults
+        return JSONResponse({"status": "invalid json", "error": str(e)}, status_code=400)
 
-    # -------------------------------------------------
-    # PRICE UPDATE HANDLER
-    # -------------------------------------------------
-    if data.get("type", "") == "price_update":
+    # ---------- price updates ----------
+    if data.get("type") == "price_update":
         return perform_price_update(data)
-    
-    # ---------------------------------------------------
-    # TRADE ACTION HANDLER (BUY / SELL)
-    # ---------------------------------------------------
 
-    request_symbol = data.get('symbol')
-    action = data.get('action')
-    quantity = data.get('quantity')
+    # ---------- extract ----------
+    request_symbol = data.get("symbol")
+    action = (data.get("action") or "").upper()
+    quantity = data.get("quantity")
+    if not request_symbol or action not in {"BUY","SELL"} or quantity is None:
+        return JSONResponse({"status": "error", "message": "Missing required fields"}, status_code=400)
 
-    if not request_symbol or not action or quantity is None:
-        return {"status": "error", "message": "Missing required fields"}    
-
-    # ---------------------------------------------------
-    # DEDUPLICATION LOGIC
-    # ---------------------------------------------------
-    payload_str = json.dumps(data, sort_keys=True)
-    payload_hash = hashlib.sha256(payload_str.encode('utf-8')).hexdigest()
-
-    for key in list(recent_payloads.keys()):
-        if current_time - recent_payloads[key] > DEDUP_WINDOW:
-            del recent_payloads[key]
-
+    # ---------- dedupe ----------
+    payload_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+    for k in list(recent_payloads.keys()):
+        if current_time - recent_payloads[k] > DEDUP_WINDOW:
+            del recent_payloads[k]
     if payload_hash in recent_payloads:
-        print(f"⚠️ Duplicate webhook call detected; ignoring.")
-        return {"status": "duplicate_skipped"}
-
+        print("⚠️ Duplicate webhook call detected; ignoring.")
+        return JSONResponse({"status": "duplicate_skipped"}, status_code=200)
     recent_payloads[payload_hash] = current_time
-    print(f"[LOG] Webhook received: {data}")
-    log_to_file(f"Webhook received: {data}")
+    print(f"[LOG] Webhook received: {data}"); log_to_file(f"Webhook received: {data}")
 
-    # ---------------------------------------------------
-    # FLATTEN-BEFORE-REVERSE GUARD
-    # ---------------------------------------------------
+    # ---------- flatten-before-reverse ----------
     def net_position(firebase_db, symbol: str) -> int:
-        """+N if net long, -N if net short."""
-        trades = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
+        snap = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
         net = 0
-        for t in trades.values():
-            if not isinstance(t, dict):
+        for v in snap.values():
+            if not isinstance(v, dict): 
                 continue
-            side = (t.get("action") or "").upper()
-            if side == "BUY":
-                net += 1
-            elif side == "SELL":
-                net -= 1
+            side = (v.get("action") or "").upper()
+            if side == "BUY":  net += 1
+            elif side == "SELL": net -= 1
         return net
 
-    current_net = net_position(firebase_db, request_symbol)
-    incoming = 1 if action.upper() == "BUY" else -1
-
-    if current_net * incoming < 0:  # opposite direction
+    symbol = request_symbol  # or firebase_active_contract.get_active_contract() or request_symbol
+    incoming = 1 if action == "BUY" else -1
+    current_net = net_position(firebase_db, symbol)
+    if current_net * incoming < 0:
         print(f"🧹 Flatten-first: net={current_net}, incoming={action}")
         exit_side = "SELL" if current_net > 0 else "BUY"
         for _ in range(abs(current_net)):
-            place_exit_trade(request_symbol, exit_side, 1, firebase_db, exit_reason="DIRECTION_FLATTEN")
-
-        import time
-        for _ in range(30):  # wait up to ~30s
-            if net_position(firebase_db, request_symbol) == 0:
-                print("✅ Flat confirmed; proceeding.")
-                break
+            place_exit_trade(symbol, exit_side, 1, firebase_db, exit_reason="DIRECTION_FLATTEN")
+        # wait briefly until flat to avoid racing the new entry
+        deadline = time.time() + 30
+        while time.time() < deadline and net_position(firebase_db, symbol) != 0:
             time.sleep(1)
+        print("✅ Flat confirmed or timeout; proceeding with entry.")
 
-    # ---------------------------------------------------
-    # TRADE ORDER SENT TO EXECUTE TRADE LIVE
-    # ---------------------------------------------------
-    print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
+    # ---------- place entry ----------
+    print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
-    print(f"[DEBUG] Filled price from result: {result.get('filled_price')}")
-    filled_price = result.get("filled_price", 0.0)
+    filled_price = result.get("filled_price")
 
-    def is_valid_order_id(order_id):
-        return isinstance(order_id, str) and order_id.isdigit()
+    # guard invalid order_id
+    order_id = result.get("order_id")
+    if not (isinstance(order_id, str) and order_id.isdigit()):
+        log_to_file(f"❌ Aborting Firebase push due to invalid order_id: {order_id}")
+        print(f"❌ Aborting Firebase push due to invalid order_id: {order_id}")
+        return JSONResponse({"status": "error", "message": "Aborted push due to invalid order_id"}, status_code=502)
 
-    if not is_valid_order_id(result.get("order_id")):
-        log_to_file(f"❌ Aborting Firebase push due to invalid order_id: {result.get('order_id')}")
-        print(f"❌ Aborting Firebase push due to invalid order_id: {result.get('order_id')}")
-        return {"status": "error", "message": "Aborted push due to invalid order_id"}, 555
-
-    status = "FILLED"
-    payload = data.copy()
-
-    trade_type = (result.get("trade_type") or "UNKNOWN").upper()
-    if trade_type == "CLOSED":
-        trade_type = "LONG_ENTRY" if action.upper() == "BUY" else "SHORT_ENTRY"
-
-    if not result.get("status") == "SUCCESS":
-        log_to_file(f"❌ place_entry_trade failed or returned invalid result: {result}")
-        print(f"❌ place_entry_trade failed or returned invalid result: {result}")
+    if result.get("status") != "SUCCESS":
         try:
-            ref = firebase_db.reference(f"/ghost_trades_log/{request_symbol}/{result.get('order_id')}")
-            ref.set(data)
-            log_to_file(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
-            print(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
+            firebase_db.reference(f"/ghost_trades_log/{request_symbol}/{order_id}").set(data)
+            log_to_file(f"✅ Firebase ghost_trades_log updated at key: {order_id}")
         except Exception as e:
             log_to_file(f"❌ Firebase push error: {e}")
-            print(f"❌ Firebase push error: {e}")
-        return {"status": "error", "message": "Trade execution failed", "detail": result}
+        return JSONResponse({"status": "error", "message": "Trade execution failed", "detail": result}, status_code=502)
 
-    symbol = firebase_active_contract.get_active_contract()
-    
-    if not symbol:
-        print("❌ No active contract symbol found; aborting new trade creation")
-        return
-
+    # trailing TP config
     try:
         trigger_points, offset_points = load_trailing_tp_settings_admin(firebase_db)
     except Exception:
         trigger_points, offset_points = 14.0, 5.0
 
-    action = payload.get("action", "BUY").upper()
-    entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
-    entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
-    exit_timestamp = None
+    trade_type = (result.get("trade_type") or ("LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY")).upper()
+    entry_timestamp = normalize_to_utc_iso(result.get("transaction_time") or datetime.utcnow().isoformat())
 
     new_trade = {
-        "order_id": result.get("order_id"),
+        "order_id": order_id,
         "symbol": symbol,
-        "filled_price": result.get("filled_price", 0.0),
+        "filled_price": filled_price or 0.0,
         "action": action,
         "trade_type": trade_type,
-        "status": status,
-        "contracts_remaining": payload.get("contracts_remaining", 1),
+        "status": "FILLED",
+        "contracts_remaining": data.get("contracts_remaining", 1),
         "trail_trigger": trigger_points,
         "trail_offset": offset_points,
         "trail_hit": False,
-        "trail_peak": result.get("filled_price", 0.0),
+        "trail_peak": filled_price or 0.0,
         "filled": True,
         "entry_timestamp": entry_timestamp,
         "just_executed": True,
-        "exit_timestamp": exit_timestamp,
+        "exit_timestamp": None,
         "trade_state": "open",
-        "quantity": payload.get("quantity", 1),
+        "quantity": data.get("quantity", 1),
         "realized_pnl": 0.0,
         "net_pnl": 0.0,
         "tiger_commissions": 0.0,
         "exit_reason": "",
-        "liquidation": payload.get("liquidation", False),
-        "source": map_source(payload.get("source", None)),
-        "is_open": payload.get("is_open", True),
-        "is_ghost": payload.get("is_ghost", False),
+        "liquidation": data.get("liquidation", False),
+        "source": map_source(data.get("source", None)),
+        "is_open": True,
+        "is_ghost": False,
     }
 
-    print(f"[DEBUG] New trade payload to push to Firebase: {new_trade}")
     try:
-        ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['order_id']}")
-        ref.set(new_trade)
-        print(f"✅ Firebase open_active_trades updated at key: {new_trade['order_id']}")
+        firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").set(new_trade)
+        print(f"✅ Firebase open_active_trades updated at key: {order_id}")
     except Exception as e:
         print(f"❌ Firebase push error: {e}")
 
-    # --- Admin SDK: Push to Firebase ---
+    return JSONResponse({"status": "ok", "order_id": order_id}, status_code=200)
 
     #END OF MAIN FUNCTION==========================================
    
