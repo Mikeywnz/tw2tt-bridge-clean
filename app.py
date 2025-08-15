@@ -21,6 +21,7 @@ import time  # if not already imported
 import hashlib
 from datetime import datetime, timezone
 from fastapi import Request
+from execute_trade_live import place_exit_trade
 
 
 def normalize_to_utc_iso(timestr):
@@ -224,12 +225,14 @@ def perform_price_update(data):
 #################### END OF ALL HELPERS FOR THIS SCRIPT ####################
 
 # ====================================================================================================
+# ====================================================================================================
 # ===================================== MAIN FUNCTION ==APP WEBHOOK ===================================
 # ====================================================================================================
 
 @app.post("/webhook")
 async def webhook(request: Request):
     current_time = time.time()
+
     #---------------------------------------------------
     # RECEIVING ORDER FORM TRADING VIEW WEBHOOK
     # ---------------------------------------------------
@@ -250,63 +253,80 @@ async def webhook(request: Request):
     # -------------------------------------------------
     # PRICE UPDATE HANDLER
     # -------------------------------------------------
-    # Handle price update immediately without dedupe
-    action_type = data.get("type", "")
-    if action_type == "price_update":
+    if data.get("type", "") == "price_update":
         return perform_price_update(data)
     
     # ---------------------------------------------------
     # TRADE ACTION HANDLER (BUY / SELL)
     # ---------------------------------------------------
-    # Extract essential trade info safely
+
     request_symbol = data.get('symbol')
     action = data.get('action')
     quantity = data.get('quantity')
-    
 
     if not request_symbol or not action or quantity is None:
         return {"status": "error", "message": "Missing required fields"}    
-    
+
     # ---------------------------------------------------
     # DEDUPLICATION LOGIC
     # ---------------------------------------------------
-
-    # ----------- Deduplication logic start --------------
-    # Compute a hash of the payload for deduplication
     payload_str = json.dumps(data, sort_keys=True)
     payload_hash = hashlib.sha256(payload_str.encode('utf-8')).hexdigest()
 
-    # Cleanup old entries from dedupe cache
     for key in list(recent_payloads.keys()):
         if current_time - recent_payloads[key] > DEDUP_WINDOW:
             del recent_payloads[key]
 
-    # Skip if duplicate within window
     if payload_hash in recent_payloads:
         print(f"⚠️ Duplicate webhook call detected; ignoring.")
         return {"status": "duplicate_skipped"}
 
-    # Mark this payload as processed
     recent_payloads[payload_hash] = current_time
-
     print(f"[LOG] Webhook received: {data}")
     log_to_file(f"Webhook received: {data}")
-    # ------------- Deduplication logic end --------------
+
+    # ---------------------------------------------------
+    # FLATTEN-BEFORE-REVERSE GUARD
+    # ---------------------------------------------------
+    def net_position(firebase_db, symbol: str) -> int:
+        """+N if net long, -N if net short."""
+        trades = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
+        net = 0
+        for t in trades.values():
+            if not isinstance(t, dict):
+                continue
+            side = (t.get("action") or "").upper()
+            if side == "BUY":
+                net += 1
+            elif side == "SELL":
+                net -= 1
+        return net
+
+    current_net = net_position(firebase_db, request_symbol)
+    incoming = 1 if action.upper() == "BUY" else -1
+
+    if current_net * incoming < 0:  # opposite direction
+        print(f"🧹 Flatten-first: net={current_net}, incoming={action}")
+        exit_side = "SELL" if current_net > 0 else "BUY"
+        for _ in range(abs(current_net)):
+            place_exit_trade(request_symbol, exit_side, 1, firebase_db, exit_reason="DIRECTION_FLATTEN")
+
+        import time
+        for _ in range(30):  # wait up to ~30s
+            if net_position(firebase_db, request_symbol) == 0:
+                print("✅ Flat confirmed; proceeding.")
+                break
+            time.sleep(1)
 
     # ---------------------------------------------------
     # TRADE ORDER SENT TO EXECUTE TRADE LIVE
     # ---------------------------------------------------
-
     print(f"[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
     print(f"[DEBUG] Received result from place_entry_trade: {result}")
     print(f"[DEBUG] Filled price from result: {result.get('filled_price')}")
     filled_price = result.get("filled_price", 0.0)
 
-
-    # Build the payload dict with real API values from 'result' and known data
-
-    # === Guard clause: abort if order_id invalid to avoid None bug ===
     def is_valid_order_id(order_id):
         return isinstance(order_id, str) and order_id.isdigit()
 
@@ -315,24 +335,19 @@ async def webhook(request: Request):
         print(f"❌ Aborting Firebase push due to invalid order_id: {result.get('order_id')}")
         return {"status": "error", "message": "Aborted push due to invalid order_id"}, 555
 
-    # Explicitly set status here for new trade
-    status = "FILLED"  # You can adjust logic later if needed
+    status = "FILLED"
     payload = data.copy()
 
-    # Prevent trade_type being "closed" — remap to LONG_ENTRY or SHORT_ENTRY
     trade_type = (result.get("trade_type") or "UNKNOWN").upper()
     if trade_type == "CLOSED":
-        if action.upper() == "BUY":
-            trade_type = "LONG_ENTRY"
-        else:
-            trade_type = "SHORT_ENTRY"
+        trade_type = "LONG_ENTRY" if action.upper() == "BUY" else "SHORT_ENTRY"
 
     if not result.get("status") == "SUCCESS":
         log_to_file(f"❌ place_entry_trade failed or returned invalid result: {result}")
         print(f"❌ place_entry_trade failed or returned invalid result: {result}")
         try:
             ref = firebase_db.reference(f"/ghost_trades_log/{request_symbol}/{result.get('order_id')}")
-            ref.set(data)  # Use original data or create new_trade dict if available
+            ref.set(data)
             log_to_file(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
             print(f"✅ Firebase ghost_trades_log updated at key: {result.get('order_id')}")
         except Exception as e:
@@ -340,35 +355,28 @@ async def webhook(request: Request):
             print(f"❌ Firebase push error: {e}")
         return {"status": "error", "message": "Trade execution failed", "detail": result}
 
-        # Get active symbol from Firebase or your config
     symbol = firebase_active_contract.get_active_contract()
+    
     if not symbol:
         print("❌ No active contract symbol found; aborting new trade creation")
         return
 
-    # Load trailing TP settings from admin SDK or use defaults
     try:
         trigger_points, offset_points = load_trailing_tp_settings_admin(firebase_db)
     except Exception:
         trigger_points, offset_points = 14.0, 5.0
 
-    # Assume 'result' and 'payload' come from your previous API call or processing
-    # For example, 'result' from Tiger API trade placement response
-    # 'payload' is your existing dictionary with trade info (can be empty or partial)
-
-    # Action string from your trade context
     action = payload.get("action", "BUY").upper()
     entry_timestamp_raw = result.get("transaction_time") or datetime.utcnow().isoformat()
     entry_timestamp = normalize_to_utc_iso(entry_timestamp_raw)
     exit_timestamp = None
 
-    # Build new_trade dict merging existing payload to preserve info
     new_trade = {
         "order_id": result.get("order_id"),
         "symbol": symbol,
         "filled_price": result.get("filled_price", 0.0),
         "action": action,
-        "trade_type": trade_type,  # uses your remap
+        "trade_type": trade_type,
         "status": status,
         "contracts_remaining": payload.get("contracts_remaining", 1),
         "trail_trigger": trigger_points,
@@ -384,22 +392,24 @@ async def webhook(request: Request):
         "realized_pnl": 0.0,
         "net_pnl": 0.0,
         "tiger_commissions": 0.0,
-        "exit_reason": "",  # ✅ only set after actual exit
+        "exit_reason": "",
         "liquidation": payload.get("liquidation", False),
         "source": map_source(payload.get("source", None)),
         "is_open": payload.get("is_open", True),
-        "is_ghost": payload.get("is_ghost", False), 
+        "is_ghost": payload.get("is_ghost", False),
     }
 
     print(f"[DEBUG] New trade payload to push to Firebase: {new_trade}")
     try:
         ref = firebase_db.reference(f"/open_active_trades/{symbol}/{new_trade['order_id']}")
-        ref.set(new_trade)  # Use set() here for new trade creation to fully overwrite old data
+        ref.set(new_trade)
         print(f"✅ Firebase open_active_trades updated at key: {new_trade['order_id']}")
     except Exception as e:
         print(f"❌ Firebase push error: {e}")
 
     # --- Admin SDK: Push to Firebase ---
+
+    #END OF MAIN FUNCTION==========================================
    
     # ====================================================================================================
     # =============================✅ LOG TO GOOGLE SHEETS — NOW CLOSED TRADES JOURNAL ==========================
