@@ -164,27 +164,6 @@ def is_ghostflag_trade(order_id, firebase_db):
     ghosts = ghost_ref.get() or {}
     return order_id in ghosts
 
-#===========================================
-#🟩 Helper: Archived_trade() helper function
-#===========================================
-
-def archive_trade(symbol, trade):
-    order_id = trade.get("order_id")
-    if not order_id:
-        print(f"❌ Cannot archive trade without order_id")
-        return False
-    try:
-        archive_ref = db.reference(f"/archived_trades_log/{order_id}")  # <-- changed here
-        # Preserve original trade_type; do NOT overwrite it with "closed"
-        if "trade_type" not in trade or not trade["trade_type"]:
-            trade["trade_type"] = "UNKNOWN"
-        archive_ref.update(trade)
-        print(f"✅ Archived trade {order_id}")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to archive trade {order_id}: {e}")
-        return False
-    
 
 # ====================================================
 #🟩 Helper: Liquidation Handler
@@ -332,12 +311,6 @@ def push_orders_main():
             # Single validation – ensures it's a numeric string
             if not (isinstance(order_id, str) and order_id.isdigit()):
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
-                continue
-
-            # 🟩 PATCH 1: Hard stop if this order was already archived
-            exit_ref_early = firebase_db.reference(f"/exit_orders_log/{order_id}")
-            if archived_snap:
-                print(f"⏭️ Skipping archived order {order_id} (found in /archived_trades_log)")
                 continue
 
             # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens    
