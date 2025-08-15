@@ -286,7 +286,7 @@ async def webhook(request: Request):
         print(f"🧹 Flatten-first: net={current_net}, incoming={action}")
         exit_side = "SELL" if current_net > 0 else "BUY"
         for _ in range(abs(current_net)):
-            place_exit_trade(symbol, exit_side, 1, firebase_db, exit_reason="DIRECTION_FLATTEN")
+            place_exit_trade(symbol, exit_side, 1, firebase_db)
         # wait briefly until flat to avoid racing the new entry
         deadline = time.time() + 30
         while time.time() < deadline and net_position(firebase_db, symbol) != 0:
