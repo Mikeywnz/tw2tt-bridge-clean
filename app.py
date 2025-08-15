@@ -21,6 +21,7 @@ import time  # if not already imported
 import hashlib
 from datetime import datetime, timezone
 from fastapi import Request
+from fb_runtime_logger import install_print_hook
 
 def normalize_to_utc_iso(timestr):
     try:
@@ -59,6 +60,8 @@ if not firebase_admin._apps:
 
 firebase_db = db
 
+#tracking the loop on local machine 
+install_print_hook("app")
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 

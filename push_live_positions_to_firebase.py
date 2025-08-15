@@ -78,12 +78,12 @@ def push_live_positions():
             })
             print(f"✅ Pushed position count {position_count} at {timestamp_iso}")
 
-            # --- Fetch trade activities for accurate prices ---
-            transactions = fetch_trade_transactions(account_id="21807597867063647")
+            # # --- Fetch trade activities for accurate prices ---
+            # transactions = fetch_trade_transactions(account_id="21807597867063647")
 
-            print(f"🔍 Fetched {len(transactions)} transactions")
-            for tx in transactions:
-                print(vars(tx))
+            # print(f"🔍 Fetched {len(transactions)} transactions")
+            # for tx in transactions:
+            #     print(vars(tx))
 
             # --- Keep /live_total_positions/ path alive ---
             if not live_ref.get():

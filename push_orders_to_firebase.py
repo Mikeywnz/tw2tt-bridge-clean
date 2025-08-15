@@ -18,6 +18,7 @@ from firebase_admin import credentials, initialize_app, db
 import os
 import time
 from typing import Optional
+from fb_runtime_logger import install_print_hook
 
 grace_cache = {}
 _logged_order_ids = set()
@@ -39,7 +40,8 @@ if not firebase_admin._apps:
     })
 
 firebase_db = db
-
+# watch from local machine
+install_print_hook("orders")
 #================================
 # 🟩 TIGER API SET UP ============
 #================================
@@ -706,4 +708,12 @@ def log_closed_trade_to_sheets(trade):
     except Exception as e:
         print(f"❌ Failed to log trade to Google Sheets: {e}")
 
+if __name__ == "__main__":
+    import time
+    while True:
+        try:
+            push_orders_main()  # <-- your existing main function
+        except Exception as e:
+            print(f"❌ Error running push_orders_main(): {e}")
+        time.sleep(20)  # wait 20 seconds before next loop
 #===============================================================(END OF SCRIPT) ======================================================================
