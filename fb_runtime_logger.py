@@ -1,48 +1,48 @@
-# fb_runtime_logger.py
-import os, re, threading, queue, datetime, builtins
-from firebase_admin import db, _apps
+# # fb_runtime_logger.py
+# import os, re, threading, queue, datetime, builtins
+# from firebase_admin import db, _apps
 
-# Only ship lines that matter (same vibe as your grep)
-ALLOW_RE = re.compile(
-    os.getenv("FB_LOG_ALLOW", r"(Placing EXIT|Exit ticket|Archived \+ deleted|TP trigger HIT|EXIT condition met|trigger @|System working|Processing trade|entering monitor_trades)")
-)
+# # Only ship lines that matter (same vibe as your grep)
+# ALLOW_RE = re.compile(
+#     os.getenv("FB_LOG_ALLOW", r"(Placing EXIT|Exit ticket|Archived \+ deleted|TP trigger HIT|EXIT condition met|trigger @|System working|Processing trade|entering monitor_trades)")
+# )
 
-def install_print_hook(component: str):
-    """Mirror selected print() lines to /runtime_logs/<component> without changing your code."""
-    if not _apps:
-        # rely on existing firebase_admin.init in your scripts; if not init'd, do nothing
-        return
+# def install_print_hook(component: str):
+#     """Mirror selected print() lines to /runtime_logs/<component> without changing your code."""
+#     if not _apps:
+#         # rely on existing firebase_admin.init in your scripts; if not init'd, do nothing
+#         return
 
-    ref = db.reference(f"/runtime_logs/{component}")
-    q: "queue.Queue[str]" = queue.Queue(maxsize=1000)
-    orig_print = builtins.print
+#     ref = db.reference(f"/runtime_logs/{component}")
+#     q: "queue.Queue[str]" = queue.Queue(maxsize=1000)
+#     orig_print = builtins.print
 
-    def worker():
-        while True:
-            line = q.get()
-            if line is None:
-                return
-            ts = datetime.datetime.utcnow().isoformat() + "Z"
-            try:
-                # keep payload tiny
-                ref.push({"ts": ts, "line": line[:2000]})
-            except Exception:
-                pass
-            finally:
-                q.task_done()
+#     def worker():
+#         while True:
+#             line = q.get()
+#             if line is None:
+#                 return
+#             ts = datetime.datetime.utcnow().isoformat() + "Z"
+#             try:
+#                 # keep payload tiny
+#                 ref.push({"ts": ts, "line": line[:2000]})
+#             except Exception:
+#                 pass
+#             finally:
+#                 q.task_done()
 
-    threading.Thread(target=worker, daemon=True).start()
+#     threading.Thread(target=worker, daemon=True).start()
 
-    def hooked_print(*args, **kwargs):
-        s = " ".join(str(a) for a in args)
-        # always print locally/Render as usual
-        orig_print(*args, **kwargs)
-        # only ship interesting lines
-        if ALLOW_RE.search(s):
-            try:
-                q.put_nowait(s)
-            except queue.Full:
-                # drop if overwhelmed
-                pass
+#     def hooked_print(*args, **kwargs):
+#         s = " ".join(str(a) for a in args)
+#         # always print locally/Render as usual
+#         orig_print(*args, **kwargs)
+#         # only ship interesting lines
+#         if ALLOW_RE.search(s):
+#             try:
+#                 q.put_nowait(s)
+#             except queue.Full:
+#                 # drop if overwhelmed
+#                 pass
 
-    builtins.print = hooked_print
+#     builtins.print = hooked_print
