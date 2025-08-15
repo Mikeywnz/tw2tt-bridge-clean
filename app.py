@@ -253,7 +253,7 @@ async def webhook(request: Request):
     request_symbol = data.get("symbol")
     action = (data.get("action") or "").upper()
     quantity = data.get("quantity")
-    if not request_symbol or action not in {"BUY","SELL"} or quantity is None:
+    if not request_symbol or action not in {"BUY", "SELL"} or quantity is None:
         return JSONResponse({"status": "error", "message": "Missing required fields"}, status_code=400)
 
     # ---------- dedupe ----------
@@ -272,27 +272,38 @@ async def webhook(request: Request):
         snap = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
         net = 0
         for v in snap.values():
-            if not isinstance(v, dict): 
+            if not isinstance(v, dict):
                 continue
             side = (v.get("action") or "").upper()
-            if side == "BUY":  net += 1
-            elif side == "SELL": net -= 1
+            if side == "BUY":
+                net += 1
+            elif side == "SELL":
+                net -= 1
         return net
 
-    symbol = request_symbol  # or firebase_active_contract.get_active_contract() or request_symbol
+    symbol   = request_symbol  # use the symbol in the alert
     incoming = 1 if action == "BUY" else -1
-    current_net = net_position(firebase_db, symbol)
-    if current_net * incoming < 0:
-        print(f"🧹 Flatten-first: net={current_net}, incoming={action}")
-        exit_side = "SELL" if current_net > 0 else "BUY"
-        for _ in range(abs(current_net)):
-            place_exit_trade(symbol, exit_side, 1, firebase_db)
-        # wait briefly until flat to avoid racing the new entry
-        deadline = time.time() + 30
-        while time.time() < deadline and net_position(firebase_db, symbol) != 0:
-            time.sleep(1)
-        print("✅ Flat confirmed or timeout; proceeding with entry.")
+    current  = net_position(firebase_db, symbol)
 
+    if current * incoming < 0:
+        print(f"🧹 Flatten-first: net={current}, incoming={action}")
+        exit_side = "SELL" if current > 0 else "BUY"
+        for _ in range(abs(current)):
+            place_exit_trade(symbol, exit_side, 1, firebase_db)  # no exit_reason arg
+
+        import time
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            if net_position(firebase_db, symbol) == 0:
+                print("✅ Flat confirmed; proceeding with new entry.")
+                break
+            time.sleep(0.5)
+
+        if net_position(firebase_db, symbol) != 0:
+            print("⏸️ Still not flat after 8s; skipping reverse entry.")
+            return JSONResponse({"status": "flatten_in_progress"}, status_code=202)
+    
+# --- end guard ---
     # ---------- place entry ----------
     print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
     result = place_entry_trade(request_symbol, action, quantity, firebase_db)
