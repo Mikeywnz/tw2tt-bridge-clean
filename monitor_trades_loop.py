@@ -238,7 +238,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                         }
 
                         # Enqueue the exit ticket; drain loop will process it exactly once
-                        tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
+                        tickets_ref = firebase_db.reference("/exit_orders_log")
                         try:
                             tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
                         except Exception as e2:
@@ -292,7 +292,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         return False
     
       # 🔒 Idempotency guard (insert THIS block)
-    ticket_ref = firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}")
+    ticket_ref = firebase_db.reference(f"/exit_orders_log/{exit_oid}")
     existing = ticket_ref.get() or {}
     # If already processed by the drain loop or by a prior call, bail early
     if existing.get("_processed") or existing.get("_handled"):
@@ -301,7 +301,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         return anchor_already or True
 
     # 2) Log/Upsert exit ticket (never in open_active_trades)
-    tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
+    tickets_ref = firebase_db.reference("/exit_orders_log")
     tickets_ref.child(exit_oid).update({
         "order_id": exit_oid,
         "symbol": symbol, 
@@ -380,7 +380,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
     # 7) Mark exit ticket handled/processed (prevents reprocessing)
     try:
-        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({
+        firebase_db.reference(f"/exit_orders_log/{exit_oid}").update({
             "_handled": True,
             "_processed": True,
             "anchor_id": anchor_oid,
@@ -388,7 +388,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
-    print(f"[INFO] Exit ticket retained under /exit_orders_log/{symbol}/{exit_oid}")
+    print(f"[INFO] Exit ticket retained under /exit_orders_log/{exit_oid}")
     return anchor_oid
 
 # ========================================================
@@ -477,7 +477,7 @@ def monitor_trades():
         
         # 🔽 EXIT LOGIC: drain exit tickets
         try:
-            tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
+            tickets_ref = firebase_db.reference("/exit_orders_log")
             tickets = tickets_ref.get() or {}
             for tx_id, tx in tickets.items():
                 if not isinstance(tx, dict):

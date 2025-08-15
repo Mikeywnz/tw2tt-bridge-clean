@@ -81,3 +81,226 @@
 [2025-08-13T23:04:04.198922+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
 [2025-08-13T23:11:56.328862+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
 [2025-08-13T23:16:14.325862+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+/Users/mrj/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+✅ Tiger API client initialized successfully
+[2025-08-15T12:08:15.378035+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-15T12:09:35.609557+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-15T12:11:48.804833+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-15 12:20:16 +1200] [88294] [INFO] Starting gunicorn 23.0.0
+[2025-08-15 12:20:16 +1200] [88294] [INFO] Listening at: http://0.0.0.0:10000 (88294)
+[2025-08-15 12:20:16 +1200] [88294] [INFO] Using worker: uvicorn.workers.UvicornWorker
+[2025-08-15 12:20:16 +1200] [88296] [INFO] Booting worker with pid: 88296
+/Users/mrj/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[2025-08-15 12:20:17 +1200] [88296] [INFO] Started server process [88296]
+[2025-08-15 12:20:17 +1200] [88296] [INFO] Waiting for application startup.
+[2025-08-15 12:20:17 +1200] [88296] [INFO] Application startup complete.
+/Users/mrj/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/mrj/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+✅ Tiger API client initialized successfully
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.7
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3355.5
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+⏳ Started timer for trade 40149620754219008 on MGC2510 due to zero global position
+⏳ Started timer for trade 40149631163959296 on MGC2510 due to zero global position
+⏳ Started timer for trade 40149648616718336 on MGC2510 due to zero global position
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.6
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing

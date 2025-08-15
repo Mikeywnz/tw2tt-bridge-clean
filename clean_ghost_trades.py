@@ -22,13 +22,15 @@ def extract_trade_timestamp(trade_data):
         'transacted_at',
         'entry_timestamp',
         'exit_timestamp',
-        'executed_timestamp'
+        'executed_timestamp',
+        'transaction_time',  # added
+        'fill_time'          # added
     ]
     for field in timestamp_fields:
-        val = trade_data.get(field)
+        val = trade_data.get(field) if isinstance(trade_data, dict) else None
         if val:
             try:
-                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                dt = datetime.fromisoformat(str(val).replace("Z", "+00:00"))
                 # Force timezone aware UTC if missing
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
@@ -43,17 +45,22 @@ def delete_old_trades(log_path, age_hours=12):
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=age_hours)
 
+    # Expect flat {order_id: ticket}; entries without a parsable timestamp are skipped
     for trade_id, trade_data in trades.items():
         timestamp = extract_trade_timestamp(trade_data)
         if timestamp is None:
-            print(f"Skipping trade {trade_id}: no valid timestamp found in {log_path}")
+            print(f"Skipping {trade_id}: no valid timestamp found in {log_path}")
             continue
 
         if timestamp < cutoff:
-            ref.child(trade_id).delete()
-            print(f"Deleted trade {trade_id} from {log_path} older than {age_hours} hours")
+            try:
+                ref.child(trade_id).delete()
+                print(f"Deleted {trade_id} from {log_path} older than {age_hours} hours")
+            except Exception as e:
+                print(f"❌ Failed to delete {trade_id} from {log_path}: {e}")
 
 if __name__ == "__main__":
     delete_old_trades("/ghost_trades_log")
     delete_old_trades("/zombie_trades_log")
     delete_old_trades("/archived_trades_log")
+    delete_old_trades("/exit_orders_log")  # added

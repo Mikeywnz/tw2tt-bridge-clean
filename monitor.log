@@ -1,0 +1,3867 @@
+/Users/mrj/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+✅ Tiger API client initialized successfully
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3350.9
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3350.9
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.9
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.9
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.9
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.2
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.9
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.9
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.4
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.4
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.2
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.2
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.2
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.1
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.1
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.9
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.9
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.9
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.9
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.9
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.0
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.5
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.5
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.3
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.2
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.5
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.5
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.8
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.0
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.0
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.6
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.6
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.6
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.4
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 4 open trades from Firebase.
+[DEBUG] Processing 4 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 4 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+🔄 Processing trade 40149438462689280
+[DEBUG] 40149438462689280 trigger @ -3.00 (entry 0.00, dir SHORT)
+✅ Open Active Trades replaced atomically (4)
+[DEBUG] Saved 4 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 4 open trades from Firebase.
+⏭️ Skipping archived trade 40149438462689280
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.9
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.4
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.0
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.0
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.4
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.5
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.5
+🔄 Loaded 3 open trades from Firebase.
+⏳ Started timer for trade 40148966734168064 on MGC2510 due to zero global position
+⏳ Started timer for trade 40149207713710080 on MGC2510 due to zero global position
+⏳ Started timer for trade 40149323819909120 on MGC2510 due to zero global position
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40148966734168064
+[DEBUG] 40148966734168064 trigger @ 3349.50 (entry 3352.50, dir SHORT)
+🔄 Processing trade 40149207713710080
+[DEBUG] 40149207713710080 trigger @ 3348.90 (entry 3351.90, dir SHORT)
+🔄 Processing trade 40149323819909120
+[DEBUG] 40149323819909120 trigger @ 3350.00 (entry 3353.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.4
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.4
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.6
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.6
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.0
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.0
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.3
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.3
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3354.0
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.6
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149438462689280
+[DEBUG] 40149438462689280 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 4 open trades from Firebase.
+[DEBUG] Processing 4 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 4 active trades
+🔄 Processing trade 40147079601325056
+[DEBUG] 40147079601325056 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40147197238837248
+[DEBUG] 40147197238837248 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40149438462689280
+[DEBUG] 40149438462689280 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (4)
+[DEBUG] Saved 4 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+⏳ Started timer for trade 40147079601325056 on MGC2510 due to zero global position
+⏳ Started timer for trade 40147197238837248 on MGC2510 due to zero global position
+⏳ Started timer for trade 40149557922628608 on MGC2510 due to zero global position
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40147079601325056
+[DEBUG] 40147079601325056 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40147197238837248
+[DEBUG] 40147197238837248 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40147079601325056
+[DEBUG] 40147079601325056 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40147197238837248
+[DEBUG] 40147197238837248 trigger @ -3.00 (entry 0.00, dir SHORT)
+🔄 Processing trade 40149557922628608
+[DEBUG] 40149557922628608 trigger @ 3351.00 (entry 3354.00, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.7
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+⏳ Started timer for trade 40146968498538496 on MGC2510 due to zero global position
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40146968498538496
+[DEBUG] 40146968498538496 trigger @ -3.00 (entry 0.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40146968498538496
+[DEBUG] 40146968498538496 trigger @ -3.00 (entry 0.00, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3350.7
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.2
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.2
+🔄 Loaded 0 open trades from Firebase.
+⚠️ No active trades found — Trade Worker happy & awake.
+[DEBUG] Processing 0 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 0 active trades
+⏭️ No open anchors; skipping exit ticket drain this loop.
+✅ Open Active Trades replaced atomically (0)
+[DEBUG] Saved 0 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.1
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 1 open trades from Firebase.
+[DEBUG] Processing 1 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 1 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+✅ Open Active Trades replaced atomically (1)
+[DEBUG] Saved 1 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.1
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3350.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3350.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.6
+🔄 Loaded 2 open trades from Firebase.
+[DEBUG] Processing 2 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 2 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+✅ Open Active Trades replaced atomically (2)
+[DEBUG] Saved 2 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3353.6
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3352.0
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.8
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits
+[DEBUG] process_trailing_tp_and_exits() called with 3 active trades
+🔄 Processing trade 40149620754219008
+[DEBUG] 40149620754219008 trigger @ 3348.50 (entry 3353.50, dir SHORT)
+🔄 Processing trade 40149631163959296
+[DEBUG] 40149631163959296 trigger @ 3348.10 (entry 3353.10, dir SHORT)
+🔄 Processing trade 40149648616718336
+[DEBUG] 40149648616718336 trigger @ 3347.40 (entry 3352.40, dir SHORT)
+✅ Open Active Trades replaced atomically (3)
+[DEBUG] Saved 3 active trades after processing
+[DEBUG] - entering monitor_trades()
+Current active contract: MGC2510
+🛰️  System working – MGC2510 price: 3351.2
+🔄 Loaded 3 open trades from Firebase.
+[DEBUG] Processing 3 active trades for trailing TP and exits

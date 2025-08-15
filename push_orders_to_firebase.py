@@ -335,13 +335,13 @@ def push_orders_main():
                 continue
 
             # 🟩 PATCH 1: Hard stop if this order was already archived
-            archived_snap = firebase_db.reference(f"/archived_trades_log/{order_id}").get()
+            exit_ref_early = firebase_db.reference(f"/exit_orders_log/{order_id}")
             if archived_snap:
                 print(f"⏭️ Skipping archived order {order_id} (found in /archived_trades_log)")
                 continue
 
             # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens    
-            exit_ref_early = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}")
+            exit_ref_early = firebase_db.reference(f"/exit_orders_log/{order_id}")
             if exit_ref_early.get():
                 print(f"⏭️ Skipping EXIT ticket {order_id} (early fence)")
                 continue
@@ -549,7 +549,7 @@ def push_orders_main():
             continue
 
         # 🔒 LATE EXIT‑TICKET FENCE — last check before we touch /open_active_trades
-        exit_ref_late = firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get()
+        exit_ref_late = firebase_db.reference(f"/exit_orders_log/{order_id}").get()
         if exit_ref_late:
             print(f"⏭️ Skipping EXIT ticket {order_id} (late fence)")
             continue
