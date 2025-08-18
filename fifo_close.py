@@ -186,11 +186,16 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
         # Sheets-only: keep timestamps as given (no timezone math)
         from datetime import datetime
+        import pytz
+        nz_tz = pytz.timezone("Pacific/Auckland")
 
         def _parse_naive(iso_str: str) -> datetime:
-            # Accept 'YYYY-MM-DDTHH:MM:SSZ' or 'YYYY-MM-DD HH:MM:SS'
-            s = (iso_str or "").replace("T", " ").replace("Z", "")
-            return datetime.fromisoformat(s)
+            s = (iso_str or "").strip().replace("T", " ").replace("Z", "")
+            try:
+                dt_utc = datetime.fromisoformat(s)
+            except ValueError:
+                dt_utc = datetime.utcnow()  # fallback if parsing ever fails
+            return dt_utc.replace(tzinfo=pytz.utc).astimezone(nz_tz)
 
         entry_dt = _parse_naive(entry_ts_iso)
         exit_dt  = _parse_naive(exit_ts_iso)
