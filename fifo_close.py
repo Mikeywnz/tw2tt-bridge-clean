@@ -158,13 +158,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
     #============================================================================================ 
     try:
-        # You already computed these above:
-        # - anchor (dict for the entry)
-        # - anchor_oid, exit_oid
-        # - exit_time, exit_act, exit_price, exit_qty
-        # - pnl (float)
-        COMMISSION_FLAT = 7.02
-        net = pnl - COMMISSION_FLAT
+        COMMISSION_FLAT = 7.02  # keep for row + fallback
 
         # Pull a few fields (with safe fallbacks)
         entry_ts_iso = anchor.get("entry_timestamp") or exit_time
@@ -177,33 +171,47 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
         source_val   = anchor.get("source", "unknown")
 
-        # Pretty date/time fields (you already used Pacific/Auckland elsewhere)
-        from datetime import datetime, timezone
+        # Pretty date/time fields in Pacific/Auckland
+        from datetime import datetime, timezone, timedelta
         import pytz
         nz = pytz.timezone("Pacific/Auckland")
-        def _nz_fmt(iso):
-            # iso may already be UTC Z or a naive iso; be forgiving
-            try:
-                dt = datetime.fromisoformat(iso.replace("Z","")).replace(tzinfo=timezone.utc)
-            except Exception:
-                dt = datetime.utcnow().replace(tzinfo=timezone.utc)
-            return dt.astimezone(nz)
 
-        entry_dt = _nz_fmt(entry_ts_iso)
-        exit_dt  = _nz_fmt(exit_ts_iso)
+        def _to_utc(iso_str):
+            # tolerant parse: '2025-08-18T09:27:27Z' or '2025-08-18 09:27:27'
+            s = (iso_str or "").replace("Z", "")
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone(timezone.utc)
+            return dt
+
+        entry_utc = _to_utc(entry_ts_iso)
+        exit_utc  = _to_utc(exit_ts_iso)
+
+        entry_dt = entry_utc.astimezone(nz)
+        exit_dt  = exit_utc.astimezone(nz)
+
         day_date = entry_dt.strftime("%A %d %B %Y")
         entry_time_str = entry_dt.strftime("%H:%M:%S")
         exit_time_str  = exit_dt.strftime("%H:%M:%S")
-        time_in_trade  = str(exit_dt - entry_dt)[:-7]  # trim microseconds, e.g. "0:11:00"
+
+        # Stable HH:MM:SS duration (always positive)
+        total_secs = int(abs((exit_dt - entry_dt).total_seconds()))
+        hh = total_secs // 3600
+        mm = (total_secs % 3600) // 60
+        ss = total_secs % 60
+        time_in_trade = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
         # Flip? -> true if this was a flattening close
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
         flip_str = "Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No"
 
-        # Optional: trail offset $ amount (your sheet shows it)
-        trail_offset_amount = trail_off if isinstance(trail_off, (int, float)) else ""
+        # ✅ Take PnL values directly from the Firebase update dict
+        realized_pnl_fb = float(update.get("realized_pnl", 0.0))
+        net_fb = float(update.get("net_pnl", realized_pnl_fb - COMMISSION_FLAT))
 
-        # Build the row in your target column order (match your screenshot headings)
+        # Build the row in your target column order
         row = [
             day_date,                 # Day Date
             entry_time_str,           # Entry Time
@@ -216,9 +224,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             trail_trig,               # Trail Trigger Value
             trail_off,                # Trail Offset
             trail_hit,                # Trailing Take Profit Hit (Yes/No)
-            round(pnl, 2),            # Realised PnL
-            COMMISSION_FLAT,          # Tiger Commissions (7.02 round-trip)
-            round(net, 2),            # Net PNL
+            round(realized_pnl_fb, 2),# Realised PnL (from Firebase)
+            COMMISSION_FLAT,          # Tiger Commissions
+            round(net_fb, 2),         # Net PNL (from Firebase)
             anchor_oid,               # Order ID (entry / anchor)
             exit_oid,                 # FIFO Match Order ID (exit)
             source_val,               # Source
@@ -226,7 +234,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         ]
 
         # Append to Google Sheet
-        sheet = get_google_sheet()   # uses your existing helper
+        sheet = get_google_sheet()
         sheet.append_row(row, value_input_option='USER_ENTERED')
         print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
     except Exception as e:
