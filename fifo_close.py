@@ -171,13 +171,12 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
         source_val   = anchor.get("source", "unknown")
 
-        # Pretty date/time fields in Pacific/Auckland
-        from datetime import datetime, timezone, timedelta
+        # Pretty date/time fields in Pacific/Auckland (Sheets-only)
+        from datetime import datetime, timezone
         import pytz
         nz = pytz.timezone("Pacific/Auckland")
 
         def _to_utc(iso_str):
-            # tolerant parse: '2025-08-18T09:27:27Z' or '2025-08-18 09:27:27'
             s = (iso_str or "").replace("Z", "")
             dt = datetime.fromisoformat(s)
             if dt.tzinfo is None:
@@ -192,9 +191,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         entry_dt = entry_utc.astimezone(nz)
         exit_dt  = exit_utc.astimezone(nz)
 
-        day_date = entry_dt.strftime("%A %d %B %Y")
-        entry_time_str = entry_dt.strftime("%H:%M:%S")
-        exit_time_str  = exit_dt.strftime("%H:%M:%S")
+        day_date       = entry_dt.strftime("%A %d %B %Y")
+        entry_time_str = entry_dt.strftime("%I:%M:%S %p")   # 12-hour with AM/PM
+        exit_time_str  = exit_dt.strftime("%I:%M:%S %p")    # 12-hour with AM/PM
 
         # Stable HH:MM:SS duration (always positive)
         total_secs = int(abs((exit_dt - entry_dt).total_seconds()))
