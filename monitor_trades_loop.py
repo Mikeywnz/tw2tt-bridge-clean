@@ -130,10 +130,30 @@ def load_open_trades(symbol):
         print(f"❌ Failed to fetch open trades: {e}")
         return []
 
-def save_open_trades(symbol, trades):
+from datetime import datetime, timezone, timedelta
+
+def save_open_trades(symbol, trades, grace_seconds: int = 60):
+    """
+    Atomic overwrite of /open_active_trades/{symbol} with a short grace period:
+    - Writes all valid 'trades' you pass in.
+    - Keeps any *existing* Firebase trade for this symbol if its entry_timestamp is within the last `grace_seconds`.
+    - Flushes old/zombie entries.
+    """
     ref = db.reference(f"/open_active_trades/{symbol}")
+
+    def _parse_iso_to_utc(iso_str: str) -> datetime:
+        """Tolerant ISO parser -> aware UTC datetime."""
+        s = (iso_str or "").strip().replace("T", " ").replace("Z", "")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            return datetime.min.replace(tzinfo=timezone.utc)
+        # treat naive as UTC
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
     try:
-        payload = {}
+        # 1) Build fresh payload from provided trades
+        fresh = {}
         for t in trades:
             if not isinstance(t, dict):
                 continue
@@ -143,17 +163,35 @@ def save_open_trades(symbol, trades):
             if t.get("symbol") not in (None, "", symbol):  # drop mismatched symbols
                 continue
             status = (t.get("status") or "").lower()
-            if t.get("exited") or status in ("closed", "failed") or t.get("contracts_remaining", 0) <= 0:
+            if t.get("exited") or status in ("closed", "failed") or (t.get("contracts_remaining", 0) or 0) <= 0:
                 continue
-            payload[oid] = t
+            fresh[oid] = t
 
-        # Merge-only write to avoid wiping other open orders for this symbol
-        if payload:
-            ref.update(payload)  # ✅ merge, don't overwrite
-            print(f"✅ Open Active Trades merged (kept existing), wrote {len(payload)}")
-        else:
-            # Optional but safe: do nothing instead of clearing existing nodes
-            print("ℹ️ No eligible open trades to write; leaving existing entries untouched.")
+        # 2) Load existing to apply short grace for very-new trades
+        existing = ref.get() or {}
+        now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+        cutoff = now_utc - timedelta(seconds=grace_seconds)
+
+        # Keep any existing recent trade not present in `fresh`
+        for oid, tr in existing.items():
+            if oid in fresh:
+                continue
+            if not isinstance(tr, dict):
+                continue
+            if tr.get("symbol") not in (None, "", symbol):
+                continue
+            status = (tr.get("status") or "").lower()
+            if tr.get("exited") or status in ("closed", "failed") or (tr.get("contracts_remaining", 0) or 0) <= 0:
+                continue
+            # Use entry_timestamp; fallback to transaction_time if needed
+            ts = tr.get("entry_timestamp") or tr.get("transaction_time") or ""
+            ts_utc = _parse_iso_to_utc(ts)
+            if ts_utc >= cutoff:
+                fresh[oid] = tr  # protect very recent trade
+
+        # 3) Atomic overwrite with protected set
+        ref.set(fresh)
+        print(f"✅ Open Active Trades overwritten atomically (kept {len(fresh)}; grace={grace_seconds}s)")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
