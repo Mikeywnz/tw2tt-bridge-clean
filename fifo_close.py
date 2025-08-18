@@ -1,10 +1,29 @@
+
+import sys
+from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
+
+
+# ====================================================
+# 🟩 Helper: Google Sheets Setup (Global)
+# ====================================================
+
+GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+GOOGLE_CREDS_FILE = "firebase_key.json"
+SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
+CLOSED_TRADES_FILE = "closed_trades.csv"
+
+def get_google_sheet():
+    creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
+    gs_client = gspread.authorize(creds)
+    sheet = gs_client.open("Closed Trades Journal").worksheet("demo journal")
+    return sheet
+
+
 # ==============================================
 # 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE
 # ==============================================
-import sys
-from datetime import datetime
-
-
 def handle_exit_fill_from_tx(firebase_db, tx_dict):
     """
     tx_dict example (from execute_trades_live):
@@ -123,6 +142,86 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
         return None
+
+   
+
+    #============================================================================================
+      # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
+    #============================================================================================ 
+    try:
+        # You already computed these above:
+        # - anchor (dict for the entry)
+        # - anchor_oid, exit_oid
+        # - exit_time, exit_act, exit_price, exit_qty
+        # - pnl (float)
+        COMMISSION_FLAT = 7.02
+        net = pnl - COMMISSION_FLAT
+
+        # Pull a few fields (with safe fallbacks)
+        entry_ts_iso = anchor.get("entry_timestamp") or exit_time
+        exit_ts_iso  = exit_time
+        entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)
+        exit_px      = float(exit_price or 0.0)
+        qty          = int(exit_qty or 1)
+        trail_trig   = anchor.get("trail_trigger", "")
+        trail_off    = anchor.get("trail_offset", "")
+        trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
+        source_val   = anchor.get("source", "unknown")
+
+        # Pretty date/time fields (you already used Pacific/Auckland elsewhere)
+        from datetime import datetime, timezone
+        import pytz
+        nz = pytz.timezone("Pacific/Auckland")
+        def _nz_fmt(iso):
+            # iso may already be UTC Z or a naive iso; be forgiving
+            try:
+                dt = datetime.fromisoformat(iso.replace("Z","")).replace(tzinfo=timezone.utc)
+            except Exception:
+                dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+            return dt.astimezone(nz)
+
+        entry_dt = _nz_fmt(entry_ts_iso)
+        exit_dt  = _nz_fmt(exit_ts_iso)
+        day_date = entry_dt.strftime("%A %d %B %Y")
+        entry_time_str = entry_dt.strftime("%H:%M:%S")
+        exit_time_str  = exit_dt.strftime("%H:%M:%S")
+        time_in_trade  = str(exit_dt - entry_dt)[:-7]  # trim microseconds, e.g. "0:11:00"
+
+        # Flip? -> true if this was a flattening close
+        trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
+        flip_str = "Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No"
+
+        # Optional: trail offset $ amount (your sheet shows it)
+        trail_offset_amount = trail_off if isinstance(trail_off, (int, float)) else ""
+
+        # Build the row in your target column order (match your screenshot headings)
+        row = [
+            day_date,                 # Day Date
+            entry_time_str,           # Entry Time
+            exit_time_str,            # Exit Time
+            time_in_trade,            # Time in Trade
+            trade_type_str.title(),   # Trade Type ("Long"/"Short")
+            flip_str,                 # Flip?
+            entry_px,                 # Entry Price
+            exit_px,                  # Exit Price
+            trail_trig,               # Trail Trigger Value
+            trail_off,                # Trail Offset
+            trail_hit,                # Trailing Take Profit Hit (Yes/No)
+            round(pnl, 2),            # Realised PnL
+            COMMISSION_FLAT,          # Tiger Commissions (7.02 round-trip)
+            round(net, 2),            # Net PNL
+            anchor_oid,               # Order ID (entry / anchor)
+            exit_oid,                 # FIFO Match Order ID (exit)
+            source_val,               # Source
+            ""                        # Manually Filled Notes
+        ]
+
+        # Append to Google Sheet
+        sheet = get_google_sheet()   # uses your existing helper
+        sheet.append_row(row)
+        print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
+    except Exception as e:
+        print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")  
 
     # 7) Mark exit ticket handled/processed (prevents reprocessing)
     try:

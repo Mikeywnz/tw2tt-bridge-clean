@@ -15115,3 +15115,17 @@ Current active contract: MGC2510
 [2025-08-15T16:20:09.483658+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
 [2025-08-15T16:20:48.383890+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
 [2025-08-15T16:21:00.223608+12:00] ❌ Aborting Firebase push due to invalid order_id: None
+[2025-08-18T10:50:30.500401+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-18T10:51:03.746873+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-18T10:51:48.583875+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-18T10:52:53.906565+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T11:09:21.405779+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T11:10:03.927533+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T11:10:42.559630+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-18T11:15:15.408894+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T13:11:57.392041+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T13:12:22.812330+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T13:12:37.225847+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T13:13:30.106411+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-18T13:26:29.027955+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
+[2025-08-18T13:27:26.256251+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}

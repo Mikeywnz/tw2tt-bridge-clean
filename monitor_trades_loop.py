@@ -411,7 +411,7 @@ def monitor_trades():
 
 zombie_first_seen = {}
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=20):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90):
     now = time.time()
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")

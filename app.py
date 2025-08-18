@@ -9,9 +9,6 @@ import requests
 import pytz
 import random
 import string
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from google.oauth2.service_account import Credentials
 from execute_trade_live import place_entry_trade  # ✅ NEW: Import the function directly
 import os
 from firebase_admin import credentials, initialize_app, db
@@ -64,27 +61,7 @@ if not firebase_admin._apps:
 
 firebase_db = db
 
-
-
 #################### ALL HELPERS FOR THIS SCRIPT ####################
-
-# ====================================================
-# 🟩 Helper: Google Sheets Setup (Global)
-# ====================================================
-
-GOOGLE_SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-GOOGLE_CREDS_FILE = "firebase_key.json"
-SHEET_ID = "1TB76T6A1oWFi4T0iXdl2jfeGP1dC2MFSU-ESB3cBnVg"
-CLOSED_TRADES_FILE = "closed_trades.csv"
-
-def get_google_sheet():
-    creds = Credentials.from_service_account_file(GOOGLE_CREDS_FILE, scopes=GOOGLE_SCOPE)
-    gs_client = gspread.authorize(creds)
-    sheet = gs_client.open("Closed Trades Journal").worksheet("journal")
-    return sheet
-
-def log_closed_trade_to_sheets(trade_data):
-    print(f"Logging trade to sheets: {trade_data}")
 
 # ===============================================================
 # 🟩 Helper: Safe Float, Map Source, Get exit reason helpers ===
@@ -391,75 +368,6 @@ async def webhook(request: Request):
         print(f"✅ Firebase open_active_trades updated at key: {order_id}")
     except Exception as e:
         print(f"❌ Firebase push error: {e}")
-
-    # ---------- (optional) Google Sheets journal for entries ----------
-    try:
-        price = safe_float(result.get("filled_price", 0.0))
-        entry_ts_for_sheet = result.get("transaction_time", datetime.utcnow().isoformat() + "Z")
-        source = data.get("source", "webhook")
-        symbol_for_log = request_symbol
-
-        # minimal classify if you keep it; otherwise comment these two lines
-        trade_type_for_sheet, updated_position = classify_trade(symbol_for_log, action, quantity, position_tracker, firebase_db)
-        print(f"🟢 [LOG] Trade classified as: {trade_type_for_sheet}, updated net position: {updated_position}")
-
-        direction = 1 if action == "BUY" else -1
-        sheet = get_google_sheet()
-        trailing_take_profit_price = price + (trigger_points * direction)
-        trail_offset_amount = float(offset_points)
-
-        trade_data = {
-            "order_id": order_id,
-            "entry_exit_time": entry_ts_for_sheet or "N/A",
-            "number_of_contracts": quantity,
-            "trade_type": trade_type_for_sheet,
-            "fifo_match": "No",
-            "fifo_match_order_id": "N/A",
-            "entry_price": price,
-            "exit_price": "N/A",
-            "trail_trigger_value": trigger_points,
-            "trail_offset": offset_points,
-            "trailing_take_profit": trailing_take_profit_price,
-            "trail_offset_amount": trail_offset_amount,
-            "ema_flatten_type": "N/A",
-            "ema_flatten_triggered": "N/A",
-            "spread": "N/A",
-            "net_pnl": "N/A",
-            "tiger_commissions": "N/A",
-            "realized_pnl": "N/A",
-            "source": map_source(source),
-            "manual_notes": ""
-        }
-
-        day_date = datetime.now(pytz.timezone("Pacific/Auckland")).strftime("%A %d %B %Y")
-        sheet.append_row([
-            day_date,
-            entry_ts_for_sheet,
-            trade_data.get("number_of_contracts", 1),
-            trade_data.get("trade_type", ""),
-            trade_data.get("fifo_match", "No"),
-            safe_float(trade_data.get("entry_price", 0.0)),
-            trade_data.get("exit_price", "N/A"),
-            trade_data.get("trail_trigger_value", 0),
-            trade_data.get("trail_offset", 0),
-            trade_data.get("trailing_take_profit", 0),
-            safe_float(trade_data.get("trail_offset_amount", 0.0)),
-            trade_data.get("ema_flatten_type", "N/A"),
-            trade_data.get("ema_flatten_triggered", "N/A"),
-            safe_float(trade_data.get("spread", 0.0)),
-            safe_float(trade_data.get("net_pnl", 0.0)),
-            safe_float(trade_data.get("tiger_commissions", 0.0)),
-            safe_float(trade_data.get("realized_pnl", 0.0)),
-            order_id,
-            trade_data.get("fifo_match_order_id", "N/A"),
-            trade_data.get("source", ""),
-            trade_data.get("manual_notes", "")
-        ])
-
-        log_closed_trade_to_sheets(trade_data)
-        print(f"✅ Logged to Close Trades Sheet: {order_id}")
-    except Exception as e:
-        print(f"❌ Close sheet log failed: {e}")
 
     # ---------- single return ----------
     return JSONResponse(
