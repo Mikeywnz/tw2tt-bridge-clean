@@ -84,6 +84,18 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     if not opens:
         print("[WARN] No open trades to close for this exit.")
         return False
+    
+    # 🛡️ Guard: prevent stale exit from killing fresh entry
+    from datetime import datetime, timezone
+    def _to_utc(iso):
+        s = (iso or "").replace("Z", "")
+        dt = datetime.fromisoformat(s)
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+    exit_utc = _to_utc(exit_time)
+    if all(_to_utc(tr.get("entry_timestamp","")) > exit_utc for tr in opens.values()):
+        print(f"[SKIP] Exit {exit_oid} precedes all current entries; retry later.")
+        return False
 
     def _entry_ts(t):
         return t.get("entry_timestamp", "9999-12-31T23:59:59Z")
