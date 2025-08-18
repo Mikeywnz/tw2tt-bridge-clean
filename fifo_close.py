@@ -86,7 +86,12 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print("[WARN] No open trades to close for this exit.")
         return False
 
-    def _entry_ts(t): return t.get("entry_timestamp", "9999-12-31T23:59:59Z")
+    def _entry_ts(t):
+        iso = t.get("entry_timestamp", "")
+        try:
+            return datetime.fromisoformat(iso.replace("Z",""))
+        except Exception:
+            return datetime.max
     candidates = [
         dict(tr, order_id=oid)
         for oid, tr in opens.items()
