@@ -154,9 +154,10 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
+    
     #============================================================================================
     # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
-    #============================================================================================ 
+    #============================================================================================
     try:
         COMMISSION_FLAT = 7.02  # keep for row + fallback
 
@@ -206,9 +207,26 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
         flip_str = "Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No"
 
-        # ✅ Take PnL values directly from the Firebase update dict
+        # ===== PnL from Firebase, with a minimal fallback if absent/zero =====
         realized_pnl_fb = float(update.get("realized_pnl", 0.0))
         net_fb = float(update.get("net_pnl", realized_pnl_fb - COMMISSION_FLAT))
+
+        if realized_pnl_fb == 0.0 and entry_px and exit_px:
+            # Use Tiger fills we already have in this block (no re-fetch).
+            is_long = (anchor.get("action","").upper() == "BUY")
+            points = (exit_px - entry_px) * qty if is_long else (entry_px - exit_px) * qty
+
+            # Minimal per-point mapping, only used as a fallback.
+            sym3 = (symbol or "").upper()[:3]
+            POINT_VALUE = {
+                "MGC": 10.0,  # Micro Gold
+            }
+            per_point = POINT_VALUE.get(sym3, 1.0)
+            realized_pnl_fb = points * per_point
+
+            # If Firebase didn't have net, fall back to (realised - commissions)
+            if "net_pnl" not in update:
+                net_fb = realized_pnl_fb - COMMISSION_FLAT
 
         # Build the row in your target column order
         row = [
@@ -223,9 +241,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             trail_trig,               # Trail Trigger Value
             trail_off,                # Trail Offset
             trail_hit,                # Trailing Take Profit Hit (Yes/No)
-            round(realized_pnl_fb, 2),# Realised PnL (from Firebase)
+            round(realized_pnl_fb, 2),# Realised PnL (Firebase-first; fallback if needed)
             COMMISSION_FLAT,          # Tiger Commissions
-            round(net_fb, 2),         # Net PNL (from Firebase)
+            round(net_fb, 2),         # Net PNL (Firebase-first; fallback if needed)
             anchor_oid,               # Order ID (entry / anchor)
             exit_oid,                 # FIFO Match Order ID (exit)
             source_val,               # Source
@@ -237,7 +255,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         sheet.append_row(row, value_input_option='USER_ENTERED')
         print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
     except Exception as e:
-        print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")  
+        print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")
 
     print(f"[INFO] Exit ticket retained under /exit_orders_log/{exit_oid}")
     return anchor_oid
