@@ -147,8 +147,13 @@ def save_open_trades(symbol, trades):
                 continue
             payload[oid] = t
 
-        ref.set(payload)  # atomic overwrite
-        print(f"✅ Open Active Trades replaced atomically ({len(payload)})")
+        # Merge-only write to avoid wiping other open orders for this symbol
+        if payload:
+            ref.update(payload)  # ✅ merge, don't overwrite
+            print(f"✅ Open Active Trades merged (kept existing), wrote {len(payload)}")
+        else:
+            # Optional but safe: do nothing instead of clearing existing nodes
+            print("ℹ️ No eligible open trades to write; leaving existing entries untouched.")
     except Exception as e:
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
