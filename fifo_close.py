@@ -1,4 +1,3 @@
-
 import sys
 from datetime import datetime
 import gspread
@@ -56,7 +55,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Invalid exit payload: order_id={exit_oid}, symbol={symbol}, price={exit_price}")
         return False
     
-      # 🔒 Idempotency guard (insert THIS block)
+    # 🔒 Idempotency guard (insert THIS block)
     ticket_ref = firebase_db.reference(f"/exit_orders_log/{exit_oid}")
     existing = ticket_ref.get() or {}
     # If already processed by the drain loop or by a prior call, bail early
@@ -87,11 +86,8 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         return False
 
     def _entry_ts(t):
-        iso = t.get("entry_timestamp", "")
-        try:
-            return datetime.fromisoformat(iso.replace("Z",""))
-        except Exception:
-            return datetime.max
+        return t.get("entry_timestamp", "9999-12-31T23:59:59Z")
+
     candidates = [
         dict(tr, order_id=oid)
         for oid, tr in opens.items()
@@ -148,10 +144,18 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
         return None
 
-   
+    # 7) Mark exit ticket handled/processed (prevents reprocessing)
+    try:
+        firebase_db.reference(f"/exit_orders_log/{exit_oid}").update({
+            "_handled": True,
+            "_processed": True,
+            "anchor_id": anchor_oid,
+        })
+    except Exception as e:
+        print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
     #============================================================================================
-      # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
+    # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
     #============================================================================================ 
     try:
         # You already computed these above:
@@ -227,16 +231,6 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
     except Exception as e:
         print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")  
-
-    # 7) Mark exit ticket handled/processed (prevents reprocessing)
-    try:
-        firebase_db.reference(f"/exit_orders_log/{exit_oid}").update({
-            "_handled": True,
-            "_processed": True,
-            "anchor_id": anchor_oid,
-        })
-    except Exception as e:
-        print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
     print(f"[INFO] Exit ticket retained under /exit_orders_log/{exit_oid}")
     return anchor_oid
