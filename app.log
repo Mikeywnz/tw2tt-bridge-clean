@@ -15129,3 +15129,4 @@ Current active contract: MGC2510
 [2025-08-18T13:13:30.106411+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
 [2025-08-18T13:26:29.027955+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}
 [2025-08-18T13:27:26.256251+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'SELL', 'quantity': 1}
+[2025-08-18T13:33:07.739518+12:00] Webhook received: {'symbol': 'MGC2510', 'action': 'BUY', 'quantity': 1}

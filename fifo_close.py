@@ -218,7 +218,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
         # Append to Google Sheet
         sheet = get_google_sheet()   # uses your existing helper
-        sheet.append_row(row)
+        sheet.append_row(row, value_input_option='USER_ENTERED')
         print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
     except Exception as e:
         print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")  
