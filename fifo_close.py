@@ -184,25 +184,16 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
         source_val   = anchor.get("source", "unknown")
 
-        # Pretty date/time fields in Pacific/Auckland (Sheets-only)
-        from datetime import datetime, timezone
-        import pytz
-        nz = pytz.timezone("Pacific/Auckland")
+        # Sheets-only: keep timestamps as given (no timezone math)
+        from datetime import datetime
 
-        def _to_utc(iso_str):
-            s = (iso_str or "").replace("Z", "")
-            dt = datetime.fromisoformat(s)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            else:
-                dt = dt.astimezone(timezone.utc)
-            return dt
+        def _parse_naive(iso_str: str) -> datetime:
+            # Accept 'YYYY-MM-DDTHH:MM:SSZ' or 'YYYY-MM-DD HH:MM:SS'
+            s = (iso_str or "").replace("T", " ").replace("Z", "")
+            return datetime.fromisoformat(s)
 
-        entry_utc = _to_utc(entry_ts_iso)
-        exit_utc  = _to_utc(exit_ts_iso)
-
-        entry_dt = entry_utc.astimezone(nz)
-        exit_dt  = exit_utc.astimezone(nz)
+        entry_dt = _parse_naive(entry_ts_iso)
+        exit_dt  = _parse_naive(exit_ts_iso)
 
         day_date       = entry_dt.strftime("%A %d %B %Y")
         entry_time_str = entry_dt.strftime("%I:%M:%S %p")   # 12-hour with AM/PM
@@ -219,26 +210,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
         flip_str = "Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No"
 
-        # ===== PnL from Firebase, with a minimal fallback if absent/zero =====
-        realized_pnl_fb = float(update.get("realized_pnl", 0.0))
-        net_fb = float(update.get("net_pnl", realized_pnl_fb - COMMISSION_FLAT))
-
-        if realized_pnl_fb == 0.0 and entry_px and exit_px:
-            # Use Tiger fills we already have in this block (no re-fetch).
-            is_long = (anchor.get("action","").upper() == "BUY")
-            points = (exit_px - entry_px) * qty if is_long else (entry_px - exit_px) * qty
-
-            # Minimal per-point mapping, only used as a fallback.
-            sym3 = (symbol or "").upper()[:3]
-            POINT_VALUE = {
-                "MGC": 10.0,  # Micro Gold
-            }
-            per_point = POINT_VALUE.get(sym3, 1.0)
-            realized_pnl_fb = points * per_point
-
-            # If Firebase didn't have net, fall back to (realised - commissions)
-            if "net_pnl" not in update:
-                net_fb = realized_pnl_fb - COMMISSION_FLAT
+        # ✅ Use the just-computed pnl from this function
+        realized_pnl_fb = float(pnl)
+        net_fb = realized_pnl_fb - COMMISSION_FLAT
 
         # Build the row in your target column order
         row = [
@@ -253,9 +227,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             trail_trig,               # Trail Trigger Value
             trail_off,                # Trail Offset
             trail_hit,                # Trailing Take Profit Hit (Yes/No)
-            round(realized_pnl_fb, 2),# Realised PnL (Firebase-first; fallback if needed)
+            round(realized_pnl_fb, 2),# Realised PnL (from computed pnl)
             COMMISSION_FLAT,          # Tiger Commissions
-            round(net_fb, 2),         # Net PNL (Firebase-first; fallback if needed)
+            round(net_fb, 2),         # Net PNL
             anchor_oid,               # Order ID (entry / anchor)
             exit_oid,                 # FIFO Match Order ID (exit)
             source_val,               # Source
