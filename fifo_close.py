@@ -19,6 +19,17 @@ def get_google_sheet():
     sheet = gs_client.open("Closed Trades Journal").worksheet("demo journal")
     return sheet
 
+# ====================================================
+# 🟩 Helper: to calculate X10 MCG prifit 
+# ====================================================
+
+def point_value_for(symbol: str) -> float:
+    """Dollars per 1.0 price point."""
+    sym3 = (symbol or "").upper()[:3]
+    return {
+        "MGC": 10.0,   # Micro Gold: $10 per 1.0 move (tick = 0.1 = $1)
+        # add others here as needed
+    }.get(sym3, 1.0)
 
 # ==============================================
 # 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE
@@ -113,31 +124,37 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     anchor_oid = anchor["order_id"]
     print(f"[INFO] FIFO anchor selected: {anchor_oid} (entry={anchor.get('entry_timestamp')})")
 
-    # 4) Compute P&L (anchor entry vs exit fill)
+    # 4) Compute P&L in **points**, then to **dollars** via contract multiplier
     try:
         entry_price = float(anchor.get("filled_price"))
         px_exit     = float(exit_price)
         qty         = exit_qty
+
+        # points move (positive = profit for the trade direction)
         if anchor.get("action", "").upper() == "BUY":
-            pnl = (px_exit - entry_price) * qty
+            pnl_points = (px_exit - entry_price) * qty
         else:  # short anchor
-            pnl = (entry_price - px_exit) * qty
+            pnl_points = (entry_price - px_exit) * qty
+
+        per_point   = point_value_for(symbol)
+        pnl         = pnl_points * per_point            # <-- $$$
     except Exception as e:
         print(f"❌ PnL calc error for anchor {anchor_oid}: {e}")
         pnl = 0.0
+
     print(f"[INFO] P&L for {anchor_oid} via exit {exit_oid}: {pnl:.2f}")
 
     # 5) Close anchor (sticky entry_timestamp preserved)
-    COMMISSION_FLAT = 7.02  # ✅ your confirmed flat fee
+    COMMISSION_FLAT = 7.02
     update = {
         "exited": True,
         "trade_state": "closed",
         "contracts_remaining": 0,
-        "exit_timestamp": exit_time,          # use transaction fill time
-        "exit_reason": "FILLED",              # can be mapped later if you add raw reason
-        "realized_pnl": pnl,
+        "exit_timestamp": exit_time,
+        "exit_reason": "FILLED",
+        "realized_pnl": round(pnl, 2),                # dollars
         "tiger_commissions": COMMISSION_FLAT,
-        "net_pnl": pnl - COMMISSION_FLAT,
+        "net_pnl": round(pnl - COMMISSION_FLAT, 2),   # dollars
         "exit_order_id": exit_oid,
     }
     try:
@@ -184,21 +201,44 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
         source_val   = anchor.get("source", "unknown")
 
-        # Sheets-only: keep timestamps as given (no timezone math)
-        from datetime import datetime
+        # --- Always write NZ time to Sheets (robust to naive/epoch/ISO inputs) ---
+        from datetime import datetime, timezone
         import pytz
-        nz_tz = pytz.timezone("Pacific/Auckland")
+        NZ_TZ = pytz.timezone("Pacific/Auckland")
+        BROKER_TZ = pytz.timezone("America/New_York")  # Tiger portal/app local
 
-        def _parse_naive(iso_str: str) -> datetime:
-            s = (iso_str or "").strip().replace("T", " ").replace("Z", "")
+        def to_nz_dt(val):
+            """Accepts epoch ms/sec or ISO (naive/with tz). Returns aware dt in NZ time."""
+            # numeric epoch?
+            if isinstance(val, (int, float)):
+                ts = float(val)
+                if ts > 1e12:  # milliseconds
+                    ts /= 1000.0
+                return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(NZ_TZ)
+
+            s = (str(val) or "").strip()
+            if not s:
+                return datetime.now(timezone.utc).astimezone(NZ_TZ)
+
+            # ISO with explicit tz (Z or offset)
             try:
-                dt_utc = datetime.fromisoformat(s)
-            except ValueError:
-                dt_utc = datetime.utcnow()  # fallback if parsing ever fails
-            return dt_utc.replace(tzinfo=pytz.utc).astimezone(nz_tz)
+                if s.endswith("Z"):
+                    return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
+                if "+" in s[10:] or "-" in s[10:]:
+                    return datetime.fromisoformat(s).astimezone(NZ_TZ)
+            except Exception:
+                pass
 
-        entry_dt = _parse_naive(entry_ts_iso)
-        exit_dt  = _parse_naive(exit_ts_iso)
+            # Naive ISO: assume broker local (US/Eastern), then convert to NZ
+            try:
+                dt_naive = datetime.fromisoformat(s.replace("T", " ").split(".")[0])
+                return BROKER_TZ.localize(dt_naive).astimezone(NZ_TZ)
+            except Exception:
+                # Last resort: treat as UTC "now"
+                return datetime.now(timezone.utc).astimezone(NZ_TZ)
+
+        entry_dt = to_nz_dt(entry_ts_iso)
+        exit_dt  = to_nz_dt(exit_ts_iso)
 
         day_date       = entry_dt.strftime("%A %d %B %Y")
         entry_time_str = entry_dt.strftime("%I:%M:%S %p")   # 12-hour with AM/PM
