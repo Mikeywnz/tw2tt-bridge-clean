@@ -444,8 +444,9 @@ def monitor_trades():
             else:
                 t["gate_state"] = "PARKED"
                 t["skip_tp_trailing"] = True
-                if was != "PARKED":
+                if was != "PARKED" or "gate_state" not in t:
                     gate_updates.append((t.get("order_id"), {"gate_state": "PARKED", "anchor_gate_price": gate_price}))
+                    
 
         # 4) (optional) write gate state to Firebase (best-effort; non-fatal)
         try:
