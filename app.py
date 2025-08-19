@@ -363,6 +363,56 @@ async def webhook(request: Request):
         "is_ghost": False,
     }
 
+    # -------- Gate state assignment --------
+    try:
+        # Find current anchor (oldest same-direction open trade)
+        anchor = None
+        opens = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
+        same_dir = [
+            t for t in opens.values()
+            if isinstance(t, dict)
+            and (t.get("action") or "").upper() == action
+            and not t.get("exited")
+            and (t.get("status","").lower() not in ("closed","failed"))
+        ]
+        if same_dir:
+            from datetime import datetime, timezone
+            def _iso_to_utc(s):
+                try:
+                    s = (s or "").replace("T"," ").replace("Z","").strip()
+                    dt = datetime.fromisoformat(s)
+                    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+                except Exception:
+                    return datetime.max.replace(tzinfo=timezone.utc)
+            anchor = min(same_dir, key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or ""))
+
+        # Compute anchor gate if anchor exists
+        gate_state = "UNLOCKED"
+        if anchor:
+            anchor_entry = float(anchor.get("filled_price"))
+            anchor_peak  = float(anchor.get("trail_peak", anchor_entry))
+            if action == "BUY":
+                anchor_gate = max(anchor_entry + (trigger_points - offset_points), anchor_peak - offset_points)
+                own_trigger = (filled_price or 0.0) + trigger_points
+                if own_trigger < anchor_gate:
+                    gate_state = "PARKED"
+                    new_trade["anchor_order_id"] = anchor.get("order_id")
+                    new_trade["anchor_gate_price"] = anchor_gate
+                    new_trade["skip_tp_trailing"] = True
+            else:
+                anchor_gate = min(anchor_entry - (trigger_points - offset_points), anchor_peak + offset_points)
+                own_trigger = (filled_price or 0.0) - trigger_points
+                if own_trigger > anchor_gate:
+                    gate_state = "PARKED"
+                    new_trade["anchor_order_id"] = anchor.get("order_id")
+                    new_trade["anchor_gate_price"] = anchor_gate
+                    new_trade["skip_tp_trailing"] = True
+
+        new_trade["gate_state"] = gate_state
+        print(f"[DEBUG] Assigned gate_state={gate_state} for {order_id}")
+    except Exception as e:
+        print(f"[WARN] Could not assign gate_state for {order_id}: {e}")
+        
     try:
         firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").set(new_trade)
         print(f"✅ Firebase open_active_trades updated at key: {order_id}")
