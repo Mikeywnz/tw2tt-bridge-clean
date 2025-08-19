@@ -372,6 +372,105 @@ def monitor_trades():
     # Prices (single fetch per loop)
     prices = load_live_prices()
 
+    # =========================
+    # 🟩 ANCHOR GATE – DROP-IN
+    # =========================
+    def _iso_to_utc(s: str):
+        try:
+            s = (s or "").strip().replace("T", " ").replace("Z", "")
+            dt = datetime.fromisoformat(s)
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+        except Exception:
+            return datetime.max.replace(tzinfo=timezone.utc)  # push bad rows to the end
+
+    # 1) pick anchor (FIFO head)
+    if active_trades:
+        anchor = min(
+            active_trades,
+            key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
+        )
+
+        # 2) compute anchor gate (trails with price OR peak; never moves backward)
+        sym = anchor.get("symbol")
+        px  = (prices.get(sym) or {}).get("price") if isinstance(prices.get(sym), dict) else prices.get(sym)
+        if px is None:
+            px = anchor.get("filled_price")  # last resort
+
+        entry = float(anchor.get("filled_price", 0))
+        trig  = float(trigger_points)
+        off   = float(offset_points)
+        side  = anchor.get("action", "BUY").upper()
+        peak  = float(anchor.get("trail_peak", entry))
+        trough = float(anchor.get("trail_trough", entry))
+
+        if side == "BUY":
+            base_gate   = entry + (trig - off)
+            trailing_gt = max(px or entry, peak) - off
+            gate_price  = max(base_gate, trailing_gt)
+            gate_clear  = lambda p: p is not None and p >= gate_price
+        else:  # SELL
+            base_gate   = entry - (trig - off)
+            trailing_gt = min(px or entry, trough) + off
+            gate_price  = min(base_gate, trailing_gt)
+            gate_clear  = lambda p: p is not None and p <= gate_price
+
+        # 3) enforce (anchor always unlocked; non-anchors parked until gate clears)
+        gate_updates = []
+        for t in active_trades:
+            # attach current gate for visibility
+            t["anchor_gate_price"] = gate_price
+            t["anchor_order_id"]   = anchor.get("order_id")
+
+            if t is anchor:
+                if t.get("gate_state") != "UNLOCKED":
+                    t["gate_state"] = "UNLOCKED"
+                    gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED", "anchor_gate_price": gate_price}))
+                continue
+
+            tsym = t.get("symbol")
+            tp   = (prices.get(tsym) or {}).get('price') if isinstance(prices.get(tsym), dict) else prices.get(tsym)
+            was  = t.get("gate_state", "PARKED")
+
+            if gate_clear(tp):
+                if was != "UNLOCKED":
+                    t["gate_state"] = "UNLOCKED"
+                    t["gate_unlocked_at"] = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
+                    t.pop("skip_tp_trailing", None)
+                    gate_updates.append((t.get("order_id"), {
+                        "gate_state": "UNLOCKED",
+                        "gate_unlocked_at": t["gate_unlocked_at"],
+                        "anchor_gate_price": gate_price
+                    }))
+            else:
+                t["gate_state"] = "PARKED"
+                t["skip_tp_trailing"] = True
+                if was != "PARKED":
+                    gate_updates.append((t.get("order_id"), {"gate_state": "PARKED", "anchor_gate_price": gate_price}))
+
+        # 4) (optional) write gate state to Firebase (best-effort; non-fatal)
+        try:
+            ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+            for oid, payload in gate_updates:
+                if oid:
+                    ref.child(oid).update(payload)
+        except Exception as e:
+            print(f"⚠️ Gate state update skipped: {e}")
+
+    # === FILTER: parked trades must not arm TP/Trail ===
+    gated_trades = []
+    for t in active_trades:
+        if t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"):
+            # still allow safety exits elsewhere; just skip trailing TP engine
+            continue
+        gated_trades.append(t)
+
+    # Trailing TP & exit placement (only for unlocked + anchor)
+    print(f"[DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
+    try:
+        active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
+    except Exception as e:
+        print(f"❌ process_trailing_tp_and_exits error: {e}")
+
    # Trailing TP & exit placement
     print(f"[DEBUG] Processing {len(active_trades)} active trades for trailing TP and exits")
     try:
