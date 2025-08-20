@@ -98,10 +98,18 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     
     # 🛡️ Guard: prevent stale exit from killing fresh entry
     from datetime import datetime, timezone
-    def _to_utc(iso):
-        s = (iso or "").replace("Z", "")
-        dt = datetime.fromisoformat(s)
-        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+    def _to_utc(val):
+        """Robust ISO → UTC. If empty/bad, default to now()."""
+        if not val:
+            return datetime.utcnow().replace(tzinfo=timezone.utc)
+        try:
+            s = str(val).strip()
+            if s.endswith("Z"):
+                return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
+            return datetime.fromisoformat(s).astimezone(timezone.utc)
+        except Exception:
+            return datetime.utcnow().replace(tzinfo=timezone.utc)
 
     exit_utc = _to_utc(exit_time)
     if all(_to_utc(tr.get("entry_timestamp","")) > exit_utc for tr in opens.values()):
@@ -184,15 +192,20 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
     
-    #============================================================================================
+      #============================================================================================
     # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
     #============================================================================================
     try:
         COMMISSION_FLAT = 7.02  # keep for row + fallback
 
+        # Detect liquidation tickets
+        is_liq = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
+
         # Pull a few fields (with safe fallbacks)
         entry_ts_iso = anchor.get("entry_timestamp") or exit_time
-        exit_ts_iso  = exit_time
+        # Hardened exit time fallback (prevents invalid isoformat '')
+        exit_ts_iso  = (tx_dict.get("fill_time") or exit_time or datetime.utcnow().isoformat() + "Z")
+
         entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)
         exit_px      = float(exit_price or 0.0)
         qty          = int(exit_qty or 1)
@@ -251,13 +264,16 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         ss = total_secs % 60
         time_in_trade = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
-        # Flip? -> true if this was a flattening close
+        # Flip? -> label Liquidation explicitly
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
-        flip_str = "Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No"
+        flip_str = "Liquidation" if is_liq else ("Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No")
 
         # ✅ Use the just-computed pnl from this function
         realized_pnl_fb = float(pnl)
         net_fb = realized_pnl_fb - COMMISSION_FLAT
+
+        # Optional notes text for the last column
+        notes_text = "LIQUIDATION" if is_liq else ""
 
         # Build the row in your target column order
         row = [
@@ -266,7 +282,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             exit_time_str,            # Exit Time
             time_in_trade,            # Time in Trade
             trade_type_str.title(),   # Trade Type ("Long"/"Short")
-            flip_str,                 # Flip?
+            flip_str,                 # Flip? (or "Liquidation")
             entry_px,                 # Entry Price
             exit_px,                  # Exit Price
             trail_trig,               # Trail Trigger Value
@@ -278,7 +294,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             anchor_oid,               # Order ID (entry / anchor)
             exit_oid,                 # FIFO Match Order ID (exit)
             source_val,               # Source
-            ""                        # Manually Filled Notes
+            notes_text,               # Notes ("LIQUIDATION" if so)
         ]
 
         # Append to Google Sheet

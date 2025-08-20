@@ -264,12 +264,30 @@ def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
         "just_executed": False,
     }
 
-    # --- Archive + delete (immediate) ---
+       # --- Archive + delete (immediate) ---
     try:
         archive_ref = firebase_db.reference(f"/archived_trades_log/{anchor_oid}")
         archive_ref.set({**anchor, **update})
         open_ref.child(anchor_oid).delete()
         print(f"[LIQ] Archived+deleted FIFO anchor {anchor_oid} ({symbol}) at {exit_px} — reason LIQUIDATION")
+
+        # 📝 Also record a liquidation ticket for Sheets drain
+        try:
+            firebase_db.reference(f"/exit_orders_log/{exit_oid}").set({
+                "order_id": exit_oid,
+                "symbol": symbol,
+                "action": exit_side,
+                "filled_price": float(exit_px),
+                "filled_qty": qty,
+                "fill_time": exit_iso,
+                "status": "LIQUIDATION",
+                "trade_type": "LIQUIDATION",
+                "anchor_id": anchor_oid,
+            })
+            print(f"[LIQ] Logged liquidation ticket {exit_oid} for {symbol}")
+        except Exception as e:
+            print(f"[LIQ] ⚠️ Failed to log liquidation ticket {exit_oid}: {e}")
+
         return anchor_oid
     except Exception as e:
         print(f"[LIQ] ❌ Archive/delete failed for {anchor_oid}: {e}")
