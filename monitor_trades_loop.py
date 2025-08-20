@@ -51,6 +51,7 @@ MIN_TRIGGER_FLOOR = 2.0
 MIN_OFFSET_FLOOR  = 0.8
 MAX_TRIGGER_CAP   = 10.0
 MAX_OFFSET_CAP    = 4.0
+_ema_absdiff = defaultdict(float)
 
 # ==============================================
 # 🟩 HELPER: Reason Map for Friendly Definitions
@@ -254,6 +255,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
         # ---- Adaptive “ATR-like” range update (per symbol) ----
         try:
             # Use |price - ema50| when available; fall back to 1-tick move |price - entry| as a weak proxy
+            global _ema_absdiff
             raw_range = abs((current_price - ema50)) if ema50 is not None else abs(current_price - entry)
             prev = _ema_absdiff.get(symbol, raw_range)
             smoothed = (_ATR_ALPHA * raw_range) + ((1.0 - _ATR_ALPHA) * prev)
