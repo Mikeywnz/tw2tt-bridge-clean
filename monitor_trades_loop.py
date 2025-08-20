@@ -37,7 +37,17 @@ if not firebase_admin._apps:
 
 firebase_db = db
 
+# =====================================================================================
+# 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
+# ======================================================================================
+from collections import defaultdict
 
+_ema_absdiff = defaultdict(lambda: None)  # symbol -> EMA of |Δprice|
+_ATR_ALPHA   = 2 / (14 + 1)               # ATR(14) style smoothing
+ATR_TRIGGER_MULT = 5.0                    # try 5× ATR proxy for trigger
+ATR_OFFSET_MULT  = 2.0                    # try 2× ATR proxy for offset
+MIN_TRIGGER_FLOOR = 1.0                   # floors to avoid too-tight stops
+MIN_OFFSET_FLOOR  = 1.0
 
 # ==============================================
 # 🟩 HELPER: Reason Map for Friendly Definitions
@@ -223,8 +233,11 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
         except Exception as e:
             print(f"⚠️ exit_pending pre-check failed for {order_id}: {e}")
 
-        direction = 1 if trade.get('action') == 'BUY' else -1
-        current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+        direction = 1 if (trade.get('action') or '').upper() == 'BUY' else -1
+        price_node = prices.get(symbol)
+        current_price = price_node.get('price') if isinstance(price_node, dict) else price_node
+        ema50 = price_node.get('ema50') if isinstance(price_node, dict) else None
+
         if current_price is None:
             print(f"⚠️ No price for {symbol} — skipping {order_id}")
             continue
@@ -234,10 +247,25 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             print(f"❌ Trade {order_id} missing filled_price, skipping.")
             continue
 
+        # ---- Adaptive “ATR-like” range update (per symbol) ----
+        try:
+            # Use |price - ema50| when available; fall back to 1-tick move |price - entry| as a weak proxy
+            raw_range = abs((current_price - ema50)) if ema50 is not None else abs(current_price - entry)
+            prev = _ema_absdiff.get(symbol, raw_range)
+            smoothed = (_ATR_ALPHA * raw_range) + ((1.0 - _ATR_ALPHA) * prev)
+            _ema_absdiff[symbol] = smoothed
+
+            adaptive_trigger = max(MIN_TRIGGER_FLOOR, ATR_TRIGGER_MULT * smoothed)
+            adaptive_offset  = max(MIN_OFFSET_FLOOR,  ATR_OFFSET_MULT  * smoothed)
+        except Exception as e:
+            print(f"⚠️ ATR adapt error for {symbol}: {e}")
+            adaptive_trigger = trigger_points
+            adaptive_offset  = offset_points
+
         # ---- Trigger arming ----
         if not trade.get('trail_hit'):
             trade['trail_peak'] = entry
-            trigger_price = entry + trigger_points if direction == 1 else entry - trigger_points
+            trigger_price = entry + adaptive_trigger if direction == 1 else entry - adaptive_trigger
             print(f"[DEBUG] {order_id} trigger @ {trigger_price:.2f} (entry {entry:.2f}, dir {'LONG' if direction==1 else 'SHORT'})")
             if (direction == 1 and current_price >= trigger_price) or (direction == -1 and current_price <= trigger_price):
                 trade['trail_hit'] = True
@@ -264,7 +292,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             else:
                 print(f"[DEBUG] Trail peak unchanged for {order_id}: {prev_peak:.2f}")
 
-            buffer_amt = float(offset_points)
+            buffer_amt = float(adaptive_offset)
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
             exit_trigger = (
@@ -289,7 +317,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     continue
 
                 try:
-                    exit_side = 'SELL' if trade.get('action') == 'BUY' else 'BUY'
+                    exit_side = 'SELL' if (trade.get('action') or '').upper() == 'BUY' else 'BUY'
                     result = place_exit_trade(symbol, exit_side, 1, firebase_db)
 
                     if result.get("status") == "SUCCESS":
