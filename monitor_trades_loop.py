@@ -142,7 +142,8 @@ def load_open_trades(symbol):
 
 from datetime import datetime, timezone, timedelta
 
-def save_open_trades(symbol, trades, grace_seconds: int = 5):
+def save_open_trades(symbol, trades, grace_seconds: int = 12):
+
     """
     Atomic overwrite of /open_active_trades/{symbol} with a short grace period:
     - Writes all valid 'trades' you pass in.
