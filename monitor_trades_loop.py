@@ -214,6 +214,15 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
         symbol = trade.get('symbol')
         print(f"🔄 Processing trade {order_id}")
 
+        # ---- Guard: skip if an exit is already pending for this trade ----
+        try:
+            pend_ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}/exit_pending")
+            if trade.get("exit_pending") or bool(pend_ref.get()):
+                print(f"⏭️ Skip {order_id}: exit_pending is set")
+                continue
+        except Exception as e:
+            print(f"⚠️ exit_pending pre-check failed for {order_id}: {e}")
+
         direction = 1 if trade.get('action') == 'BUY' else -1
         current_price = prices.get(symbol, {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
         if current_price is None:
@@ -265,6 +274,20 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
             if exit_trigger:
                 print(f"[INFO] Trailing TP EXIT condition met for {order_id}")
+
+                # ---- Claim: set exit_pending before placing the exit to avoid duplicates ----
+                node_ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
+                try:
+                    current = node_ref.get() or {}
+                    if current.get("exit_pending"):
+                        print(f"⏭️ {order_id} already claimed (exit_pending). Skipping duplicate exit.")
+                        continue
+                    node_ref.update({"exit_pending": True})
+                    trade["exit_pending"] = True  # reflect locally
+                except Exception as e:
+                    print(f"❌ Failed to claim {order_id} (set exit_pending): {e}")
+                    continue
+
                 try:
                     exit_side = 'SELL' if trade.get('action') == 'BUY' else 'BUY'
                     result = place_exit_trade(symbol, exit_side, 1, firebase_db)
@@ -290,13 +313,32 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                             tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
                         except Exception as e2:
                             print(f"❌ Failed to enqueue exit ticket {tx_dict.get('order_id')}: {e2}")
+                            # clear the claim so another attempt can happen
+                            try:
+                                node_ref.update({"exit_pending": False})
+                                trade["exit_pending"] = False
+                            except Exception:
+                                pass
                         else:
                             print(f"[INFO] Exit ticket enqueued (not processed here): {tx_dict['order_id']}")
+                            # leave exit_pending=True until drain closes & archives
                     else:
                         print(f"❌ Exit order failed for {order_id}: {result}")
+                        # clear the claim on failure
+                        try:
+                            node_ref.update({"exit_pending": False})
+                            trade["exit_pending"] = False
+                        except Exception:
+                            pass
 
                 except Exception as e:
                     print(f"❌ Exception placing exit for {order_id}: {e}")
+                    # clear the claim on exception
+                    try:
+                        node_ref.update({"exit_pending": False})
+                        trade["exit_pending"] = False
+                    except Exception:
+                        pass
 
         # Write back in-place
         active_trades[i] = trade
