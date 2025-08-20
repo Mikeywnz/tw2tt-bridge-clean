@@ -128,65 +128,82 @@ def is_ghostflag_trade(order_id, firebase_db):
 
 
 # ====================================================
-#🟩 Helper: Liquidation Handler
+# 🟩 Helper: Liquidation Handler (hardened)
 # ====================================================
 
 def _safe_iso(ts_ms: Optional[int]) -> str:
     try:
-        if ts_ms:
+        if ts_ms is not None:
             return datetime.utcfromtimestamp(int(ts_ms) / 1000).isoformat() + "Z"
     except Exception:
         pass
     return datetime.utcnow().isoformat() + "Z"
 
+def _to_epoch_utc(iso_like: Optional[str]) -> float:
+    """
+    Tolerant ISO-ish -> epoch seconds. Returns +inf when missing/bad so it sorts last.
+    Accepts 'YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DDTHH:MM:SS', optional 'Z' or '+00:00'.
+    """
+    if not iso_like:
+        return float("inf")
+    s = str(iso_like).strip().replace(" ", "T")
+    if s.endswith("+00:00"):
+        s = s[:-6] + "Z"
+    try:
+        # allow no 'Z' as UTC
+        if s.endswith("Z"):
+            return datetime.fromisoformat(s[:-1]).replace(tzinfo=timezone.utc).timestamp()
+        return datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp()
+    except Exception:
+        return float("inf")
+
 def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
     """
-    Archives + deletes FIFO open trade for `symbol` immediately when Tiger flags liquidation.
-
+    Archives + deletes the FIFO open trade for `symbol` when Tiger flags liquidation.
     Returns the closed anchor_id (str) if something was archived/deleted, else None.
     """
     # --- Pull liquidation fill details (best-effort) ---
-    exit_oid   = str(getattr(order_obj, "id", "") or getattr(order_obj, "order_id", "")).strip()
-    exit_px    = (getattr(order_obj, "avg_fill_price", None)
-                  or getattr(order_obj, "filled_price", None)
-                  or getattr(order_obj, "latest_price", None)
-                  or 0.0)
-    exit_time  = (getattr(order_obj, "update_time", None)
-                  or getattr(order_obj, "trade_time", None)
-                  or getattr(order_obj, "order_time", None))
-    exit_iso   = _safe_iso(exit_time)
-    exit_side  = str(getattr(order_obj, "action", "") or "").upper()  # BUY/SELL
-    status_up  = str(getattr(order_obj, "status", "")).split(".")[-1].upper() or "LIQUIDATION"
+    exit_oid  = str(getattr(order_obj, "id", "") or getattr(order_obj, "order_id", "")).strip()
+    exit_px   = (getattr(order_obj, "avg_fill_price", None)
+                 or getattr(order_obj, "filled_price", None)
+                 or getattr(order_obj, "latest_price", None)
+                 or 0.0)
+    exit_time = (getattr(order_obj, "update_time", None)
+                 or getattr(order_obj, "trade_time", None)
+                 or getattr(order_obj, "order_time", None))
+    exit_iso  = _safe_iso(exit_time)
+    exit_side = str(getattr(order_obj, "action", "") or "").upper()  # BUY/SELL
+    status_up = str(getattr(order_obj, "status", "")).split(".")[-1].upper() or "LIQUIDATION"
 
-    # --- Get all opens for this symbol ---
+    # --- Load opens and filter to real trade dicts only ---
     open_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-    opens: dict = open_ref.get() or {}
+    raw_opens: dict = open_ref.get() or {}
+    opens: dict = {
+        k: v for k, v in raw_opens.items()
+        if isinstance(v, dict) and (v.get("order_id") or k.isdigit())
+    }
     if not opens:
-        print(f"[LIQ] No open trades under /open_active_trades/{symbol}; nothing to close.")
+        print(f"[LIQ] No valid open trades under /open_active_trades/{symbol}; nothing to close.")
         return None
 
-    # --- FIFO select: earliest entry_timestamp wins (fallbacks included) ---
-    def _ts_key(rec: dict) -> str:
-        return (
-            rec.get("entry_timestamp")
-            or rec.get("transaction_time")
-            or "9999-12-31T23:59:59Z"
+    # --- FIFO select: earliest entry/transaction time wins ---
+    def _ts_key(rec: dict) -> float:
+        return min(
+            _to_epoch_utc(rec.get("entry_timestamp")),
+            _to_epoch_utc(rec.get("transaction_time")),
         )
 
-    anchor_oid, anchor = min(opens.items(), key=lambda kv: _ts_key(kv[1]))
-    if not anchor:
-        print(f"[LIQ] FIFO selection failed for {symbol}.")
+    try:
+        anchor_oid, anchor = min(opens.items(), key=lambda kv: _ts_key(kv[1]))
+    except Exception as e:
+        print(f"[LIQ] FIFO selection failed for {symbol}: {e}")
         return None
 
-    # --- P&L (best-effort): sign by direction of entry ---
+    # --- P&L (best-effort) based on entry side ---
     entry_px = float(anchor.get("filled_price") or 0.0)
     qty      = int(anchor.get("quantity") or 1)
     side_in  = str(anchor.get("action", "")).upper()  # BUY/SELL
-    # + For futures, you probably have a contract multiplier elsewhere; keep raw diff here:
-    if side_in == "BUY":
-        pnl_raw = (float(exit_px) - entry_px) * qty
-    else:  # entered short
-        pnl_raw = (entry_px - float(exit_px)) * qty
+    pnl_raw  = (float(exit_px) - entry_px) * qty if side_in == "BUY" else (entry_px - float(exit_px)) * qty
 
     update = {
         "exited": True,
@@ -196,7 +213,10 @@ def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
         "exit_action": exit_side,
         "filled_exit_price": float(exit_px),
         "status": status_up,
-        "realized_pnl": float(pnl_raw),   # raw; adjust later if you apply multipliers/fees elsewhere
+        "realized_pnl": float(pnl_raw),
+        "is_open": False,
+        "trade_state": "closed",
+        "liquidation": True,
     }
 
     # --- Archive + delete (immediate) ---
