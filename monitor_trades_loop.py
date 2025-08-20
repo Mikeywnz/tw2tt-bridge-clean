@@ -487,7 +487,6 @@ def monitor_trades():
         # 3) enforce (anchor always unlocked; non-anchors parked until gate clears)
         gate_updates = []
         for t in active_trades:
-            # attach current gate for visibility
             t["anchor_gate_price"] = gate_price
             t["anchor_order_id"]   = anchor.get("order_id")
 
@@ -516,7 +515,6 @@ def monitor_trades():
                 t["skip_tp_trailing"] = True
                 if was != "PARKED" or "gate_state" not in t:
                     gate_updates.append((t.get("order_id"), {"gate_state": "PARKED", "anchor_gate_price": gate_price}))
-                    
 
         # 4) (optional) write gate state to Firebase (best-effort; non-fatal)
         try:
@@ -531,21 +529,14 @@ def monitor_trades():
     gated_trades = []
     for t in active_trades:
         if t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"):
-            # still allow safety exits elsewhere; just skip trailing TP engine
             continue
         gated_trades.append(t)
 
-    # Trailing TP & exit placement (only for unlocked + anchor)
     print(f"[DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
+
+    # ✅ Single call (remove the duplicate second call)
     try:
         active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
-    except Exception as e:
-        print(f"❌ process_trailing_tp_and_exits error: {e}")
-
-   # Trailing TP & exit placement
-    print(f"[DEBUG] Processing {len(active_trades)} active trades for trailing TP and exits")
-    try:
-        active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points)
     except Exception as e:
         print(f"❌ process_trailing_tp_and_exits error: {e}")
 
@@ -556,7 +547,6 @@ def monitor_trades():
     if not active_trades:
         print("⏭️ No open anchors; skipping exit ticket drain this loop.")
     else:
-        
         # 🔽 EXIT LOGIC: drain exit tickets
         try:
             tickets_ref = firebase_db.reference("/exit_orders_log")
@@ -567,7 +557,6 @@ def monitor_trades():
                 if tx.get("_processed"):
                     continue
 
-                # Add symbol if missing (legacy tickets)
                 if not tx.get("symbol"):
                     tx["symbol"] = symbol
                     tickets_ref.child(tx_id).update({"symbol": symbol})
@@ -575,7 +564,6 @@ def monitor_trades():
 
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
 
-                # [ADD] If handler returned the closed anchor_id, remember it
                 if isinstance(ok, str):
                     closed_anchor_ids.add(ok)
 
@@ -583,7 +571,6 @@ def monitor_trades():
                     tickets_ref.child(tx_id).update({"_processed": True})
                     print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
                 else:
-                    # stop endless retries on malformed / no-open cases
                     tickets_ref.child(tx_id).update({"_processed": True, "_note": "auto-marked; no opens/malformed"})
                     print(f"[WARN] Exit ticket {tx_id} auto-marked _processed (no opens/malformed)")
         except Exception as e:
@@ -602,11 +589,9 @@ def monitor_trades():
             except Exception as e:
                 print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
 
-    # Prevent resurrection: drop just-closed anchors from memory
     if closed_anchor_ids:
         active_trades = [t for t in active_trades if t.get("order_id") not in closed_anchor_ids]
 
-    # Save remaining active trades (strict prune; no closed/exited)
     active_trades = [
         t for t in active_trades
         if t.get('contracts_remaining', 0) > 0
