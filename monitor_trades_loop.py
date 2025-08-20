@@ -11,6 +11,7 @@ from execute_trade_live import place_exit_trade
 from pytz import timezone
 import pprint
 from fifo_close import handle_exit_fill_from_tx
+from collections import defaultdict
 
 
 NZ_TZ = timezone("Pacific/Auckland")
@@ -40,14 +41,16 @@ firebase_db = db
 # =====================================================================================
 # 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
 # ======================================================================================
-from collections import defaultdict
+# --- ATR sizing knobs (tamer defaults) ---
+_ATR_ALPHA        = 0.20      # smoothing for EMA(|price-ema50|)
+ATR_TRIGGER_MULT  = 0.60      # was too high; try 0.6x smoothed range
+ATR_OFFSET_MULT   = 0.30      # exit buffer at ~half the trigger
 
-_ema_absdiff = defaultdict(lambda: None)  # symbol -> EMA of |Δprice|
-_ATR_ALPHA   = 2 / (14 + 1)               # ATR(14) style smoothing
-ATR_TRIGGER_MULT = 5.0                    # try 5× ATR proxy for trigger
-ATR_OFFSET_MULT  = 2.0                    # try 2× ATR proxy for offset
-MIN_TRIGGER_FLOOR = 1.0                   # floors to avoid too-tight stops
-MIN_OFFSET_FLOOR  = 1.0
+# Floors & caps (keep triggers practical)
+MIN_TRIGGER_FLOOR = 2.0
+MIN_OFFSET_FLOOR  = 0.8
+MAX_TRIGGER_CAP   = 10.0
+MAX_OFFSET_CAP    = 4.0
 
 # ==============================================
 # 🟩 HELPER: Reason Map for Friendly Definitions
@@ -256,8 +259,12 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             smoothed = (_ATR_ALPHA * raw_range) + ((1.0 - _ATR_ALPHA) * prev)
             _ema_absdiff[symbol] = smoothed
 
-            adaptive_trigger = max(MIN_TRIGGER_FLOOR, ATR_TRIGGER_MULT * smoothed)
-            adaptive_offset  = max(MIN_OFFSET_FLOOR,  ATR_OFFSET_MULT  * smoothed)
+            adaptive_trigger = max(MIN_TRIGGER_FLOOR,
+                                min(MAX_TRIGGER_CAP, ATR_TRIGGER_MULT * smoothed))
+            adaptive_offset  = max(MIN_OFFSET_FLOOR,
+                                min(MAX_OFFSET_CAP,  ATR_OFFSET_MULT  * smoothed))
+
+            print(f"[ATR] {symbol} smoothed={smoothed:.2f} trig={adaptive_trigger:.2f} off={adaptive_offset:.2f} ema50={ema50}")
         except Exception as e:
             print(f"⚠️ ATR adapt error for {symbol}: {e}")
             adaptive_trigger = trigger_points
