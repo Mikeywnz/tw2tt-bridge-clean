@@ -17,7 +17,7 @@ def test_get_orders():
     client = TradeClient(TigerOpenClientConfig())
     account_id = "21807597867063647"
     symbol = "MGC2510"
-    orders = client.get_orders(account=account_id, seg_type=SegmentType.FUT, symbol=symbol, limit=20)
+    orders = client.get_orders(account=account_id, seg_type=SegmentType.FUT, symbol=symbol, limit=40)
     print(f"Fetched {len(orders)} orders for symbol {symbol}:")
     for i, order in enumerate(orders, 1):
         print(f"\n--- Order #{i} RAW DUMP ---")

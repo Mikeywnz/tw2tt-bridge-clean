@@ -126,173 +126,6 @@ def is_ghostflag_trade(order_id, firebase_db):
     ghosts = ghost_ref.get() or {}
     return order_id in ghosts
 
-
-# ====================================================
-# 🟩 Helper: Liquidation Handler (hardened)
-# ====================================================
-
-from typing import Optional, Union
-from datetime import datetime, timezone
-
-def _safe_iso(ts_ms: Optional[int]) -> str:
-    """Best-effort: Tiger ms -> ISO Z; fall back to now."""
-    try:
-        if ts_ms is not None:
-            return datetime.utcfromtimestamp(int(ts_ms) / 1000).isoformat() + "Z"
-    except Exception:
-        pass
-    return datetime.utcnow().isoformat() + "Z"
-
-def _to_epoch_utc(iso_like: Optional[Union[str, int, float]]) -> float:
-    """
-    Tolerant timestamp → epoch seconds (UTC).
-    - Accepts ms/seconds numbers or ISO-ish strings ('YYYY-MM-DD HH:MM:SS' or '...T...Z', optional '+00:00').
-    - Returns +inf when missing/bad so those sort *last* (i.e., won't be picked as FIFO).
-    """
-    if iso_like is None:
-        return float("inf")
-
-    # Numeric: ms/seconds
-    if isinstance(iso_like, (int, float)):
-        try:
-            x = float(iso_like)
-            # Heuristic: > 1e12 ≈ ms; > 1e10 also likely ms
-            if x > 1e10:
-                x = x / 1000.0
-            return datetime.utcfromtimestamp(x).replace(tzinfo=timezone.utc).timestamp()
-        except Exception:
-            return float("inf")
-
-    # String: normalize some common variants
-    s = str(iso_like).strip()
-    if not s:
-        return float("inf")
-    s = s.replace(" ", "T")
-    if s.endswith("+00:00"):
-        s = s[:-6] + "Z"
-    try:
-        # allow trailing Z (UTC) or naive (treat as UTC)
-        if s.endswith("Z"):
-            return datetime.fromisoformat(s[:-1]).replace(tzinfo=timezone.utc).timestamp()
-        return datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp()
-    except Exception:
-        return float("inf")
-
-def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
-    """
-    Archives + deletes the FIFO open trade for `symbol` when Tiger flags liquidation.
-    Returns the closed anchor_id (str) if something was archived/deleted, else None.
-    """
-    # --- Pull liquidation fill details (best-effort) ---
-    exit_oid  = str(getattr(order_obj, "id", "") or getattr(order_obj, "order_id", "")).strip()
-    exit_px   = (getattr(order_obj, "avg_fill_price", None)
-                 or getattr(order_obj, "filled_price", None)
-                 or getattr(order_obj, "latest_price", None)
-                 or 0.0)
-    exit_time = (getattr(order_obj, "update_time", None)
-                 or getattr(order_obj, "trade_time", None)
-                 or getattr(order_obj, "order_time", None))
-    exit_iso  = _safe_iso(exit_time)
-    exit_side = str(getattr(order_obj, "action", "") or "").upper()  # BUY/SELL
-    status_up = str(getattr(order_obj, "status", "")).split(".")[-1].upper() or "LIQUIDATION"
-
-    # --- Load opens and keep only real trade dicts (ignore _heartbeat, strings, etc.) ---
-    open_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-    raw_opens = open_ref.get() or {}
-
-    if not isinstance(raw_opens, dict):
-        print(f"[LIQ] Unexpected /open_active_trades/{symbol} type: {type(raw_opens)}; nothing to close.")
-        return None
-
-    opens = {}
-    for k, v in raw_opens.items():
-        if not isinstance(v, dict):
-            continue
-        # Must look like a trade
-        if not (v.get("order_id") or (isinstance(k, str) and k.isdigit())):
-            continue
-        opens[k] = v
-
-    if not opens:
-        print(f"[LIQ] No valid open trades under /open_active_trades/{symbol}; nothing to close.")
-        return None
-
-    # --- FIFO select: earliest usable timestamp wins ---
-    def _ts_key(rec: dict) -> float:
-        # Try multiple fields; bad/missing → +inf (sorted last)
-        return min(
-            _to_epoch_utc(rec.get("entry_timestamp")),
-            _to_epoch_utc(rec.get("transaction_time")),
-            _to_epoch_utc(rec.get("order_time")),
-        )
-
-    try:
-        anchor_oid, anchor = min(opens.items(), key=lambda kv: _ts_key(kv[1]))
-    except Exception as e:
-        print(f"[LIQ] FIFO selection failed for {symbol}: {e}")
-        return None
-
-    if not isinstance(anchor, dict):
-        print(f"[LIQ] Selected FIFO anchor malformed for {symbol}: type={type(anchor)}")
-        return None
-
-    # --- P&L (best-effort) based on entry side ---
-    try:
-        entry_px = float(anchor.get("filled_price") or 0.0)
-    except Exception:
-        entry_px = 0.0
-    try:
-        qty = int(anchor.get("quantity") or 1)
-    except Exception:
-        qty = 1
-    side_in  = str(anchor.get("action", "")).upper()  # BUY/SELL
-    pnl_raw  = (float(exit_px) - entry_px) * qty if side_in == "BUY" else (entry_px - float(exit_px)) * qty
-
-    update = {
-        "exited": True,
-        "exit_reason": "LIQUIDATION",
-        "exit_timestamp": exit_iso,
-        "exit_order_id": exit_oid,
-        "exit_action": exit_side,
-        "filled_exit_price": float(exit_px),
-        "status": status_up,
-        "realized_pnl": float(pnl_raw),
-        "is_open": False,
-        "trade_state": "closed",
-        "liquidation": True,
-        "contracts_remaining": 0,
-        "just_executed": False,
-    }
-
-       # --- Archive + delete (immediate) ---
-    try:
-        archive_ref = firebase_db.reference(f"/archived_trades_log/{anchor_oid}")
-        archive_ref.set({**anchor, **update})
-        open_ref.child(anchor_oid).delete()
-        print(f"[LIQ] Archived+deleted FIFO anchor {anchor_oid} ({symbol}) at {exit_px} — reason LIQUIDATION")
-
-        # 📝 Also record a liquidation ticket for Sheets drain
-        try:
-            firebase_db.reference(f"/exit_orders_log/{exit_oid}").set({
-                "order_id": exit_oid,
-                "symbol": symbol,
-                "action": exit_side,
-                "filled_price": float(exit_px),
-                "filled_qty": qty,
-                "fill_time": exit_iso,
-                "status": "LIQUIDATION",
-                "trade_type": "LIQUIDATION",
-                "anchor_id": anchor_oid,
-            })
-            print(f"[LIQ] Logged liquidation ticket {exit_oid} for {symbol}")
-        except Exception as e:
-            print(f"[LIQ] ⚠️ Failed to log liquidation ticket {exit_oid}: {e}")
-
-        return anchor_oid
-    except Exception as e:
-        print(f"[LIQ] ❌ Archive/delete failed for {anchor_oid}: {e}")
-        return None
-
 #################### END OF ALL HELPERS FOR THIS SCRIPT ####################
     
 # =======================================================
@@ -329,14 +162,21 @@ def push_orders_main():
         print("❌ No active contract symbol found in Firebase; aborting orders fetch")
         return 
 
-    # Then pass active_symbol as a filter To Tiger Trade through client.get_orders()
+    # Default small fetch
+    limit = 20
+
+    # If we detect recent bursts, widen temporarily
+    if getattr(push_orders_to_firebase, "_recent_burst", False):
+        limit = 50
+        push_orders_to_firebase._recent_burst = False  # reset after one wide fetch
+
     orders = client.get_orders(
         account="21807597867063647",
         seg_type=SegmentType.FUT,
-        symbol=active_symbol,  # if you added this from patch
-        limit=20
+        symbol=active_symbol,
+        limit=limit
     )
-    print(f"\n📦 Total orders returned for active contract {active_symbol}: {len(orders)}")
+    print(f"\n📦 Total orders returned for {active_symbol} (limit={limit}): {len(orders)}")
 
    #=========================================================================================
     # ====================== START THE FUNCTION: Push Orders Processing ======================
@@ -358,17 +198,37 @@ def push_orders_main():
                 print(f"❌ Skipping order due to invalid order_id: '{order_id}'. Order raw data: {order}")
                 continue
 
-            # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens    
+          # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens
             exit_ref_early = firebase_db.reference(f"/exit_orders_log/{order_id}")
             if exit_ref_early.get():
                 print(f"⏭️ Skipping EXIT ticket {order_id} (early fence)")
                 continue
 
-            # Send liqudations to Liquidation handler 
+            # ✅ Route Tiger liquidations as exit tickets (do NOT touch open_active_trades here)
             if getattr(order, "liquidation", False) is True:
-                active_symbol = getattr(order, "symbol", "") or active_symbol
-                print(f"🔥 Detected TigerTrade liquidation for {order_id} – invoking FIFO archive/delete.")
-                closed_anchor = handle_liquidation_fifo(firebase_db, active_symbol, order)
+                liq_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()  # Tiger uses 0 for order_id; use 'id'
+                liq_px  = (getattr(order, "avg_fill_price", None)
+                        or getattr(order, "filled_price", None)
+                        or getattr(order, "latest_price", None)
+                        or 0.0)
+                liq_ts  = (getattr(order, "update_time", None)
+                        or getattr(order, "trade_time", None)
+                        or getattr(order, "order_time", None))
+                liq_iso = _safe_iso(liq_ts)
+                liq_side = str(getattr(order, "action", "") or "").upper()
+                liq_sym  = getattr(order, "symbol", "") or active_symbol
+
+                firebase_db.reference(f"/exit_orders_log/{liq_oid}").set({
+                    "order_id": liq_oid,
+                    "symbol": liq_sym,
+                    "action": liq_side,
+                    "filled_price": float(liq_px),
+                    "filled_qty": int(getattr(order, "quantity", 1) or 1),
+                    "fill_time": liq_iso,
+                    "status": "LIQUIDATION",
+                    "trade_type": "LIQUIDATION"
+                })
+                print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
             # ===================== Check if order ID is already processed and filter out ====================
@@ -625,6 +485,19 @@ def push_orders_main():
         except Exception as e:
             print(f"❌ Error processing order {order}: {e}")
             continue
+
+    # --- Burst detector (place AFTER the loop, BEFORE the heartbeat) ---
+    try:
+        last_seen = getattr(push_orders_to_firebase, "_last_seen_id", 0)
+        new_ids = [int(getattr(o, "id", 0) or getattr(o, "order_id", 0)) for o in orders]
+        new_max = max(new_ids) if new_ids else last_seen
+        fresh = [oid for oid in new_ids if int(oid) > int(last_seen)]
+        if len(fresh) >= 15:
+            push_orders_to_firebase._recent_burst = True
+            print(f"[BURST] {len(fresh)} new orders since {last_seen} → widen next fetch to 50")
+        push_orders_to_firebase._last_seen_id = new_max
+    except Exception as e:
+        print(f"[BURST] detector skipped: {e}")
 
     # ======= Ensure /open_active_trades/ path stays alive, even if no trades written =====
     try:
