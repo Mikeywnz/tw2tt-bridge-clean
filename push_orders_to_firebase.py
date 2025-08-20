@@ -131,7 +131,11 @@ def is_ghostflag_trade(order_id, firebase_db):
 # 🟩 Helper: Liquidation Handler (hardened)
 # ====================================================
 
+from typing import Optional, Union
+from datetime import datetime, timezone
+
 def _safe_iso(ts_ms: Optional[int]) -> str:
+    """Best-effort: Tiger ms -> ISO Z; fall back to now."""
     try:
         if ts_ms is not None:
             return datetime.utcfromtimestamp(int(ts_ms) / 1000).isoformat() + "Z"
@@ -139,18 +143,35 @@ def _safe_iso(ts_ms: Optional[int]) -> str:
         pass
     return datetime.utcnow().isoformat() + "Z"
 
-def _to_epoch_utc(iso_like: Optional[str]) -> float:
+def _to_epoch_utc(iso_like: Optional[Union[str, int, float]]) -> float:
     """
-    Tolerant ISO-ish -> epoch seconds. Returns +inf when missing/bad so it sorts last.
-    Accepts 'YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DDTHH:MM:SS', optional 'Z' or '+00:00'.
+    Tolerant timestamp → epoch seconds (UTC).
+    - Accepts ms/seconds numbers or ISO-ish strings ('YYYY-MM-DD HH:MM:SS' or '...T...Z', optional '+00:00').
+    - Returns +inf when missing/bad so those sort *last* (i.e., won't be picked as FIFO).
     """
-    if not iso_like:
+    if iso_like is None:
         return float("inf")
-    s = str(iso_like).strip().replace(" ", "T")
+
+    # Numeric: ms/seconds
+    if isinstance(iso_like, (int, float)):
+        try:
+            x = float(iso_like)
+            # Heuristic: > 1e12 ≈ ms; > 1e10 also likely ms
+            if x > 1e10:
+                x = x / 1000.0
+            return datetime.utcfromtimestamp(x).replace(tzinfo=timezone.utc).timestamp()
+        except Exception:
+            return float("inf")
+
+    # String: normalize some common variants
+    s = str(iso_like).strip()
+    if not s:
+        return float("inf")
+    s = s.replace(" ", "T")
     if s.endswith("+00:00"):
         s = s[:-6] + "Z"
     try:
-        # allow no 'Z' as UTC
+        # allow trailing Z (UTC) or naive (treat as UTC)
         if s.endswith("Z"):
             return datetime.fromisoformat(s[:-1]).replace(tzinfo=timezone.utc).timestamp()
         return datetime.fromisoformat(s).replace(tzinfo=timezone.utc).timestamp()
@@ -175,22 +196,34 @@ def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
     exit_side = str(getattr(order_obj, "action", "") or "").upper()  # BUY/SELL
     status_up = str(getattr(order_obj, "status", "")).split(".")[-1].upper() or "LIQUIDATION"
 
-    # --- Load opens and filter to real trade dicts only ---
+    # --- Load opens and keep only real trade dicts (ignore _heartbeat, strings, etc.) ---
     open_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-    raw_opens: dict = open_ref.get() or {}
-    opens: dict = {
-        k: v for k, v in raw_opens.items()
-        if isinstance(v, dict) and (v.get("order_id") or k.isdigit())
-    }
+    raw_opens = open_ref.get() or {}
+
+    if not isinstance(raw_opens, dict):
+        print(f"[LIQ] Unexpected /open_active_trades/{symbol} type: {type(raw_opens)}; nothing to close.")
+        return None
+
+    opens = {}
+    for k, v in raw_opens.items():
+        if not isinstance(v, dict):
+            continue
+        # Must look like a trade
+        if not (v.get("order_id") or (isinstance(k, str) and k.isdigit())):
+            continue
+        opens[k] = v
+
     if not opens:
         print(f"[LIQ] No valid open trades under /open_active_trades/{symbol}; nothing to close.")
         return None
 
-    # --- FIFO select: earliest entry/transaction time wins ---
+    # --- FIFO select: earliest usable timestamp wins ---
     def _ts_key(rec: dict) -> float:
+        # Try multiple fields; bad/missing → +inf (sorted last)
         return min(
             _to_epoch_utc(rec.get("entry_timestamp")),
             _to_epoch_utc(rec.get("transaction_time")),
+            _to_epoch_utc(rec.get("order_time")),
         )
 
     try:
@@ -199,9 +232,19 @@ def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
         print(f"[LIQ] FIFO selection failed for {symbol}: {e}")
         return None
 
+    if not isinstance(anchor, dict):
+        print(f"[LIQ] Selected FIFO anchor malformed for {symbol}: type={type(anchor)}")
+        return None
+
     # --- P&L (best-effort) based on entry side ---
-    entry_px = float(anchor.get("filled_price") or 0.0)
-    qty      = int(anchor.get("quantity") or 1)
+    try:
+        entry_px = float(anchor.get("filled_price") or 0.0)
+    except Exception:
+        entry_px = 0.0
+    try:
+        qty = int(anchor.get("quantity") or 1)
+    except Exception:
+        qty = 1
     side_in  = str(anchor.get("action", "")).upper()  # BUY/SELL
     pnl_raw  = (float(exit_px) - entry_px) * qty if side_in == "BUY" else (entry_px - float(exit_px)) * qty
 
@@ -217,6 +260,8 @@ def handle_liquidation_fifo(firebase_db, symbol, order_obj) -> Optional[str]:
         "is_open": False,
         "trade_state": "closed",
         "liquidation": True,
+        "contracts_remaining": 0,
+        "just_executed": False,
     }
 
     # --- Archive + delete (immediate) ---
