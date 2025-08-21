@@ -343,6 +343,7 @@ async def webhook(request: Request):
         "trade_type": trade_type,
         "status": "FILLED",
         "contracts_remaining": data.get("contracts_remaining", quantity or 1),
+        "trail_mode": "FALLBACK",
         "trail_trigger": trigger_points,
         "trail_offset": offset_points,
         "trail_hit": False,
@@ -412,7 +413,7 @@ async def webhook(request: Request):
         print(f"[DEBUG] Assigned gate_state={gate_state} for {order_id}")
     except Exception as e:
         print(f"[WARN] Could not assign gate_state for {order_id}: {e}")
-        
+
     try:
         firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").set(new_trade)
         print(f"✅ Firebase open_active_trades updated at key: {order_id}")

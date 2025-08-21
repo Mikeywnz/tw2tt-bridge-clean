@@ -267,10 +267,37 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                                 min(MAX_OFFSET_CAP,  ATR_OFFSET_MULT  * smoothed))
 
             print(f"[ATR] {symbol} smoothed={smoothed:.2f} trig={adaptive_trigger:.2f} off={adaptive_offset:.2f} ema50={ema50}")
+            # === LIVE TRAIL SNAPSHOT → Firebase (ATR mode) ===
+            try:
+                node = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
+                trigger_pts = float(adaptive_trigger)
+                offset_pts  = float(adaptive_offset)
+                trigger_price = (entry + trigger_pts) if direction == 1 else (entry - trigger_pts)
+                node.update({
+                    "trail_mode": "ATR",
+                    "trail_trigger": trigger_pts,
+                    "trail_offset":  offset_pts,
+                    "trail_trigger_price": trigger_price
+                })
+            except Exception as e:
+                print(f"⚠️ Trail snapshot failed for {order_id}: {e}")
         except Exception as e:
             print(f"⚠️ ATR adapt error for {symbol}: {e}")
             adaptive_trigger = trigger_points
             adaptive_offset  = offset_points
+
+            # === LIVE TRAIL SNAPSHOT → Firebase (Fallback mode) ===
+            try:
+                node = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
+                trigger_price = (entry + adaptive_trigger) if direction == 1 else (entry - adaptive_trigger)
+                node.update({
+                    "trail_mode": "FALLBACK",
+                    "trail_trigger": float(adaptive_trigger),
+                    "trail_offset":  float(adaptive_offset),
+                    "trail_trigger_price": trigger_price
+                })
+            except Exception as e2:
+                print(f"⚠️ Fallback trail snapshot failed for {order_id}: {e2}")
 
         # ---- Trigger arming ----
         if not trade.get('trail_hit'):
@@ -283,7 +310,12 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 print(f"[INFO] TP trigger HIT for {order_id} at {current_price:.2f}")
                 try:
                     open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-                    open_trades_ref.child(order_id).update({"trail_hit": True, "trail_peak": current_price})
+                    open_trades_ref.child(order_id).update({
+                        "trail_hit": True,
+                        "trail_peak": current_price,
+                        # first trailing stop price right after arming
+                        "trail_stop_price": (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
+                    })
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
 
@@ -296,7 +328,11 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 print(f"[DEBUG] New trail peak for {order_id}: {new_peak:.2f} (prev: {prev_peak:.2f})")
                 trade['trail_peak'] = new_peak
                 try:
-                    firebase_db.reference(f"/open_active_trades/{symbol}").child(order_id).update({"trail_peak": new_peak})
+                    firebase_db.reference(f"/open_active_trades/{symbol}").child(order_id).update({
+                        "trail_peak": new_peak,
+                        # keep live trailing stop price visible as peak changes
+                        "trail_stop_price": (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
+                    })
                 except Exception as e:
                     print(f"❌ Failed to update trail_peak for {order_id}: {e}")
             else:
@@ -305,11 +341,18 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             buffer_amt = float(adaptive_offset)
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
+            # === Keep live buffer synced to Firebase ===
+            try:
+                firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
+                    "trail_offset": buffer_amt
+                })
+            except Exception:
+                pass
+
             exit_trigger = (
                 (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or
                 (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt)
             )
-
             if exit_trigger:
                 print(f"[INFO] Trailing TP EXIT condition met for {order_id}")
 
