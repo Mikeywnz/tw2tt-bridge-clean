@@ -279,14 +279,19 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     "trail_offset":  offset_pts,
                     "trail_trigger_price": trigger_price
                 })
+                # keep local dict in sync so save_open_trades() preserves fields
+                trade["trail_mode"] = "ATR"
+                trade["trail_trigger"] = trigger_pts
+                trade["trail_offset"]  = offset_pts
+                trade["trail_trigger_price"] = trigger_price
             except Exception as e:
                 print(f"⚠️ Trail snapshot failed for {order_id}: {e}")
+
         except Exception as e:
             print(f"⚠️ ATR adapt error for {symbol}: {e}")
             adaptive_trigger = trigger_points
             adaptive_offset  = offset_points
 
-            # === LIVE TRAIL SNAPSHOT → Firebase (Fallback mode) ===
             try:
                 node = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
                 trigger_price = (entry + adaptive_trigger) if direction == 1 else (entry - adaptive_trigger)
@@ -296,6 +301,11 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     "trail_offset":  float(adaptive_offset),
                     "trail_trigger_price": trigger_price
                 })
+                # local mirrors
+                trade["trail_mode"] = "FALLBACK"
+                trade["trail_trigger"] = float(adaptive_trigger)
+                trade["trail_offset"]  = float(adaptive_offset)
+                trade["trail_trigger_price"] = trigger_price
             except Exception as e2:
                 print(f"⚠️ Fallback trail snapshot failed for {order_id}: {e2}")
 
@@ -316,6 +326,10 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                         # first trailing stop price right after arming
                         "trail_stop_price": (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
                     })
+                    # local mirrors
+                    trade["trail_hit"] = True
+                    trade["trail_peak"] = current_price
+                    trade["trail_stop_price"] = (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
 
@@ -333,6 +347,8 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                         # keep live trailing stop price visible as peak changes
                         "trail_stop_price": (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
                     })
+                    # local mirror
+                    trade["trail_stop_price"] = (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
                 except Exception as e:
                     print(f"❌ Failed to update trail_peak for {order_id}: {e}")
             else:
@@ -342,10 +358,16 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
             # === Keep live buffer synced to Firebase ===
+            buffer_amt = float(adaptive_offset)
+            print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
+
+            # === Keep live buffer synced to Firebase ===
             try:
                 firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
                     "trail_offset": buffer_amt
                 })
+                # local mirror
+                trade["trail_offset"] = buffer_amt
             except Exception:
                 pass
 
@@ -513,18 +535,30 @@ def monitor_trades():
             key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
         )
 
+         # 🟡 Anchor handoff guard goes here
+        if not hasattr(monitor_trades, "_last_anchor_id"):
+            monitor_trades._last_anchor_id = anchor.get("order_id")
+
+        if anchor.get("order_id") != monitor_trades._last_anchor_id:
+            print(f"[INFO] Anchor handoff detected: {monitor_trades._last_anchor_id} → {anchor.get('order_id')}")
+            for t in active_trades:
+                if t is not anchor:
+                    t["gate_state"] = "PARKED"
+                    t["skip_tp_trailing"] = True
+            monitor_trades._last_anchor_id = anchor.get("order_id")
+
         # 2) compute anchor gate (trails with price OR peak; never moves backward)
         sym = anchor.get("symbol")
-        px  = (prices.get(sym) or {}).get("price") if isinstance(prices.get(sym), dict) else prices.get(sym)
+        px  = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
         if px is None:
             px = anchor.get("filled_price")  # last resort
 
-        entry = float(anchor.get("filled_price", 0))
-        trig  = float(trigger_points)
-        off   = float(offset_points)
-        side  = anchor.get("action", "BUY").upper()
-        peak  = float(anchor.get("trail_peak", entry))
-        trough = float(anchor.get("trail_trough", entry))
+        entry   = float(anchor.get("filled_price", 0))
+        trig    = float(trigger_points)
+        off     = float(offset_points)
+        side    = anchor.get("action", "BUY").upper()
+        peak    = float(anchor.get("trail_peak", entry))
+        trough  = float(anchor.get("trail_trough", entry))
 
         if side == "BUY":
             base_gate   = entry + (trig - off)
@@ -540,20 +574,46 @@ def monitor_trades():
         # 3) enforce (anchor always unlocked; non-anchors parked until gate clears)
         gate_updates = []
         for t in active_trades:
-            t["anchor_gate_price"] = gate_price
-            t["anchor_order_id"]   = anchor.get("order_id")
+            t["anchor_order_id"] = anchor.get("order_id")
 
             if t is anchor:
+                # Anchor is always UNLOCKED
                 if t.get("gate_state") != "UNLOCKED":
                     t["gate_state"] = "UNLOCKED"
-                    gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED", "anchor_gate_price": gate_price}))
+                    gate_updates.append((t.get("order_id"), {
+                        "gate_state": "UNLOCKED",
+                        "anchor_gate_price": gate_price
+                    }))
+                # keep visible for consistency
+                t["anchor_gate_price"] = gate_price
                 continue
 
+            # --- follower branch (soft-lock to anchor's trailing stop if follower is better-priced) ---
             tsym = t.get("symbol")
             tp   = (prices.get(tsym) or {}).get('price') if isinstance(prices.get(tsym), dict) else prices.get(tsym)
             was  = t.get("gate_state", "PARKED")
 
-            if gate_clear(tp):
+            # Better-priced vs anchor entry
+            follower_entry = float(t.get("filled_price", entry) or entry)
+            anchor_entry   = float(entry)
+            is_better = (side == "BUY" and follower_entry <= anchor_entry) or (side != "BUY" and follower_entry >= anchor_entry)
+
+            # Use anchor's live trailing stop once armed (handoff)
+            anchor_stop = float(anchor.get("trail_stop_price") or 0.0)
+            if is_better and anchor.get("trail_hit") and anchor_stop > 0:
+                follower_gate_price = anchor_stop
+            else:
+                follower_gate_price = gate_price  # fall back to baseline gate
+
+            if side == "BUY":
+                follower_gate_clear = lambda p: p is not None and p >= follower_gate_price
+            else:
+                follower_gate_clear = lambda p: p is not None and p <= follower_gate_price
+
+            # stash what we used for this follower (handy for debugging / Firebase view)
+            t["anchor_gate_price"] = follower_gate_price
+
+            if follower_gate_clear(tp):
                 if was != "UNLOCKED":
                     t["gate_state"] = "UNLOCKED"
                     t["gate_unlocked_at"] = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
@@ -561,13 +621,16 @@ def monitor_trades():
                     gate_updates.append((t.get("order_id"), {
                         "gate_state": "UNLOCKED",
                         "gate_unlocked_at": t["gate_unlocked_at"],
-                        "anchor_gate_price": gate_price
+                        "anchor_gate_price": follower_gate_price
                     }))
             else:
                 t["gate_state"] = "PARKED"
                 t["skip_tp_trailing"] = True
                 if was != "PARKED" or "gate_state" not in t:
-                    gate_updates.append((t.get("order_id"), {"gate_state": "PARKED", "anchor_gate_price": gate_price}))
+                    gate_updates.append((t.get("order_id"), {
+                        "gate_state": "PARKED",
+                        "anchor_gate_price": follower_gate_price
+                    }))
 
         # 4) (optional) write gate state to Firebase (best-effort; non-fatal)
         try:
@@ -600,6 +663,7 @@ def monitor_trades():
     if not active_trades:
         print("⏭️ No open anchors; skipping exit ticket drain this loop.")
     else:
+
         # 🔽 EXIT LOGIC: drain exit tickets
         try:
             tickets_ref = firebase_db.reference("/exit_orders_log")

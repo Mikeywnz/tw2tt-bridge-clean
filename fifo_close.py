@@ -192,7 +192,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
     
-      #============================================================================================
+    #============================================================================================
     # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
     #============================================================================================
     try:
@@ -212,13 +212,11 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_trig   = anchor.get("trail_trigger", "")
         trail_off    = anchor.get("trail_offset", "")
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
-        source_val   = anchor.get("source", "unknown")
 
-        # --- Always write NZ time to Sheets (robust to naive/epoch/ISO inputs) ---
+        # --- Always write NZ time to Sheets (robust to epoch/ISO; assume naive ISO is UTC) ---
         from datetime import datetime, timezone
         import pytz
         NZ_TZ = pytz.timezone("Pacific/Auckland")
-        BROKER_TZ = pytz.timezone("America/New_York")  # Tiger portal/app local
 
         def to_nz_dt(val):
             """Accepts epoch ms/sec or ISO (naive/with tz). Returns aware dt in NZ time."""
@@ -242,10 +240,10 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             except Exception:
                 pass
 
-            # Naive ISO: assume broker local (US/Eastern), then convert to NZ
+            # Naive ISO: **assume UTC**, then convert to NZ
             try:
                 dt_naive = datetime.fromisoformat(s.replace("T", " ").split(".")[0])
-                return BROKER_TZ.localize(dt_naive).astimezone(NZ_TZ)
+                return dt_naive.replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
             except Exception:
                 # Last resort: treat as UTC "now"
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
@@ -253,9 +251,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         entry_dt = to_nz_dt(entry_ts_iso)
         exit_dt  = to_nz_dt(exit_ts_iso)
 
-        day_date       = entry_dt.strftime("%A %d %B %Y")
-        entry_time_str = entry_dt.strftime("%I:%M:%S %p")   # 12-hour with AM/PM
-        exit_time_str  = exit_dt.strftime("%I:%M:%S %p")    # 12-hour with AM/PM
+        day_date       = entry_dt.strftime("%A %d %B %Y")     # e.g., Thursday 21 August 2025
+        entry_time_str = entry_dt.strftime("%I:%M:%S %p")     # 12-hour with AM/PM
+        exit_time_str  = exit_dt.strftime("%I:%M:%S %p")      # 12-hour with AM/PM
 
         # Stable HH:MM:SS duration (always positive)
         total_secs = int(abs((exit_dt - entry_dt).total_seconds()))
@@ -272,14 +270,32 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         realized_pnl_fb = float(pnl)
         net_fb = realized_pnl_fb - COMMISSION_FLAT
 
+        # --- Source normalization per your labels ---
+        def normalize_source(anchor_src, ticket_src, is_liq_flag):
+            cand = anchor_src or ticket_src
+            if is_liq_flag and not cand:
+                return "Tiger Trade"
+            s = (str(cand or "")).lower()
+            if "openapi" in s or "opgo" in s:
+                return "OpGo"
+            if "desktop" in s:
+                return "Tiger Desktop"
+            if "mobile" in s:
+                return "Tiger Mobile"
+            if "liquidation" in s or "tiger" in s:
+                return "Tiger Trade"
+            return "unknown"
+
+        source_val = normalize_source(anchor.get("source"), tx_dict.get("source"), is_liq)
+
         # Optional notes text for the last column
         notes_text = "LIQUIDATION" if is_liq else ""
 
         # Build the row in your target column order
         row = [
-            day_date,                 # Day Date
-            entry_time_str,           # Entry Time
-            exit_time_str,            # Exit Time
+            day_date,                 # Day Date (NZ)
+            entry_time_str,           # Entry Time (NZ, 12h)
+            exit_time_str,            # Exit Time (NZ, 12h)
             time_in_trade,            # Time in Trade
             trade_type_str.title(),   # Trade Type ("Long"/"Short")
             flip_str,                 # Flip? (or "Liquidation")
@@ -293,7 +309,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             round(net_fb, 2),         # Net PNL
             anchor_oid,               # Order ID (entry / anchor)
             exit_oid,                 # FIFO Match Order ID (exit)
-            source_val,               # Source
+            source_val,               # Source (OpGo / Tiger Trade / Desktop / Mobile / unknown)
             notes_text,               # Notes ("LIQUIDATION" if so)
         ]
 
