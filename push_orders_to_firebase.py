@@ -166,9 +166,9 @@ def push_orders_main():
     limit = 20
 
     # If we detect recent bursts, widen temporarily
-    if getattr(push_orders_to_firebase, "_recent_burst", False):
+    if getattr(push_orders_main, "_recent_burst", False):
         limit = 50
-        push_orders_to_firebase._recent_burst = False  # reset after one wide fetch
+        push_orders_main._recent_burst = False # reset after one wide fetch
 
     orders = client.get_orders(
         account="21807597867063647",
@@ -488,14 +488,14 @@ def push_orders_main():
 
     # --- Burst detector (place AFTER the loop, BEFORE the heartbeat) ---
     try:
-        last_seen = getattr(push_orders_to_firebase, "_last_seen_id", 0)
+        last_seen = getattr(push_orders_main, "_last_seen_id", 0)
         new_ids = [int(getattr(o, "id", 0) or getattr(o, "order_id", 0)) for o in orders]
         new_max = max(new_ids) if new_ids else last_seen
         fresh = [oid for oid in new_ids if int(oid) > int(last_seen)]
         if len(fresh) >= 15:
-            push_orders_to_firebase._recent_burst = True
+            push_orders_main._recent_burst = True
             print(f"[BURST] {len(fresh)} new orders since {last_seen} → widen next fetch to 50")
-        push_orders_to_firebase._last_seen_id = new_max
+        push_orders_main._last_seen_id = new_max
     except Exception as e:
         print(f"[BURST] detector skipped: {e}")
 
