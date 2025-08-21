@@ -3,7 +3,6 @@ from unittest import result
 from weakref import ref
 from fastapi import FastAPI, Request
 import json
-from datetime import datetime
 import os
 import requests
 import pytz
@@ -16,27 +15,26 @@ import firebase_active_contract
 import firebase_admin
 import time  # if not already imported
 import hashlib
-from datetime import datetime, timezone
 from fastapi import Request
 from execute_trade_live import place_exit_trade
 from fastapi.responses import JSONResponse
 import json, hashlib, time
 from fifo_close import handle_exit_fill_from_tx
-
+import datetime as dt  # ✅ single, consistent datetime import
 
 def normalize_to_utc_iso(timestr):
     try:
-        dt = datetime.fromisoformat(timestr)
+        d = dt.datetime.fromisoformat(timestr)
     except Exception:
-        dt = datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S")
-    dt_utc = dt.replace(tzinfo=timezone.utc)
-    return dt_utc.isoformat().replace('+00:00', 'Z')
+        d = dt.datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S")
+    # if naive, set UTC; if tz-aware, convert to UTC
+    d_utc = d.replace(tzinfo=dt.timezone.utc) if d.tzinfo is None else d.astimezone(dt.timezone.utc)
+    return d_utc.isoformat().replace('+00:00', 'Z')
 
 processed_exit_order_ids = set()
 position_tracker = {}
 app = FastAPI()
 recent_payloads = {}
-
 
 DEDUP_WINDOW = 10  # seconds
 PRICE_FILE = "live_prices.json"
@@ -91,7 +89,7 @@ def map_source(raw_source):
 # ==============================================================
 def log_to_file(message: str):
     print(f"Logging: {message}")
-    timestamp = datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
+    timestamp = dt.datetime.now(pytz.timezone("Pacific/Auckland")).isoformat()
     with open(LOG_FILE, "a") as f:
         f.write(f"[{timestamp}] {message}\n")
 
@@ -191,7 +189,7 @@ def perform_price_update(data):
         with open(PRICE_FILE, "w") as f:
             json.dump(prices, f, indent=2)
 
-        utc_time = datetime.utcnow().isoformat() + "Z"
+        utc_time = dt.datetime.utcnow().isoformat() + "Z"
         payload = {"price": price, "updated_at": utc_time}
         log_to_file(f"📤 Pushing price to Firebase: {symbol} → {price}")
         try:
@@ -209,8 +207,6 @@ def perform_price_update(data):
 # ===================================== MAIN FUNCTION ==APP WEBHOOK ===================================
 # ====================================================================================================
 
-
-
 @app.post("/webhook")
 async def webhook(request: Request):
     current_time = time.time()
@@ -226,12 +222,9 @@ async def webhook(request: Request):
     # ---------- FAST PATH: price updates (non-blocking) ----------
     if data.get("type") == "price_update":
         try:
-            # If you already have this helper, keep using it (it's quick).
             perform_price_update(data)
         except Exception as e:
-            # Never block on errors here
             print(f"⚠️ price_update fast-path error: {e}")
-        # Always return immediately; do not run order logic below.
         return JSONResponse({"ok": True}, status_code=200)
 
     # ---------- extract ----------
@@ -278,7 +271,6 @@ async def webhook(request: Request):
         for _ in range(abs(current)):
             r = place_exit_trade(symbol, exit_side, 1, firebase_db)
 
-            # Only push to FIFO if exit actually succeeded and has a valid order_id
             if not r or r.get("status") != "SUCCESS" or not str(r.get("order_id", "")).isdigit():
                 print(f"[WARN] exit place failed; skipping FIFO push for this leg: {r}")
                 continue
@@ -293,7 +285,7 @@ async def webhook(request: Request):
                     "quantity": 1,
                     "filled_price": r.get("filled_price"),
                     "transaction_time": normalize_to_utc_iso(
-                        r.get("transaction_time") or datetime.utcnow().isoformat()
+                        r.get("transaction_time") or dt.datetime.utcnow().isoformat()
                     ),
                 }
                 handle_exit_fill_from_tx(firebase_db, tx)
@@ -319,7 +311,6 @@ async def webhook(request: Request):
     filled_price = result.get("filled_price")
     order_id = result.get("order_id")
 
-    # guard invalid order_id / failures
     if not (isinstance(order_id, str) and order_id.isdigit()):
         log_to_file(f"❌ Aborting Firebase push due to invalid order_id: {order_id}")
         print(f"❌ Aborting Firebase push due to invalid order_id: {order_id}")
@@ -340,7 +331,7 @@ async def webhook(request: Request):
         trigger_points, offset_points = 14.0, 5.0
 
     trade_type = (result.get("trade_type") or ("LONG_ENTRY" if action == "BUY" else "SHORT_ENTRY")).upper()
-    entry_timestamp = normalize_to_utc_iso(result.get("transaction_time") or datetime.utcnow().isoformat())
+    entry_timestamp = normalize_to_utc_iso(result.get("transaction_time") or dt.datetime.utcnow().isoformat())
 
     new_trade = {
         "order_id": order_id,
@@ -384,14 +375,13 @@ async def webhook(request: Request):
             and (t.get("status","").lower() not in ("closed","failed"))
         ]
         if same_dir:
-            from datetime import datetime, timezone
             def _iso_to_utc(s):
                 try:
                     s = (s or "").replace("T"," ").replace("Z","").strip()
-                    dt = datetime.fromisoformat(s)
-                    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+                    d = dt.datetime.fromisoformat(s)
+                    return d.replace(tzinfo=dt.timezone.utc) if d.tzinfo is None else d.astimezone(dt.timezone.utc)
                 except Exception:
-                    return datetime.max.replace(tzinfo=timezone.utc)
+                    return dt.datetime.max.replace(tzinfo=dt.timezone.utc)
             anchor = min(same_dir, key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or ""))
 
         # Compute anchor gate if anchor exists
@@ -433,5 +423,4 @@ async def webhook(request: Request):
         status_code=200 if result.get("status") == "SUCCESS" else 500
     )
 
-    # =============================== END OF SCRIPT =======================================================  
-
+# =============================== END OF SCRIPT =======================================================
