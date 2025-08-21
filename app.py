@@ -60,6 +60,61 @@ if not firebase_admin._apps:
 firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
+# ==============================================================
+# 🟩 Per‑symbol settings helpers (+ auto‑create defaults)
+# ==============================================================
+
+def ensure_symbol_settings_defaults(firebase_db, symbol: str):
+    try:
+        base = f"/settings/symbols/{symbol}"
+        snap = firebase_db.reference(base).get() or {}
+        updates = {}
+        if "gate_unlock_points" not in snap:
+            updates["gate_unlock_points"] = 1.0   # default 1 point
+        if "max_open_trades" not in snap:
+            updates["max_open_trades"] = 5       # start conservative
+        if updates:
+            firebase_db.reference(base).update(updates)
+            print(f"[SETTINGS] Initialized {base}: {updates}")
+    except Exception as e:
+        print(f"⚠️ ensure_symbol_settings_defaults failed for {symbol}: {e}")
+
+def get_gate_unlock_points(firebase_db, symbol: str) -> float:
+    # prefer per‑symbol, fall back to global, then default
+    try:
+        v = firebase_db.reference(f"/settings/symbols/{symbol}/gate_unlock_points").get()
+        if v is not None:
+            print(f"[SETTINGS] gate_unlock_points({symbol})={v}")
+            return float(v)
+    except Exception:
+        pass
+    try:
+        v = firebase_db.reference("/settings/gate_unlock_points").get()
+        if v is not None:
+            print(f"[SETTINGS] gate_unlock_points(global)={v}")
+            return float(v)
+    except Exception:
+        pass
+    print("[SETTINGS] gate_unlock_points default=1.0")
+    return 1.0
+
+def get_max_open_trades(firebase_db, symbol: str) -> int:
+    try:
+        v = firebase_db.reference(f"/settings/symbols/{symbol}/max_open_trades").get()
+        if v is not None:
+            print(f"[SETTINGS] max_open_trades({symbol})={v}")
+            return int(v)
+    except Exception:
+        pass
+    try:
+        v = firebase_db.reference("/settings/max_open_trades").get()
+        if v is not None:
+            print(f"[SETTINGS] max_open_trades(global)={v}")
+            return int(v)
+    except Exception:
+        pass
+    print("[SETTINGS] max_open_trades default=5")
+    return 5
 
 # ==============================================================
 # 🟩 Helper: Max-open-trades cap (Firebase-configurable)
@@ -277,6 +332,10 @@ async def webhook(request: Request):
     quantity = data.get("quantity")
     if not request_symbol or action not in {"BUY", "SELL"} or quantity is None:
         return JSONResponse({"status": "error", "message": "Missing required fields"}, status_code=400)
+    
+
+    # ---------- ensure per-symbol settings exist ----------
+    ensure_symbol_settings_defaults(firebase_db, request_symbol)
 
     # ---------- dedupe ----------
     payload_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
