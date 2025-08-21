@@ -223,9 +223,16 @@ async def webhook(request: Request):
         log_to_file(f"Failed to parse JSON: {e}")
         return JSONResponse({"status": "invalid json", "error": str(e)}, status_code=400)
 
-    # ---------- price updates ----------
+    # ---------- FAST PATH: price updates (non-blocking) ----------
     if data.get("type") == "price_update":
-        return perform_price_update(data)
+        try:
+            # If you already have this helper, keep using it (it's quick).
+            perform_price_update(data)
+        except Exception as e:
+            # Never block on errors here
+            print(f"⚠️ price_update fast-path error: {e}")
+        # Always return immediately; do not run order logic below.
+        return JSONResponse({"ok": True}, status_code=200)
 
     # ---------- extract ----------
     request_symbol = data.get("symbol")

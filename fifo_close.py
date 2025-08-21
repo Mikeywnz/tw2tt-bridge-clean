@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -95,40 +95,65 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     if not opens:
         print("[WARN] No open trades to close for this exit.")
         return False
-    
-    # 🛡️ Guard: prevent stale exit from killing fresh entry
-    from datetime import datetime, timezone
 
+    # 🛡️ Robust UTC parser (handles Z/offset/naive)
     def _to_utc(val):
-        """Robust ISO → UTC. If empty/bad, default to now()."""
-        if not val:
+        """Robust ISO → aware UTC datetime. On failure, use now()."""
+        s = (str(val) or "").strip()
+        if not s:
             return datetime.utcnow().replace(tzinfo=timezone.utc)
         try:
-            s = str(val).strip()
             if s.endswith("Z"):
                 return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
-            return datetime.fromisoformat(s).astimezone(timezone.utc)
+            # If there's an explicit offset anywhere after the date part
+            if "+" in s[10:] or "-" in s[10:]:
+                return datetime.fromisoformat(s).astimezone(timezone.utc)
+        except Exception:
+            pass
+        # Naive → assume UTC (safer than broker-local)
+        try:
+            return datetime.fromisoformat(s.replace("T", " ").split(".")[0]).replace(tzinfo=timezone.utc)
         except Exception:
             return datetime.utcnow().replace(tzinfo=timezone.utc)
 
+    # Normalize exit time
     exit_utc = _to_utc(exit_time)
-    if all(_to_utc(tr.get("entry_timestamp","")) > exit_utc for tr in opens.values()):
-        print(f"[SKIP] Exit {exit_oid} precedes all current entries; retry later.")
+
+    # Build FIFO list with normalized entry timestamps
+    entries = []
+    for oid, tr in opens.items():
+        et = tr.get("entry_timestamp") or tr.get("transaction_time") or ""
+        entries.append((oid, _to_utc(et)))
+    if not entries:
+        print("[WARN] No entries found under open_active_trades; cannot FIFO.")
         return False
 
-    def _entry_ts(t):
-        return t.get("entry_timestamp", "9999-12-31T23:59:59Z")
+    # Sort FIFO by true time (UTC). Choose the head.
+    entries.sort(key=lambda x: x[1])
+    fifo_head_oid, fifo_head_dt = entries[0]
 
-    candidates = [
-        dict(tr, order_id=oid)
-        for oid, tr in opens.items()
-        if not tr.get("exited") and tr.get("contracts_remaining", 1) > 0
-    ]
-    if not candidates:
-        print("[WARN] No eligible open trades (all exited or zero qty).")
-        return False
+    # Even if exit looks earlier due to tz/naive issues, ALWAYS close FIFO head.
+    if exit_utc < fifo_head_dt:
+        print(f"[NOTE] Exit {exit_oid} appears earlier than FIFO head by time "
+              f"({exit_utc.isoformat()} < {fifo_head_dt.isoformat()}) — proceeding with FIFO head anyway.")
 
-    anchor = min(candidates, key=_entry_ts)
+    # Candidate must be open/eligible; if head is ineligible, pick next eligible
+    def _eligible(oid_):
+        tr = opens.get(oid_, {})
+        return not tr.get("exited") and (tr.get("contracts_remaining", 1) > 0)
+
+    candidate_oid = fifo_head_oid
+    if not _eligible(candidate_oid):
+        # find next eligible by time
+        for oid, _dt in entries[1:]:
+            if _eligible(oid):
+                candidate_oid = oid
+                break
+        else:
+            print("[WARN] No eligible open trades (all exited or zero qty).")
+            return False
+
+    anchor = dict(opens.get(candidate_oid, {}), order_id=candidate_oid)
     anchor_oid = anchor["order_id"]
     print(f"[INFO] FIFO anchor selected: {anchor_oid} (entry={anchor.get('entry_timestamp')})")
 

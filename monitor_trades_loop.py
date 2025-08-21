@@ -722,47 +722,101 @@ def monitor_trades():
 
 # ============================================================================
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
+#    + Time‑boxed Pause when Exit Work Exists (per symbol)
 # ============================================================================
 
 zombie_first_seen = {}
+zombie_pause_until = {}  # per-symbol pause window end (epoch seconds)
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90, pause_seconds=60, ticket_stale_seconds=180):
     now = time.time()
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
+
+    # Pull exit tickets once (cheap; small cardinality). If this is too chatty, cache externally.
+    try:
+        all_tickets = firebase_db.reference("/exit_orders_log").get() or {}
+    except Exception:
+        all_tickets = {}
+
+    def _ticket_age_seconds(t):
+        """Return ticket age in seconds (0 if unknown)."""
+        ts = (t.get("fill_time") or t.get("timestamp") or "").strip()
+        if not ts:
+            return 0
+        try:
+            if ts.endswith("Z"):
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            elif "+" in ts[10:] or "-" in ts[10:]:
+                dt = datetime.fromisoformat(ts)
+            else:
+                # naive → assume UTC
+                dt = datetime.fromisoformat(ts.replace("T", " ").split(".")[0])
+                dt = dt.replace(tzinfo=timezone.utc)
+            return max(0, time.time() - dt.astimezone(timezone.utc).timestamp())
+        except Exception:
+            return 0
 
     for trade in trades_list:
         order_id = trade.get("order_id")
         symbol = trade.get("symbol", "UNKNOWN")
 
-        # Check global position count outside or passed in separately
-        # Assuming you have a variable position_count elsewhere
-
-        if position_count == 0:
-            if order_id not in zombie_first_seen:
-                zombie_first_seen[order_id] = now
-                print(f"⏳ Started timer for trade {order_id} on {symbol} due to zero global position")
-                continue
-
-            elapsed = now - zombie_first_seen[order_id]
-            if elapsed >= grace_period_seconds:
-                print(f"🧟 Archiving trade {order_id} on {symbol} as zombie after {elapsed:.1f}s global zero position")
-                trade['contracts_remaining'] = 0
-                trade['trade_state'] = 'closed'
-                trade['is_open'] = False
-
-                try:
-                    zombie_trades_ref.child(order_id).set(trade)
-                    open_trades_ref.child(symbol).child(order_id).delete()
-                    print(f"🗑️ Deleted trade {order_id} from open_active_trades")
-                except Exception as e:
-                    print(f"❌ Failed to archive/delete trade {order_id}: {e}")
-
-                zombie_first_seen.pop(order_id, None)
-        else:
+        # Skip timers entirely when we hold a position
+        if position_count != 0:
             if order_id in zombie_first_seen:
                 print(f"✅ Trade {order_id} on {symbol} no longer zero global position; clearing timer")
-                zombie_first_seen.pop(order_id)
+                zombie_first_seen.pop(order_id, None)
+            continue
+
+        # === Soft pause if there is exit work for this symbol ===
+        # (a) local flag on trade OR (b) any unprocessed exit ticket for this symbol
+        has_exit_pending = bool(trade.get("exit_pending"))
+        has_ticket = False
+        oldest_ticket_age = 0
+        if all_tickets:
+            for t in all_tickets.values():
+                if not isinstance(t, dict):
+                    continue
+                if t.get("symbol") == symbol and not t.get("_processed"):
+                    has_ticket = True
+                    oldest_ticket_age = max(oldest_ticket_age, _ticket_age_seconds(t))
+
+        # Safety valve: if tickets are very old, don't keep pausing
+        should_pause = (has_exit_pending or has_ticket) and (oldest_ticket_age < ticket_stale_seconds)
+
+        if should_pause:
+            until = zombie_pause_until.get(symbol, 0)
+            if now >= until:
+                zombie_pause_until[symbol] = now + pause_seconds
+                print(f"⏸️ Zombie cleanup PAUSED for {symbol} for {pause_seconds}s (exit work detected)")
+            # While paused, do NOT start/advance zombie timers
+            continue
+        else:
+            # No exit work (or tickets stale) → resume normal behavior
+            if symbol in zombie_pause_until and now >= zombie_pause_until[symbol]:
+                zombie_pause_until.pop(symbol, None)
+
+        # === Normal zombie logic below (unchanged) ===
+        if order_id not in zombie_first_seen:
+            zombie_first_seen[order_id] = now
+            print(f"⏳ Started timer for trade {order_id} on {symbol} due to zero global position")
+            continue
+
+        elapsed = now - zombie_first_seen[order_id]
+        if elapsed >= grace_period_seconds:
+            print(f"🧟 Archiving trade {order_id} on {symbol} as zombie after {elapsed:.1f}s global zero position")
+            trade['contracts_remaining'] = 0
+            trade['trade_state'] = 'closed'
+            trade['is_open'] = False
+
+            try:
+                zombie_trades_ref.child(order_id).set(trade)
+                open_trades_ref.child(symbol).child(order_id).delete()
+                print(f"🗑️ Deleted trade {order_id} from open_active_trades")
+            except Exception as e:
+                print(f"❌ Failed to archive/delete trade {order_id}: {e}")
+
+            zombie_first_seen.pop(order_id, None)
 
 if __name__ == '__main__':
     while True:
