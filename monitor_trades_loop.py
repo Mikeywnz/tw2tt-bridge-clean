@@ -469,6 +469,18 @@ def monitor_trades():
     if not symbol:
         print("❌ No active contract symbol found in Firebase; aborting monitor_trades")
         return
+    
+    # 🔑 Ensure per‑symbol toggles exist (runs every loop, harmless if already set)
+    try:
+        sref = firebase_db.reference(f"/settings/symbols/{symbol}")
+        cfg  = sref.get() or {}
+        if "gate_unlock_points" not in cfg:
+            sref.update({"gate_unlock_points": 1.0})
+        cref = firebase_db.reference(f"/max_open_trades/{symbol}")
+        if cref.get() is None:
+            cref.set(6)
+    except Exception as e:
+        print(f"⚠️ Settings seed skipped: {e}")
 
     # Load trailing TP settings
     trigger_points, offset_points = load_trailing_tp_settings()
@@ -709,7 +721,7 @@ def monitor_trades():
 
 zombie_first_seen = {}
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=140):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=95):
     now = time.time()
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
