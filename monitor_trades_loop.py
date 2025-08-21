@@ -517,208 +517,181 @@ def monitor_trades():
     # Prices (single fetch per loop)
     prices = load_live_prices()
 
-    # =========================
-    # 🟩 ANCHOR GATE – DROP-IN
-    # =========================
-    def _iso_to_utc(s: str):
-        try:
-            s = (s or "").strip().replace("T", " ").replace("Z", "")
-            dt = datetime.fromisoformat(s)
-            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
-        except Exception:
-            return datetime.max.replace(tzinfo=timezone.utc)  # push bad rows to the end
-
-    # 1) pick anchor (FIFO head)
-    if active_trades:
-        anchor = min(
-            active_trades,
-            key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
-        )
-
-         # 🟡 Anchor handoff guard goes here
-        if not hasattr(monitor_trades, "_last_anchor_id"):
-            monitor_trades._last_anchor_id = anchor.get("order_id")
-
-        if anchor.get("order_id") != monitor_trades._last_anchor_id:
-            print(f"[INFO] Anchor handoff detected: {monitor_trades._last_anchor_id} → {anchor.get('order_id')}")
-            for t in active_trades:
-                if t is not anchor:
-                    t["gate_state"] = "PARKED"
-                    t["skip_tp_trailing"] = True
-            monitor_trades._last_anchor_id = anchor.get("order_id")
-
-        # 2) compute anchor gate (trails with price OR peak; never moves backward)
-        sym = anchor.get("symbol")
-        px  = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
-        if px is None:
-            px = anchor.get("filled_price")  # last resort
-
-        entry   = float(anchor.get("filled_price", 0))
-        trig    = float(trigger_points)
-        off     = float(offset_points)
-        side    = anchor.get("action", "BUY").upper()
-        peak    = float(anchor.get("trail_peak", entry))
-        trough  = float(anchor.get("trail_trough", entry))
-
-        if side == "BUY":
-            base_gate   = entry + (trig - off)
-            trailing_gt = max(px or entry, peak) - off
-            gate_price  = max(base_gate, trailing_gt)
-            gate_clear  = lambda p: p is not None and p >= gate_price
-        else:  # SELL
-            base_gate   = entry - (trig - off)
-            trailing_gt = min(px or entry, trough) + off
-            gate_price  = min(base_gate, trailing_gt)
-            gate_clear  = lambda p: p is not None and p <= gate_price
-
-        # 3) enforce (anchor always unlocked; non-anchors parked until gate clears)
-        gate_updates = []
-        for t in active_trades:
-            t["anchor_order_id"] = anchor.get("order_id")
-
-            if t is anchor:
-                # Anchor is always UNLOCKED
-                if t.get("gate_state") != "UNLOCKED":
-                    t["gate_state"] = "UNLOCKED"
-                    gate_updates.append((t.get("order_id"), {
-                        "gate_state": "UNLOCKED",
-                        "anchor_gate_price": gate_price
-                    }))
-                # keep visible for consistency
-                t["anchor_gate_price"] = gate_price
-                continue
-
-            # --- follower branch (soft-lock to anchor's trailing stop if follower is better-priced) ---
-            tsym = t.get("symbol")
-            tp   = (prices.get(tsym) or {}).get('price') if isinstance(prices.get(tsym), dict) else prices.get(tsym)
-            was  = t.get("gate_state", "PARKED")
-
-            # Better-priced vs anchor entry
-            follower_entry = float(t.get("filled_price", entry) or entry)
-            anchor_entry   = float(entry)
-            is_better = (side == "BUY" and follower_entry <= anchor_entry) or (side != "BUY" and follower_entry >= anchor_entry)
-
-            # Use anchor's live trailing stop once armed (handoff)
-            anchor_stop = float(anchor.get("trail_stop_price") or 0.0)
-            if is_better and anchor.get("trail_hit") and anchor_stop > 0:
-                follower_gate_price = anchor_stop
-            else:
-                follower_gate_price = gate_price  # fall back to baseline gate
-
-            if side == "BUY":
-                follower_gate_clear = lambda p: p is not None and p >= follower_gate_price
-            else:
-                follower_gate_clear = lambda p: p is not None and p <= follower_gate_price
-
-            # stash what we used for this follower (handy for debugging / Firebase view)
-            t["anchor_gate_price"] = follower_gate_price
-
-            if follower_gate_clear(tp):
-                if was != "UNLOCKED":
-                    t["gate_state"] = "UNLOCKED"
-                    t["gate_unlocked_at"] = datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()
-                    t.pop("skip_tp_trailing", None)
-                    gate_updates.append((t.get("order_id"), {
-                        "gate_state": "UNLOCKED",
-                        "gate_unlocked_at": t["gate_unlocked_at"],
-                        "anchor_gate_price": follower_gate_price
-                    }))
-            else:
-                t["gate_state"] = "PARKED"
-                t["skip_tp_trailing"] = True
-                if was != "PARKED" or "gate_state" not in t:
-                    gate_updates.append((t.get("order_id"), {
-                        "gate_state": "PARKED",
-                        "anchor_gate_price": follower_gate_price
-                    }))
-
-        # 4) (optional) write gate state to Firebase (best-effort; non-fatal)
-        try:
-            ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-            for oid, payload in gate_updates:
-                if oid:
-                    ref.child(oid).update(payload)
-        except Exception as e:
-            print(f"⚠️ Gate state update skipped: {e}")
-
-    # === FILTER: parked trades must not arm TP/Trail ===
-    gated_trades = []
-    for t in active_trades:
-        if t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"):
-            continue
-        gated_trades.append(t)
-
-    print(f"[DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
-
-    # ✅ Single call (remove the duplicate second call)
+# =========================
+# 🟩 ANCHOR GATE – DROP-IN (Sticky unlock @ +1.0; followers trail; exits blocked until unlock)
+# =========================
+def _iso_to_utc(s: str):
     try:
-        active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
-    except Exception as e:
-        print(f"❌ process_trailing_tp_and_exits error: {e}")
+        s = (s or "").strip().replace("T", " ").replace("Z", "")
+        dt = datetime.fromisoformat(s)
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+    except Exception:
+        return datetime.max.replace(tzinfo=timezone.utc)  # push bad rows to the end
 
-    # [ADD] Track anchors closed in this loop so they cannot be written back
-    closed_anchor_ids = set()
+# 1) pick anchor (FIFO head)
+if active_trades:
+    anchor = min(
+        active_trades,
+        key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
+    )
 
-    # Only drain exit tickets if we actually have open anchors to match
-    if not active_trades:
-        print("⏭️ No open anchors; skipping exit ticket drain this loop.")
+    # ---------- Sticky unlock config ----------
+    cfg = (firebase_db.reference("/trailing_tp_settings").get() or {})
+    GATE_UNLOCK_PTS   = float(cfg.get("gate_unlock_points", 1.0))  # points
+    HANDOFF_PAUSE_SEC = 2.0  # ~one loop pause after anchor handoff
+
+    # ---------- Track handoff & sticky state on function ----------
+    import time
+    if not hasattr(monitor_trades, "_last_anchor_id"):
+        monitor_trades._last_anchor_id = None
+    if not hasattr(monitor_trades, "_handoff_clear_at"):
+        monitor_trades._handoff_clear_at = 0.0
+    if not hasattr(monitor_trades, "_sticky_unlock"):
+        monitor_trades._sticky_unlock = {}  # {symbol: bool}
+
+    anchor_id = anchor.get("order_id")
+    symbol    = anchor.get("symbol")
+
+    # Handoff detection → reset sticky, start short pause
+    handoff_active = False
+    if anchor_id != monitor_trades._last_anchor_id:
+        print(f"[INFO] Anchor handoff: {monitor_trades._last_anchor_id} → {anchor_id}")
+        monitor_trades._last_anchor_id = anchor_id
+        monitor_trades._handoff_clear_at = time.time() + HANDOFF_PAUSE_SEC
+        monitor_trades._sticky_unlock[symbol] = False
+        handoff_active = True
     else:
+        handoff_active = time.time() < monitor_trades._handoff_clear_at
 
-        # 🔽 EXIT LOGIC: drain exit tickets
-        try:
-            tickets_ref = firebase_db.reference("/exit_orders_log")
-            tickets = tickets_ref.get() or {}
-            for tx_id, tx in tickets.items():
-                if not isinstance(tx, dict):
-                    continue
-                if tx.get("_processed"):
-                    continue
+    # ---------- Compute anchor unrealized (points) ----------
+    # current price from prices cache
+    px = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+    if px is None:
+        px = anchor.get("filled_price")  # last resort
 
-                if not tx.get("symbol"):
-                    tx["symbol"] = symbol
-                    tickets_ref.child(tx_id).update({"symbol": symbol})
-                    print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
+    entry = float(anchor.get("filled_price", 0.0))
+    side  = (anchor.get("action", "BUY") or "BUY").upper()
 
-                ok = handle_exit_fill_from_tx(firebase_db, tx)
+    anchor_px = float(px if px is not None else entry)
+    anchor_unrealized = (anchor_px - entry) if side == "BUY" else (entry - anchor_px)
+    anchor_unrealized = max(0.0, float(anchor_unrealized))
 
-                if isinstance(ok, str):
-                    closed_anchor_ids.add(ok)
+    # ---------- Sticky promotion ----------
+    if not monitor_trades._sticky_unlock.get(symbol, False):
+        if (not handoff_active) and (anchor_unrealized >= GATE_UNLOCK_PTS):
+            monitor_trades._sticky_unlock[symbol] = True
+            print(f"[GATE] Sticky unlock ARMED for {symbol} at +{anchor_unrealized:.2f} pts (threshold {GATE_UNLOCK_PTS})")
 
-                if ok:
-                    tickets_ref.child(tx_id).update({"_processed": True})
-                    print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
-                else:
-                    tickets_ref.child(tx_id).update({"_processed": True, "_note": "auto-marked; no opens/malformed"})
-                    print(f"[WARN] Exit ticket {tx_id} auto-marked _processed (no opens/malformed)")
-        except Exception as e:
-            print(f"❌ Exit ticket drain error: {e}")
+    followers_unlocked = bool(monitor_trades._sticky_unlock.get(symbol, False))
 
-    # 3B: Remove any trades from Firebase that were closed by exit tickets
-    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-    for t in list(active_trades):
-        if t.get('exited') or t.get('contracts_remaining', 0) <= 0:
-            oid = t.get('order_id')
-            if not oid:
+    # ---------- Apply gate (followers trail, exits blocked until unlocked) ----------
+    gate_updates = []
+    for t in active_trades:
+        t["anchor_order_id"]           = anchor_id
+        t["anchor_gate_unlock_pts"]    = GATE_UNLOCK_PTS
+        t["anchor_unrealized_pts"]     = round(anchor_unrealized, 2)
+        t["sticky_followers_unlocked"] = followers_unlocked
+
+        if t is anchor:
+            if t.get("gate_state") != "UNLOCKED":
+                t["gate_state"] = "UNLOCKED"
+                gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+            t["block_exit"] = False
+            continue
+
+        if followers_unlocked:
+            if t.get("gate_state") != "UNLOCKED" or t.get("block_exit"):
+                t["gate_state"] = "UNLOCKED"
+                t["block_exit"] = False
+                gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED", "block_exit": False}))
+        else:
+            t["gate_state"] = "PARKED"
+            t["block_exit"] = True     # exits blocked; trailing still allowed
+            if t.get("_sent_park") is not True:
+                gate_updates.append((t.get("order_id"), {"gate_state": "PARKED", "block_exit": True}))
+                t["_sent_park"] = True
+
+    # 4) best-effort write gate state to Firebase
+    try:
+        ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+        for oid, payload in gate_updates:
+            if oid:
+                ref.child(oid).update(payload)
+    except Exception as e:
+        print(f"⚠️ Gate state update skipped: {e}")
+
+# === Followers still trail while parked ===
+gated_trades = active_trades[:]  # do NOT filter parked trades out
+print(f"[DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
+
+# ✅ Single call (remove any duplicate second call)
+try:
+    active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
+except Exception as e:
+    print(f"❌ process_trailing_tp_and_exits error: {e}")
+
+# [ADD] Track anchors closed in this loop so they cannot be written back
+closed_anchor_ids = set()
+
+# Only drain exit tickets if we actually have open anchors to match
+if not active_trades:
+    print("⏭️ No open anchors; skipping exit ticket drain this loop.")
+else:
+
+    # 🔽 EXIT LOGIC: drain exit tickets
+    try:
+        tickets_ref = firebase_db.reference("/exit_orders_log")
+        tickets = tickets_ref.get() or {}
+        for tx_id, tx in tickets.items():
+            if not isinstance(tx, dict):
                 continue
-            try:
-                open_trades_ref.child(oid).delete()
-                print(f"🗑️ Removed closed trade {oid} from Firebase after exit match")
-            except Exception as e:
-                print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
+            if tx.get("_processed"):
+                continue
 
-    if closed_anchor_ids:
-        active_trades = [t for t in active_trades if t.get("order_id") not in closed_anchor_ids]
+            if not tx.get("symbol"):
+                tx["symbol"] = symbol
+                tickets_ref.child(tx_id).update({"symbol": symbol})
+                print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
 
-    active_trades = [
-        t for t in active_trades
-        if t.get('contracts_remaining', 0) > 0
-        and not t.get('exited')
-        and t.get('status') not in ('closed', 'failed')
-    ]
-    save_open_trades(symbol, active_trades)
-    print(f"[DEBUG] Saved {len(active_trades)} active trades after processing")
+            ok = handle_exit_fill_from_tx(firebase_db, tx)
 
-    ##========END OF MAIN MONITOR TRADES LOOP FUNCTION========##
+            if isinstance(ok, str):
+                closed_anchor_ids.add(ok)
+
+            if ok:
+                tickets_ref.child(tx_id).update({"_processed": True})
+                print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
+            else:
+                tickets_ref.child(tx_id).update({"_processed": True, "_note": "auto-marked; no opens/malformed"})
+                print(f"[WARN] Exit ticket {tx_id} auto-marked _processed (no opens/malformed)")
+    except Exception as e:
+        print(f"❌ Exit ticket drain error: {e}")
+
+# 3B: Remove any trades from Firebase that were closed by exit tickets
+open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+for t in list(active_trades):
+    if t.get('exited') or t.get('contracts_remaining', 0) <= 0:
+        oid = t.get('order_id')
+        if not oid:
+            continue
+        try:
+            open_trades_ref.child(oid).delete()
+            print(f"🗑️ Removed closed trade {oid} from Firebase after exit match")
+        except Exception as e:
+            print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
+
+if closed_anchor_ids:
+    active_trades = [t for t in active_trades if t.get("order_id") not in closed_anchor_ids]
+
+active_trades = [
+    t for t in active_trades
+    if t.get('contracts_remaining', 0) > 0
+    and not t.get('exited')
+    and t.get('status') not in ('closed', 'failed')
+]
+save_open_trades(symbol, active_trades)
+print(f"[DEBUG] Saved {len(active_trades)} active trades after processing")
+##========END OF MAIN MONITOR TRADES LOOP FUNCTION========##
 
 # ============================================================================
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
@@ -726,7 +699,7 @@ def monitor_trades():
 
 zombie_first_seen = {}
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=140):
     now = time.time()
     open_trades_ref = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
@@ -773,13 +746,3 @@ if __name__ == '__main__':
         time.sleep(10)
 
 # =========================  END OF SCRIPT ================================
-
-if __name__ == '__main__':
-    while True:
-        try:
-            monitor_trades()
-        except Exception as e:
-            print(f"❌ ERROR in monitor_trades(): {e}")
-        time.sleep(10)
-
-    # =========================  END OF SCRIPT ================================

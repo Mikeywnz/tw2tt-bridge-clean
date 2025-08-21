@@ -61,6 +61,50 @@ firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
+# ==============================================================
+# 🟩 Helper: Max-open-trades cap (Firebase-configurable)
+# ==============================================================
+
+def get_open_count(firebase_db, symbol: str) -> int:
+    snap = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
+    count = 0
+    for v in snap.values():
+        if not isinstance(v, dict):
+            continue
+        if v.get("exited"):
+            continue
+        if v.get("contracts_remaining", 1) <= 0:
+            continue
+        if (v.get("status", "").lower() in ("closed", "failed")):
+            continue
+        count += 1
+    return count
+
+def get_max_open_trades(firebase_db, symbol: str) -> int:
+    try:
+        per_symbol = firebase_db.reference(f"/settings/symbols/{symbol}/max_open_trades").get()
+        if per_symbol is not None:
+            return int(per_symbol)
+    except Exception:
+        pass
+    try:
+        global_cap = firebase_db.reference("/settings/max_open_trades").get()
+        if global_cap is not None:
+            return int(global_cap)
+    except Exception:
+        pass
+    return 6  # default
+
+def record_cap_block(firebase_db, symbol: str, cap: int, open_count: int) -> None:
+    try:
+        firebase_db.reference(f"/rate_limits/{symbol}").update({
+            "last_blocked_at": datetime.utcnow().isoformat() + "Z",
+            "cap": int(cap),
+            "open_count": int(open_count),
+        })
+    except Exception as e:
+        print(f"⚠️ Failed to write rate_limits for {symbol}: {e}")
+
 # ===============================================================
 # 🟩 Helper: Safe Float, Map Source, Get exit reason helpers ===
 # ===============================================================
@@ -303,6 +347,17 @@ async def webhook(request: Request):
         if net_position(firebase_db, symbol) != 0:
             print("⏸️ Still not flat after 12s; skipping reverse entry.")
             return JSONResponse({"status": "flatten_in_progress"}, status_code=202)
+        
+        # ---------- max-open-trades cap (blocks new entries only) ----------
+        cap = get_max_open_trades(firebase_db, symbol)
+        open_count = get_open_count(firebase_db, symbol)
+        print(f"[CAP] Current cap={cap}, open_count={open_count}")
+        if open_count >= cap:
+            record_cap_block(firebase_db, symbol, cap, open_count)
+            msg = {"status": "blocked", "reason": "max_open_trades", "cap": cap, "open_count": open_count}
+            print(f"[CAP] Blocked new entry for {symbol}: open_count={open_count} cap={cap}")
+            log_to_file(f"[CAP] Blocked new entry for {symbol}: open_count={open_count} cap={cap}")
+            return JSONResponse(msg, status_code=202)
 
     # ---------- place entry ----------
     print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
