@@ -14,7 +14,7 @@ from firebase_admin import credentials, initialize_app, db
 import os
 import time
 from typing import Optional
-
+import datetime as dt
 
 grace_cache = {}
 _logged_order_ids = set()
@@ -44,6 +44,38 @@ config = TigerOpenClientConfig()
 client = TradeClient(config)
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
+
+# ==================================================
+# 🟩 Helper: Time helpers ===
+# ==================================================
+
+def _safe_iso(val) -> str:
+    """
+    Return a UTC ISO8601 string like 'YYYY-MM-DDTHH:MM:SS.sssZ'
+    Accepts: ISO string (naive or tz), epoch (ms/sec), or None.
+    """
+    try:
+        # epoch?
+        if isinstance(val, (int, float)):
+            ts = float(val)
+            if ts > 1e12:  # ms -> sec
+                ts /= 1000.0
+            d = dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc)
+            return d.isoformat().replace("+00:00", "Z")
+
+        s = (str(val) or "").strip()
+        if not s:
+            raise ValueError("empty")
+
+        if s.endswith("Z"):
+            return s  # already UTC ISO
+
+        d = dt.datetime.fromisoformat(s)
+        d = d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
+        return d.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    except Exception:
+        d = dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc)
+        return d.isoformat().replace("+00:00", "Z")
 
 # ==================================================
 # 🟩 Helper: Map Source, Get exit reason helpers ===
