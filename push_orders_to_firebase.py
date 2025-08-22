@@ -263,17 +263,18 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
-            # ✅ FAST-LANE for Tiger Desktop fills (exact source match): create entry or exit ticket, then continue
+            # ✅ Unified manual trades (desktop/desktop-mac FILLED): classify by net, then handle
             raw_st    = getattr(order, "status", "")
             status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
             source_lc = str(getattr(order, "source", "")).lower()
 
-            if source_lc in ("desktop", "desktop-mac") and status_up == "FILLED":
+            is_manual = (status_up == "FILLED") and (source_lc in ("desktop", "desktop-mac"))
+            if is_manual:
                 man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
                 man_sym = getattr(order, "symbol", "") or active_symbol
                 if man_oid and man_sym:
                     qty  = int(getattr(order, "filled", None) or getattr(order, "quantity", 1) or 1)
-                    side = (str(getattr(order, "action", "") or "")).upper()  # BUY / SELL
+                    side = (getattr(order, "action", "") or "").upper()  # BUY / SELL
                     px   = (getattr(order, "avg_fill_price", None)
                             or getattr(order, "filled_price", None)
                             or getattr(order, "latest_price", None) or 0.0)
@@ -282,11 +283,14 @@ def push_orders_main():
                             or getattr(order, "order_time", None))
                     iso  = _safe_iso(ts)
 
-                    # Read current net position to classify as entry vs close
-                    net_before = int(firebase_db.reference(f"/live_positions/{man_sym}/net_qty").get() or 0)
-                    delta      = qty if side == "BUY" else -qty
-                    net_after  = net_before + delta
-                    is_entry   = (abs(net_after) > abs(net_before)) or (net_before == 0)
+                    # read current net position (entry vs close decision)
+                    net_before = firebase_db.reference(f"/live_positions/{man_sym}/net_qty").get() or 0
+                    delta = qty if side == "BUY" else -qty
+                    net_after = int(net_before) + delta
+                    is_entry = (abs(net_after) > abs(int(net_before))) or (int(net_before) == 0)
+
+                    print(f"[MANUAL-DECIDE] oid={man_oid} sym={man_sym} src={source_lc} side={side} "
+                        f"qty={qty} px={px} net_before={net_before} net_after={net_after} is_entry={is_entry}")
 
                     if is_entry:
                         node = firebase_db.reference(f"/open_active_trades/{man_sym}/{man_oid}")
@@ -300,7 +304,9 @@ def push_orders_main():
                                 "filled": True,
                                 "status": "open",
                                 "contracts_remaining": qty,
-                                "exited": False
+                                "exited": False,
+                                "origin": "manual",
+                                "ingest": "push_orders_main"
                             })
                             print(f"[MANUAL-ENTRY] {man_sym} {side} x{qty} @ {px} → open_active_trades/{man_oid}")
                     else:
@@ -311,15 +317,16 @@ def push_orders_main():
                                 "order_id": man_oid,
                                 "trade_type": "EXIT",
                                 "symbol": man_sym,
-                                "action": side,  # SELL closes long; BUY covers short
+                                "action": side,
                                 "quantity": qty,
                                 "filled_price": float(px),
                                 "transaction_time": iso,
                                 "exit_reason": "manual_close",
-                                "_processed": False
+                                "_processed": False,
+                                "origin": "manual"
                             })
                             print(f"[MANUAL-EXIT] {man_sym} {side} x{qty} @ {px} → exit_orders_log/{man_oid}")
-                # Important: stop further processing for this order
+                # critical: stop here so we don't fall into later branches
                 continue
 
             # ===================== Check if order ID is already processed and filter out ====================
