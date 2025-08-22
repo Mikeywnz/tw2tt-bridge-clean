@@ -263,42 +263,30 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
-            # ✅ Unified manual trades (desktop/desktop-mac FILLED): classify by net position, then handle
+            # ✅ FAST-LANE for Tiger Desktop fills (exact source match): create entry or exit ticket, then continue
             raw_st    = getattr(order, "status", "")
             status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
             source_lc = str(getattr(order, "source", "")).lower()
 
-            # Treat SUCCESS as FILLED as well (Tiger sometimes returns OrderStatus.SUCCESS)
-            filled_like = status_up in {"FILLED", "SUCCESS"}
-            is_manual_src = (source_lc.startswith("desktop") or "desktop-mac" in source_lc or "desktop-win" in source_lc)
-
-            print(f"[MANUAL-CHECK] id={getattr(order,'id',None)} src={source_lc} status={status_up} "
-                f"is_open={getattr(order,'is_open',None)} filled={getattr(order,'filled',None)}")
-
-            is_manual = is_manual_src and filled_like
-            if is_manual:
+            if source_lc in ("desktop", "desktop-mac") and status_up == "FILLED":
                 man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
                 man_sym = getattr(order, "symbol", "") or active_symbol
                 if man_oid and man_sym:
-                    qty   = int(getattr(order, "filled", None) or getattr(order, "quantity", 1) or 1)
-                    side  = str(getattr(order, "action", "") or "").upper()  # BUY / SELL
-                    px    = (getattr(order, "avg_fill_price", None)
+                    qty  = int(getattr(order, "filled", None) or getattr(order, "quantity", 1) or 1)
+                    side = (str(getattr(order, "action", "") or "")).upper()  # BUY / SELL
+                    px   = (getattr(order, "avg_fill_price", None)
                             or getattr(order, "filled_price", None)
                             or getattr(order, "latest_price", None) or 0.0)
-                    ts    = (getattr(order, "update_time", None)
+                    ts   = (getattr(order, "update_time", None)
                             or getattr(order, "trade_time", None)
                             or getattr(order, "order_time", None))
-                    iso   = _safe_iso(ts)
+                    iso  = _safe_iso(ts)
 
-                    # read current net position (entry vs close decision)
-                    net_ref    = firebase_db.reference(f"/live_positions/{man_sym}/net_qty")
-                    net_before = int(net_ref.get() or 0)
+                    # Read current net position to classify as entry vs close
+                    net_before = int(firebase_db.reference(f"/live_positions/{man_sym}/net_qty").get() or 0)
                     delta      = qty if side == "BUY" else -qty
                     net_after  = net_before + delta
                     is_entry   = (abs(net_after) > abs(net_before)) or (net_before == 0)
-
-                    print(f"[MANUAL-CLASSIFY] oid={man_oid} side={side} qty={qty} px={px} "
-                        f"net_before={net_before} net_after={net_after} is_entry={is_entry}")
 
                     if is_entry:
                         node = firebase_db.reference(f"/open_active_trades/{man_sym}/{man_oid}")
@@ -306,7 +294,7 @@ def push_orders_main():
                             node.set({
                                 "order_id": man_oid,
                                 "symbol": man_sym,
-                                "action": side,                # BUY = long entry, SELL = short entry
+                                "action": side,
                                 "filled_price": float(px),
                                 "entry_timestamp": iso,
                                 "filled": True,
@@ -323,7 +311,7 @@ def push_orders_main():
                                 "order_id": man_oid,
                                 "trade_type": "EXIT",
                                 "symbol": man_sym,
-                                "action": side,                # SELL closes long; BUY covers short
+                                "action": side,  # SELL closes long; BUY covers short
                                 "quantity": qty,
                                 "filled_price": float(px),
                                 "transaction_time": iso,
@@ -331,7 +319,7 @@ def push_orders_main():
                                 "_processed": False
                             })
                             print(f"[MANUAL-EXIT] {man_sym} {side} x{qty} @ {px} → exit_orders_log/{man_oid}")
-                # IMPORTANT: do not fall through to the generic FILLED skip
+                # Important: stop further processing for this order
                 continue
 
             # ===================== Check if order ID is already processed and filter out ====================
@@ -381,12 +369,10 @@ def push_orders_main():
 
             #==========================================================================================
             #Temp manual override for test (keep if works)
-            if status_up == "FILLED":
-                if source_lc in ("desktop", "desktop-mac"):
-                    print(f"[MANUAL-CHECK-PASS] letting {source_lc.upper()} FILLED {order_id} through")
-                else:
-                    print(f"⏭️ Skipping FILLED order {order_id} for {symbol}")
-                    continue
+            # 🚫 Hard rule: never accept Tiger orders whose status is FILLED — EXCEPT desktop sources
+            if status == "FILLED" and source_lc not in ("desktop", "desktop-mac"):
+                print(f"⏭️ Skipping FILLED order {order_id} for {active_symbol}")
+                continue
             #==========================================================================================
 
                         # ===== NO-MAN'S-LAND GUARD: treat truly closed orders as closed, not opens =====
