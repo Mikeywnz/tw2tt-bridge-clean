@@ -229,7 +229,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
         # Pull a few fields (with safe fallbacks)
         entry_ts_iso = anchor.get("entry_timestamp") or exit_time
-        # Hardened exit time fallback (prevents invalid isoformat '')
+        # Fallback stays UTC; only convert for Sheets display
         exit_ts_iso  = (tx_dict.get("fill_time") or exit_time or datetime.utcnow().isoformat() + "Z")
 
         entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)
@@ -239,38 +239,40 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_off    = anchor.get("trail_offset", "")
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
 
-        # --- Always write NZ time to Sheets (robust to epoch/ISO; assume naive ISO is UTC) ---
-       
+        # --- Convert UTC → NZ time **only for Sheets** ---
         NZ_TZ = pytz.timezone("Pacific/Auckland")
 
         def to_nz_dt(val):
-            """Accepts epoch ms/sec or ISO (naive/with tz). Returns aware dt in NZ time."""
-            # numeric epoch?
+            """
+            Accepts epoch ms/sec or ISO (with 'Z' or naive).
+            Assumes ALL inputs are UTC; returns aware datetime in Pacific/Auckland.
+            """
+            # epoch?
             if isinstance(val, (int, float)):
                 ts = float(val)
-                if ts > 1e12:  # milliseconds
+                if ts > 1e12:  # ms -> sec
                     ts /= 1000.0
                 return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(NZ_TZ)
 
             s = (str(val) or "").strip()
             if not s:
+                # last-resort: "now" in UTC → NZ for display only
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
 
-            # ISO with explicit tz (Z or offset)
-            try:
-                if s.endswith("Z"):
+            # ISO with trailing Z
+            if s.endswith("Z"):
+                try:
                     return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
-                if "+" in s[10:] or "-" in s[10:]:
-                    return datetime.fromisoformat(s).astimezone(NZ_TZ)
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
-            # Naive ISO: **assume UTC**, then convert to NZ
+            # ISO naive → treat as UTC
             try:
-                dt_naive = datetime.fromisoformat(s.replace("T", " ").split(".")[0])
-                return dt_naive.replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
+                # strip fractional seconds if present for robustness
+                base = s.replace("T", " ").split(".")[0]
+                return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
             except Exception:
-                # Last resort: treat as UTC "now"
+                # final fallback
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
 
         entry_dt = to_nz_dt(entry_ts_iso)
@@ -297,19 +299,30 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
         # --- Source normalization per your labels ---
         def normalize_source(anchor_src, ticket_src, is_liq_flag):
-            cand = anchor_src or ticket_src
-            if is_liq_flag and not cand:
+            """
+            Rules:
+            - Any liquidation → "Tiger Trade"
+            - Tiger desktop (exactly "desktop" or "desktop-mac") → "Tiger Desktop"
+            - Tiger mobile (contains "mobile") → "Tiger Mobile"
+            - Anything else (incl. openapi/unknown/empty) → "OpGo"
+            """
+            raw = (anchor_src or ticket_src or "").strip()
+            s = raw.lower()
+
+            # 1) Explicit liquidation channel or flag
+            if is_liq_flag or "liquidation" in s:
                 return "Tiger Trade"
-            s = (str(cand or "")).lower()
-            if "openapi" in s or "opgo" in s:
-                return "OpGo"
-            if "desktop" in s:
+
+            # 2) Exact desktop identifiers from Tiger
+            if s in ("desktop", "desktop-mac"):
                 return "Tiger Desktop"
+
+            # 3) Mobile app
             if "mobile" in s:
                 return "Tiger Mobile"
-            if "liquidation" in s or "tiger" in s:
-                return "Tiger Trade"
-            return "unknown"
+
+            # 4) Default everything else (incl. openapi/unknown) to your system label
+            return "OpGo"
 
         source_val = normalize_source(anchor.get("source"), tx_dict.get("source"), is_liq)
 
