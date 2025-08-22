@@ -45,19 +45,6 @@ client = TradeClient(config)
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
 # ==================================================
-# 🟩 Helper: Manual Trade helpers ===
-# ==================================================
-def _is_manual(order) -> bool:
-    src = str(getattr(order, "source", "")).lower()
-    st  = getattr(order, "status", None)
-    return src.startswith("desktop") and ((st == OrderStatus.FILLED) or (str(st).upper() == "FILLED"))
-
-def _is_entry_by_net(side: str, qty: int, net_before: int) -> bool:
-    delta = qty if side == "BUY" else -qty
-    net_after = int(net_before or 0) + delta
-    return (abs(net_after) > abs(int(net_before or 0))) or (int(net_before or 0) == 0)
-
-# ==================================================
 # 🟩 Helper: Time helpers ===
 # ==================================================
 
@@ -88,19 +75,6 @@ def _safe_iso(val) -> str:
     except Exception:
         d = dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc)
         return d.isoformat().replace("+00:00", "Z")
-
-
-def _ms_to_utc_iso(ms: Optional[int]) -> str:
-    """
-    Convert epoch milliseconds → UTC ISO string with Z suffix.
-    Example: 1755826083000 → '2025-08-21T01:28:03Z'
-    """
-    try:
-        if ms is None:
-            raise ValueError("None timestamp")
-        return datetime.fromtimestamp(ms / 1000.0, tz=dt_timezone.utc).isoformat().replace("+00:00", "Z")
-    except Exception:
-        return datetime.utcnow().replace(tzinfo=dt_timezone.utc).isoformat().replace("+00:00", "Z")
 
 # ==================================================
 # 🟩 Helper: Map Source, Get exit reason helpers ===
@@ -289,9 +263,10 @@ def push_orders_main():
                 continue
 
             # ✅ Unified manual trades (desktop FILLED): classify by net position, then handle
-            src = str(getattr(order, "source", "")).lower()
-            raw_st = getattr(order, "status", None)
-            is_manual = src.startswith("desktop") and ((raw_st == OrderStatus.FILLED) or (str(raw_st).upper() == "FILLED"))
+            raw_st = getattr(order, "status", "")
+            status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
+            source_lc = str(getattr(order, "source", "")).lower()
+            is_manual = source_lc.startswith("desktop") and status_up == "FILLED"
             if is_manual:
                 man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
                 man_sym = getattr(order, "symbol", "") or active_symbol
