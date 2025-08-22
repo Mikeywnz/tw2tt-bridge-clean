@@ -518,16 +518,32 @@ def push_orders_main():
         try:
             existing_trade = ref.get() or {}
 
-            # ⛔ MERGE-ONLY: if nothing exists already, do NOT create a new record here
-            if not existing_trade:
-                print(f"⏭️ Merge-only: skipping new order {order_id} (no existing open trade in Firebase)")
-                continue
+            # 🎯 Exception: allow CREATE for manual desktop entries only
+            source_lc = str(getattr(order, "source", "")).lower()
+            raw_st    = getattr(order, "status", None)
+            status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
+            is_manual_entry = (
+                source_lc.startswith("desktop")
+                and status_up == "FILLED"
+                and bool(getattr(order, "is_open", False)) is True
+                and (getattr(order, "filled", 0) or 0) > 0
+            )
 
-            merged_trade = {**existing_trade, **payload}
-            ref.update(merged_trade)
-            print(f"✅ Merged into existing open trade {order_id}")
+            if not existing_trade:
+                if is_manual_entry:
+                    # payload should already be built above; it must include order_id/symbol/action/filled_price/entry_timestamp etc.
+                    ref.set(payload)
+                    print(f"[MANUAL-ENTRY] Created open trade {order_id} for {symbol} via desktop FILLED.")
+                else:
+                    print(f"⏭️ Merge-only: skipping new order {order_id} (no existing open trade in Firebase)")
+                    continue
+            else:
+                merged_trade = {**existing_trade, **payload}
+                ref.update(merged_trade)
+                print(f"✅ Merged into existing open trade {order_id}")
+
         except Exception as e:
-            print(f"❌ Failed to update /open_active_trades/{symbol}/{order_id}: {e}")
+            print(f"❌ Failed to upsert /open_active_trades/{symbol}/{order_id}: {e}")
 
         
             # ===========🟩 Skip if trade already archived ghost or Zombie and cached in the new run coming up=====================
