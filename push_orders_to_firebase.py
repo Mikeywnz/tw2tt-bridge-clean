@@ -357,11 +357,24 @@ def push_orders_main():
             is_open = getattr(order, "is_open", False)
             exit_reason_raw = get_exit_reason(status, raw_reason, filled, is_open)
 
+            #==========================================================================================
             # 🚫 Hard rule: never accept Tiger orders whose status is FILLED.
             # (Prevents exit fills & historical fills from reappearing as new opens.)
-            if status == "FILLED":
-                print(f"⏭️ Skipping FILLED order {order_id} for {active_symbol}")
-                continue
+            #SUPER IMPOART CODE THAT STOP OPEN ORDERS GETTING FILLED WITH JUNK ++ TEMPEORY REPLACEMENT 
+            #if status == "FILLED":
+            #    print(f"⏭️ Skipping FILLED order {order_id} for {active_symbol}")
+            #    continue
+            #==========================================================================================
+
+            #==========================================================================================
+            #Temp manual override for test (keep if works)
+            if status_up == "FILLED":
+                if source_lc.startswith("desktop"):
+                    print(f"[MANUAL-CHECK-PASS] letting desktop FILLED {order_id} through")
+                else:
+                    print(f"⏭️ Skipping FILLED order {order_id} for {symbol}")
+                    continue
+            #==========================================================================================
 
                         # ===== NO-MAN'S-LAND GUARD: treat truly closed orders as closed, not opens =====
             status_up = str(getattr(order, 'status', '')).split('.')[-1].upper()
@@ -529,11 +542,14 @@ def push_orders_main():
                 and (getattr(order, "filled", 0) or 0) > 0
             )
 
+            # 🔎 Debugs for manual path
+            print(f"[MANUAL-CHECK] oid={order_id}, sym={symbol}, source={source_lc}, status={status_up}, is_manual_entry={is_manual_entry}")
+
             if not existing_trade:
                 if is_manual_entry:
                     # payload should already be built above; it must include order_id/symbol/action/filled_price/entry_timestamp etc.
                     ref.set(payload)
-                    print(f"[MANUAL-ENTRY] Created open trade {order_id} for {symbol} via desktop FILLED.")
+                    print(f"[MANUAL-ENTRY] Created open trade {order_id} for {symbol} via desktop FILLED → payload={json.dumps(payload)}")
                 else:
                     print(f"⏭️ Merge-only: skipping new order {order_id} (no existing open trade in Firebase)")
                     continue
