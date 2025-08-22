@@ -1,21 +1,21 @@
 # ========================= MONITOR_TRADES_LOOP - Segment 1 ================================
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
-import time
-from datetime import datetime, timezone, timedelta
 import requests
 import subprocess
 import firebase_active_contract
 import os
 from execute_trade_live import place_exit_trade
-from pytz import timezone
 import pprint
 from fifo_close import handle_exit_fill_from_tx
 from collections import defaultdict
+import time
+from datetime import datetime, timezone as dt_timezone, timedelta
+from pytz import timezone as pytz_timezone
 
 
 
-NZ_TZ = timezone("Pacific/Auckland")
+NZ_TZ = pytz_timezone("Pacific/Auckland")
 processed_exit_order_ids = set()
 last_cleanup_timestamp = None
 
@@ -75,9 +75,9 @@ def _iso_to_utc(s: str):
     try:
         s = (s or "").strip().replace("T", " ").replace("Z", "")
         dt = datetime.fromisoformat(s)
-        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=dt_timezone.utc) if dt.tzinfo is None else dt.astimezone(dt_timezone.utc)
     except Exception:
-        return datetime.max.replace(tzinfo=timezone.utc)
+        return datetime.max.replace(tzinfo=dt_timezone.utc)
     
 # =========================================
 # 🟩 HELPER: Load Live Prices from Firebase
@@ -173,9 +173,9 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
         try:
             dt = datetime.fromisoformat(s)
         except Exception:
-            return datetime.min.replace(tzinfo=timezone.utc)
+            return datetime.min.replace(tzinfo=dt_timezone.utc)
         # treat naive as UTC
-        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=dt_timezone.utc) if dt.tzinfo is None else dt.astimezone(dt_timezone.utc)
 
     try:
         # 1) Build fresh payload from provided trades
@@ -195,7 +195,7 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
 
         # 2) Load existing to apply short grace for very-new trades
         existing = ref.get() or {}
-        now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+        now_utc = datetime.utcnow().replace(tzinfo=dt_timezone.utc)
         cutoff = now_utc - timedelta(seconds=grace_seconds)
 
         # Keep any existing recent trade not present in `fresh`
