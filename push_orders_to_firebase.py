@@ -4,7 +4,7 @@ from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType, OrderStatus  # ✅ correct on Render!
 import random
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from pytz import timezone
 import requests
 import json
@@ -14,7 +14,6 @@ from firebase_admin import credentials, initialize_app, db
 import os
 import time
 from typing import Optional
-import datetime as dt
 
 grace_cache = {}
 _logged_order_ids = set()
@@ -76,6 +75,19 @@ def _safe_iso(val) -> str:
     except Exception:
         d = dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc)
         return d.isoformat().replace("+00:00", "Z")
+
+
+def _ms_to_utc_iso(ms: Optional[int]) -> str:
+    """
+    Convert epoch milliseconds → UTC ISO string with Z suffix.
+    Example: 1755826083000 → '2025-08-21T01:28:03Z'
+    """
+    try:
+        if ms is None:
+            raise ValueError("None timestamp")
+        return datetime.fromtimestamp(ms / 1000.0, tz=dt_timezone.utc).isoformat().replace("+00:00", "Z")
+    except Exception:
+        return datetime.utcnow().replace(tzinfo=dt_timezone.utc).isoformat().replace("+00:00", "Z")
 
 # ==================================================
 # 🟩 Helper: Map Source, Get exit reason helpers ===
@@ -263,6 +275,64 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
+            # ✅ Route Tiger manual closes (desktop / manual orders) as exit tickets
+            if str(getattr(order, "source", "")).startswith("desktop") and str(getattr(order, "status", "")).upper() == "FILLED":
+                man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
+                man_px  = (getattr(order, "avg_fill_price", None)
+                        or getattr(order, "filled_price", None)
+                        or getattr(order, "latest_price", None)
+                        or 0.0)
+                man_ts  = (getattr(order, "update_time", None)
+                        or getattr(order, "trade_time", None)
+                        or getattr(order, "order_time", None))
+                man_iso = _safe_iso(man_ts)
+                man_side = str(getattr(order, "action", "") or "").upper()
+                man_sym  = getattr(order, "symbol", "") or active_symbol
+
+                firebase_db.reference(f"/exit_orders_log/{man_oid}").set({
+                    "order_id": man_oid,
+                    "symbol": man_sym,
+                    "action": man_side,
+                    "filled_price": float(man_px),
+                    "filled_qty": int(getattr(order, "quantity", 1) or 1),
+                    "fill_time": man_iso,
+                    "status": "MANUAL_CLOSE",
+                    "trade_type": "EXIT"
+                })
+                print(f"[MANUAL] Queued manual close as exit ticket {man_oid} for {man_sym} at {man_px}")
+                continue
+
+            # ✅ Route Tiger manual ENTRIES (desktop) straight into open_active_trades
+            if str(getattr(order, "source", "")).startswith("desktop") \
+               and str(getattr(order, "status", "")).upper() == "FILLED" \
+               and bool(getattr(order, "is_open", False)) is True \
+               and (getattr(order, "filled", 0) or 0) > 0:
+                ent_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
+                ent_sym = getattr(order, "symbol", "") or active_symbol
+                if ent_oid and ent_sym:
+                    node = firebase_db.reference(f"/open_active_trades/{ent_sym}/{ent_oid}")
+                    if not (node.get() or {}):  # don’t clobber if it already exists
+                        ent_px  = (getattr(order, "avg_fill_price", None)
+                                   or getattr(order, "filled_price", None)
+                                   or getattr(order, "latest_price", None) or 0.0)
+                        ent_ts  = (getattr(order, "trade_time", None)
+                                   or getattr(order, "update_time", None)
+                                   or getattr(order, "order_time", None))
+                        payload = {
+                            "order_id": ent_oid,
+                            "symbol": ent_sym,
+                            "action": str(getattr(order, "action", "")).upper(),  # BUY/SELL
+                            "filled_price": float(ent_px),
+                            "entry_timestamp": _safe_iso(ent_ts),
+                            "filled": True,
+                            "status": "open",
+                            "contracts_remaining": int(getattr(order, "filled", 1) or 1),
+                            "exited": False
+                        }
+                        node.set(payload)
+                        print(f"[MANUAL-ENTRY] Added {ent_sym} {payload['action']} to open_active_trades as {ent_oid}")
+                continue
+
             # ===================== Check if order ID is already processed and filter out ====================
 
             if not order_id:
@@ -332,13 +402,6 @@ def push_orders_main():
                     "trade_state":     "closed",
                 }
 
-                # Optional: your Sheets hook if you want it for closed orders
-                try:
-                    log_payload_as_closed_trade(closed_payload)
-                    print(f"✅ Logged closed trade {order_id} to Sheets (No-Man's-Land)")
-                except Exception as e:
-                    print(f"⚠️ Sheets log failed for closed trade {order_id}: {e}")
-
                 try:
                     firebase_db.reference(f"/archived_trades_log/{order_id}").set(closed_payload)
                     print(f"🗄️ Archived closed trade {order_id} to /archived_trades_log")
@@ -347,7 +410,6 @@ def push_orders_main():
 
                 print(f"⚠️ Skipping closed trade {order_id} for open_active_trades push")
                 continue
-            # ===== END NO-MAN'S-LAND GUARD =====
 
             # 🧱 GHOST GATE — EXPIRED / CANCELLED / LACK_OF_MARGIN
             ghost_statuses = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
