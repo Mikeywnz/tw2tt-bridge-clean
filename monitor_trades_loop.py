@@ -11,11 +11,8 @@ from fifo_close import handle_exit_fill_from_tx
 from collections import defaultdict
 import time
 from datetime import datetime, timezone as dt_timezone, timedelta
-from pytz import timezone as pytz_timezone
+# (UTC-only) — removed NZ local timezone usage
 
-
-
-NZ_TZ = pytz_timezone("Pacific/Auckland")
 processed_exit_order_ids = set()
 last_cleanup_timestamp = None
 
@@ -68,17 +65,18 @@ REASON_MAP = {
 }
 
 # =========================================
-# 🟩 HELPER: TimeZone conversion helper
+# 🟩 HELPER: Time parsing (UTC-only)
 # =========================================
 
 def _iso_to_utc(s: str):
+    """Parse ISO8601-ish string to UTC-aware datetime; tolerant; returns far-future on error for min() use."""
     try:
         s = (s or "").strip().replace("T", " ").replace("Z", "")
         dt = datetime.fromisoformat(s)
         return dt.replace(tzinfo=dt_timezone.utc) if dt.tzinfo is None else dt.astimezone(dt_timezone.utc)
     except Exception:
         return datetime.max.replace(tzinfo=dt_timezone.utc)
-    
+
 # =========================================
 # 🟩 HELPER: Load Live Prices from Firebase
 # =========================================
@@ -195,7 +193,7 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
 
         # 2) Load existing to apply short grace for very-new trades
         existing = ref.get() or {}
-        now_utc = datetime.utcnow().replace(tzinfo=dt_timezone.utc)
+        now_utc = datetime.now(dt_timezone.utc)
         cutoff = now_utc - timedelta(seconds=grace_seconds)
 
         # Keep any existing recent trade not present in `fresh`
@@ -569,7 +567,6 @@ def monitor_trades():
         HANDOFF_PAUSE_SEC = 2.0
 
         # ---- state across loops
-        import time
         if not hasattr(monitor_trades, "_last_anchor_id"):
             monitor_trades._last_anchor_id = None
         if not hasattr(monitor_trades, "_handoff_clear_at"):
@@ -725,7 +722,6 @@ def monitor_trades():
 zombie_first_seen = {}
 
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90):
-    import time
     now = time.time()
     open_trades_ref   = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
