@@ -45,6 +45,19 @@ client = TradeClient(config)
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
 # ==================================================
+# 🟩 Helper: Manual Trade helpers ===
+# ==================================================
+def _is_manual(order) -> bool:
+    src = str(getattr(order, "source", "")).lower()
+    st  = getattr(order, "status", None)
+    return src.startswith("desktop") and ((st == OrderStatus.FILLED) or (str(st).upper() == "FILLED"))
+
+def _is_entry_by_net(side: str, qty: int, net_before: int) -> bool:
+    delta = qty if side == "BUY" else -qty
+    net_after = int(net_before or 0) + delta
+    return (abs(net_after) > abs(int(net_before or 0))) or (int(net_before or 0) == 0)
+
+# ==================================================
 # 🟩 Helper: Time helpers ===
 # ==================================================
 
@@ -275,63 +288,62 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
-            # ✅ Route Tiger manual closes (desktop / manual orders) as exit tickets
-            if str(getattr(order, "source", "")).startswith("desktop") and str(getattr(order, "status", "")).upper() == "FILLED":
+            # ✅ Unified manual trades (desktop FILLED): classify by net position, then handle
+            src = str(getattr(order, "source", "")).lower()
+            raw_st = getattr(order, "status", None)
+            is_manual = src.startswith("desktop") and ((raw_st == OrderStatus.FILLED) or (str(raw_st).upper() == "FILLED"))
+            if is_manual:
                 man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
-                man_px  = (getattr(order, "avg_fill_price", None)
-                        or getattr(order, "filled_price", None)
-                        or getattr(order, "latest_price", None)
-                        or 0.0)
-                man_ts  = (getattr(order, "update_time", None)
-                        or getattr(order, "trade_time", None)
-                        or getattr(order, "order_time", None))
-                man_iso = _safe_iso(man_ts)
-                man_side = str(getattr(order, "action", "") or "").upper()
-                man_sym  = getattr(order, "symbol", "") or active_symbol
+                man_sym = getattr(order, "symbol", "") or active_symbol
+                if man_oid and man_sym:
+                    qty   = int(getattr(order, "filled", None) or getattr(order, "quantity", 1) or 1)
+                    side  = str(getattr(order, "action", "") or "").upper()  # BUY / SELL
+                    px    = (getattr(order, "avg_fill_price", None)
+                            or getattr(order, "filled_price", None)
+                            or getattr(order, "latest_price", None) or 0.0)
+                    ts    = (getattr(order, "update_time", None)
+                            or getattr(order, "trade_time", None)
+                            or getattr(order, "order_time", None))
+                    iso   = _safe_iso(ts)
 
-                firebase_db.reference(f"/exit_orders_log/{man_oid}").set({
-                    "order_id": man_oid,
-                    "symbol": man_sym,
-                    "action": man_side,
-                    "filled_price": float(man_px),
-                    "filled_qty": int(getattr(order, "quantity", 1) or 1),
-                    "fill_time": man_iso,
-                    "status": "MANUAL_CLOSE",
-                    "trade_type": "EXIT"
-                })
-                print(f"[MANUAL] Queued manual close as exit ticket {man_oid} for {man_sym} at {man_px}")
-                continue
+                    # read current net position (entry vs close decision)
+                    net_before = firebase_db.reference(f"/live_positions/{man_sym}/net_qty").get() or 0
+                    delta = qty if side == "BUY" else -qty
+                    net_after = int(net_before) + delta
+                    is_entry = (abs(net_after) > abs(int(net_before))) or (int(net_before) == 0)
 
-            # ✅ Route Tiger manual ENTRIES (desktop) straight into open_active_trades
-            if str(getattr(order, "source", "")).startswith("desktop") \
-               and str(getattr(order, "status", "")).upper() == "FILLED" \
-               and bool(getattr(order, "is_open", False)) is True \
-               and (getattr(order, "filled", 0) or 0) > 0:
-                ent_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
-                ent_sym = getattr(order, "symbol", "") or active_symbol
-                if ent_oid and ent_sym:
-                    node = firebase_db.reference(f"/open_active_trades/{ent_sym}/{ent_oid}")
-                    if not (node.get() or {}):  # don’t clobber if it already exists
-                        ent_px  = (getattr(order, "avg_fill_price", None)
-                                   or getattr(order, "filled_price", None)
-                                   or getattr(order, "latest_price", None) or 0.0)
-                        ent_ts  = (getattr(order, "trade_time", None)
-                                   or getattr(order, "update_time", None)
-                                   or getattr(order, "order_time", None))
-                        payload = {
-                            "order_id": ent_oid,
-                            "symbol": ent_sym,
-                            "action": str(getattr(order, "action", "")).upper(),  # BUY/SELL
-                            "filled_price": float(ent_px),
-                            "entry_timestamp": _safe_iso(ent_ts),
-                            "filled": True,
-                            "status": "open",
-                            "contracts_remaining": int(getattr(order, "filled", 1) or 1),
-                            "exited": False
-                        }
-                        node.set(payload)
-                        print(f"[MANUAL-ENTRY] Added {ent_sym} {payload['action']} to open_active_trades as {ent_oid}")
-                continue
+                    if is_entry:
+                        node = firebase_db.reference(f"/open_active_trades/{man_sym}/{man_oid}")
+                        if not (node.get() or {}):
+                            node.set({
+                                "order_id": man_oid,
+                                "symbol": man_sym,
+                                "action": side,                # BUY = long entry, SELL = short entry
+                                "filled_price": float(px),
+                                "entry_timestamp": iso,
+                                "filled": True,
+                                "status": "open",
+                                "contracts_remaining": qty,
+                                "exited": False
+                            })
+                            print(f"[MANUAL-ENTRY] {man_sym} {side} x{qty} @ {px} → open_active_trades/{man_oid}")
+                    else:
+                        ticket = firebase_db.reference(f"/exit_orders_log/{man_oid}")
+                        if not (ticket.get() or {}):
+                            ticket.set({
+                                "status": "SUCCESS",
+                                "order_id": man_oid,
+                                "trade_type": "EXIT",
+                                "symbol": man_sym,
+                                "action": side,                # SELL closes long; BUY covers short
+                                "quantity": qty,
+                                "filled_price": float(px),
+                                "transaction_time": iso,
+                                "exit_reason": "manual_close",
+                                "_processed": False
+                            })
+                            print(f"[MANUAL-EXIT] {man_sym} {side} x{qty} @ {px} → exit_orders_log/{man_oid}")
+                continue  # keep this to avoid falling into the FILLED-skip
 
             # ===================== Check if order ID is already processed and filter out ====================
 
