@@ -2,6 +2,7 @@ import sys
 from datetime import datetime, timezone
 import gspread
 from google.oauth2.service_account import Credentials
+import pytz
 
 
 # ====================================================
@@ -239,8 +240,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
 
         # --- Always write NZ time to Sheets (robust to epoch/ISO; assume naive ISO is UTC) ---
-        from datetime import datetime, timezone
-        import pytz
+       
         NZ_TZ = pytz.timezone("Pacific/Auckland")
 
         def to_nz_dt(val):
