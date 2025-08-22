@@ -657,14 +657,20 @@ def monitor_trades():
         print("⏭️ No open anchors; skipping exit ticket drain this loop.")
     else:
 
-        # 🔽 EXIT LOGIC: drain exit tickets
+       # 🔽 EXIT LOGIC: drain (sorted, one per loop, immediate local delete)
         try:
             tickets_ref = firebase_db.reference("/exit_orders_log")
-            tickets = tickets_ref.get() or {}
-            for tx_id, tx in tickets.items():
-                if not isinstance(tx, dict):
-                    continue
-                if tx.get("_processed"):
+            open_ref    = firebase_db.reference(f"/open_active_trades/{symbol}")
+            tickets     = tickets_ref.get() or {}
+
+            # Oldest first by fill_time/transaction_time
+            items = sorted(
+                tickets.items(),
+                key=lambda kv: _iso_to_utc((kv[1] or {}).get("fill_time") or (kv[1] or {}).get("transaction_time") or "")
+            )
+
+            for tx_id, tx in items:
+                if not isinstance(tx, dict) or tx.get("_processed"):
                     continue
 
                 if not tx.get("symbol"):
@@ -674,15 +680,20 @@ def monitor_trades():
 
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
 
+                # If we got an anchor_id back, hide it locally immediately to prevent double-FIFO in this loop
                 if isinstance(ok, str):
-                    closed_anchor_ids.add(ok)
+                    try:
+                        open_ref.child(ok).delete()
+                        closed_anchor_ids.add(ok)
+                        print(f"[LOCAL] Removed {ok} from open_active_trades (same-loop protection)")
+                    except Exception as e:
+                        print(f"[LOCAL] Could not delete {ok} locally: {e}")
 
-                if ok:
-                    tickets_ref.child(tx_id).update({"_processed": True})
-                    print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
-                else:
-                    tickets_ref.child(tx_id).update({"_processed": True, "_note": "auto-marked; no opens/malformed"})
-                    print(f"[WARN] Exit ticket {tx_id} auto-marked _processed (no opens/malformed)")
+                # Mark processed either way (matches prior behavior)
+                tickets_ref.child(tx_id).update({"_processed": True})
+                print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
+
+                break  # process only ONE ticket per loop
         except Exception as e:
             print(f"❌ Exit ticket drain error: {e}")
 
