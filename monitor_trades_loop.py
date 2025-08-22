@@ -719,45 +719,54 @@ def monitor_trades():
 # 🟩 GREEN PATCH: Invert Grace Period Logic for Stable Zero Position Detection
 # ============================================================================
 
+# =========================
+# 🟩 ZOMBIE CLEANUP — HARD MODE (no pauses, no ticket checks)
+# =========================
 zombie_first_seen = {}
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=95):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90):
+    import time
     now = time.time()
-    open_trades_ref = firebase_db.reference("/open_active_trades")
+    open_trades_ref   = firebase_db.reference("/open_active_trades")
     zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
 
-    for trade in trades_list:
-        order_id = trade.get("order_id")
-        symbol = trade.get("symbol", "UNKNOWN")
+    # Only run when we are truly flat; otherwise clear any timers
+    if position_count != 0:
+        if zombie_first_seen:
+            print("✅ Position not flat; clearing zombie timers.")
+            zombie_first_seen.clear()
+        return
 
-        # If we hold any position, clear timers and skip
-        if position_count != 0:
-            if order_id in zombie_first_seen:
-                print(f"✅ Trade {order_id} on {symbol} no longer zero global position; clearing timer")
-                zombie_first_seen.pop(order_id, None)
+    # Flat: arm/advance a per-trade timer and archive once grace elapses
+    for trade in trades_list or []:
+        oid = trade.get("order_id")
+        sym = trade.get("symbol", "UNKNOWN")
+        if not oid:
             continue
 
-        # Zero global position → start or advance timer
-        if order_id not in zombie_first_seen:
-            zombie_first_seen[order_id] = now
-            print(f"⏳ Started timer for trade {order_id} on {symbol} due to zero global position")
+        t0 = zombie_first_seen.get(oid)
+        if t0 is None:
+            zombie_first_seen[oid] = now
+            print(f"⏳ Started zombie timer for {oid} on {sym} (flat book)")
             continue
 
-        elapsed = now - zombie_first_seen[order_id]
-        if elapsed >= grace_period_seconds:
-            print(f"🧟 Archiving trade {order_id} on {symbol} as zombie after {elapsed:.1f}s global zero position")
+        elapsed = now - t0
+        if elapsed < grace_period_seconds:
+            continue
+
+        # Archive + delete from open_active_trades
+        try:
+            print(f"🧟 Archiving zombie {oid} on {sym} after {elapsed:.1f}s flat")
             trade['contracts_remaining'] = 0
             trade['trade_state'] = 'closed'
             trade['is_open'] = False
-
-            try:
-                zombie_trades_ref.child(order_id).set(trade)
-                open_trades_ref.child(symbol).child(order_id).delete()
-                print(f"🗑️ Deleted trade {order_id} from open_active_trades")
-            except Exception as e:
-                print(f"❌ Failed to archive/delete trade {order_id}: {e}")
-
-            zombie_first_seen.pop(order_id, None)
+            zombie_trades_ref.child(oid).set(trade)
+            open_trades_ref.child(sym).child(oid).delete()
+            print(f"🗑️ Deleted {oid} from open_active_trades")
+        except Exception as e:
+            print(f"❌ Failed to archive/delete {oid}: {e}")
+        finally:
+            zombie_first_seen.pop(oid, None)
 
 if __name__ == '__main__':
     while True:
