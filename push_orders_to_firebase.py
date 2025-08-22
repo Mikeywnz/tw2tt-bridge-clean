@@ -264,11 +264,18 @@ def push_orders_main():
                 continue
 
             # ✅ Unified manual trades (desktop/desktop-mac FILLED): classify by net position, then handle
-            raw_st = getattr(order, "status", "")
+            raw_st    = getattr(order, "status", "")
             status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
             source_lc = str(getattr(order, "source", "")).lower()
-            is_manual = (source_lc.startswith("desktop") or "desktop-mac" in source_lc) and status_up == "FILLED"
 
+            # Treat SUCCESS as FILLED as well (Tiger sometimes returns OrderStatus.SUCCESS)
+            filled_like = status_up in {"FILLED", "SUCCESS"}
+            is_manual_src = (source_lc.startswith("desktop") or "desktop-mac" in source_lc or "desktop-win" in source_lc)
+
+            print(f"[MANUAL-CHECK] id={getattr(order,'id',None)} src={source_lc} status={status_up} "
+                f"is_open={getattr(order,'is_open',None)} filled={getattr(order,'filled',None)}")
+
+            is_manual = is_manual_src and filled_like
             if is_manual:
                 man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
                 man_sym = getattr(order, "symbol", "") or active_symbol
@@ -284,10 +291,14 @@ def push_orders_main():
                     iso   = _safe_iso(ts)
 
                     # read current net position (entry vs close decision)
-                    net_before = firebase_db.reference(f"/live_positions/{man_sym}/net_qty").get() or 0
-                    delta = qty if side == "BUY" else -qty
-                    net_after = int(net_before) + delta
-                    is_entry = (abs(net_after) > abs(int(net_before))) or (int(net_before) == 0)
+                    net_ref    = firebase_db.reference(f"/live_positions/{man_sym}/net_qty")
+                    net_before = int(net_ref.get() or 0)
+                    delta      = qty if side == "BUY" else -qty
+                    net_after  = net_before + delta
+                    is_entry   = (abs(net_after) > abs(net_before)) or (net_before == 0)
+
+                    print(f"[MANUAL-CLASSIFY] oid={man_oid} side={side} qty={qty} px={px} "
+                        f"net_before={net_before} net_after={net_after} is_entry={is_entry}")
 
                     if is_entry:
                         node = firebase_db.reference(f"/open_active_trades/{man_sym}/{man_oid}")
@@ -320,7 +331,8 @@ def push_orders_main():
                                 "_processed": False
                             })
                             print(f"[MANUAL-EXIT] {man_sym} {side} x{qty} @ {px} → exit_orders_log/{man_oid}")
-                continue  # keep this to avoid falling into the FILLED-skip
+                # IMPORTANT: do not fall through to the generic FILLED skip
+                continue
 
             # ===================== Check if order ID is already processed and filter out ====================
 
@@ -370,8 +382,8 @@ def push_orders_main():
             #==========================================================================================
             #Temp manual override for test (keep if works)
             if status_up == "FILLED":
-                if source_lc.startswith("desktop"):
-                    print(f"[MANUAL-CHECK-PASS] letting desktop FILLED {order_id} through")
+                if source_lc in ("desktop", "desktop-mac"):
+                    print(f"[MANUAL-CHECK-PASS] letting {source_lc.upper()} FILLED {order_id} through")
                 else:
                     print(f"⏭️ Skipping FILLED order {order_id} for {symbol}")
                     continue
@@ -533,23 +545,23 @@ def push_orders_main():
             existing_trade = ref.get() or {}
 
             # 🎯 Exception: allow CREATE for manual desktop entries only
-            source_lc = str(getattr(order, "source", "")).lower()
             raw_st    = getattr(order, "status", None)
             status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
-            filled_qty = (getattr(order, "filled", 0) or 0)
+            source_lc = str(getattr(order, "source", "")).lower()
 
+            is_manual_src   = (source_lc.startswith("desktop") or "desktop-mac" in source_lc or "desktop-win" in source_lc)
+            filled_like     = status_up in {"FILLED", "SUCCESS"}
             is_manual_entry = (
-                (source_lc.startswith("desktop") or "desktop-mac" in source_lc)
-                and status_up == "FILLED"
+                is_manual_src
+                and filled_like
                 and bool(getattr(order, "is_open", False)) is True
-                and filled_qty > 0
+                and (getattr(order, "filled", 0) or 0) > 0
             )
 
             if not existing_trade:
                 if is_manual_entry:
-                    # payload should already be built above; it must include order_id/symbol/action/filled_price/entry_timestamp etc.
                     ref.set(payload)
-                    print(f"[MANUAL-ENTRY] Created open trade {order_id} for {symbol} via {source_lc} FILLED.")
+                    print(f"[MANUAL-ENTRY/UPSERT] Created open trade {order_id} for {symbol} via desktop FILLED.")
                 else:
                     print(f"⏭️ Merge-only: skipping new order {order_id} (no existing open trade in Firebase)")
                     continue
