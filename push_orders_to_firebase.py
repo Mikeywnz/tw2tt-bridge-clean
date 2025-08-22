@@ -263,11 +263,12 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
-            # ✅ Unified manual trades (desktop FILLED): classify by net position, then handle
+            # ✅ Unified manual trades (desktop/desktop-mac FILLED): classify by net position, then handle
             raw_st = getattr(order, "status", "")
             status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
             source_lc = str(getattr(order, "source", "")).lower()
-            is_manual = source_lc.startswith("desktop") and status_up == "FILLED"
+            is_manual = (source_lc.startswith("desktop") or "desktop-mac" in source_lc) and status_up == "FILLED"
+
             if is_manual:
                 man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
                 man_sym = getattr(order, "symbol", "") or active_symbol
@@ -535,21 +536,20 @@ def push_orders_main():
             source_lc = str(getattr(order, "source", "")).lower()
             raw_st    = getattr(order, "status", None)
             status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
+            filled_qty = (getattr(order, "filled", 0) or 0)
+
             is_manual_entry = (
-                source_lc.startswith("desktop")
+                (source_lc.startswith("desktop") or "desktop-mac" in source_lc)
                 and status_up == "FILLED"
                 and bool(getattr(order, "is_open", False)) is True
-                and (getattr(order, "filled", 0) or 0) > 0
+                and filled_qty > 0
             )
-
-            # 🔎 Debugs for manual path
-            print(f"[MANUAL-CHECK] oid={order_id}, sym={symbol}, source={source_lc}, status={status_up}, is_manual_entry={is_manual_entry}")
 
             if not existing_trade:
                 if is_manual_entry:
                     # payload should already be built above; it must include order_id/symbol/action/filled_price/entry_timestamp etc.
                     ref.set(payload)
-                    print(f"[MANUAL-ENTRY] Created open trade {order_id} for {symbol} via desktop FILLED → payload={json.dumps(payload)}")
+                    print(f"[MANUAL-ENTRY] Created open trade {order_id} for {symbol} via {source_lc} FILLED.")
                 else:
                     print(f"⏭️ Merge-only: skipping new order {order_id} (no existing open trade in Firebase)")
                     continue
