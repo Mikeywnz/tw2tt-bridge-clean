@@ -239,13 +239,17 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_off    = anchor.get("trail_offset", "")
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
 
-        # --- Convert UTC → NZ time **only for Sheets** ---
-        NZ_TZ = pytz.timezone("Pacific/Auckland")
+        # --- Convert broker time → NZ time **only for Sheets** ---
+        NZ_TZ  = pytz.timezone("Pacific/Auckland")
+        SGT_TZ = pytz.timezone("Asia/Singapore")
 
         def to_nz_dt(val):
             """
             Accepts epoch ms/sec or ISO (with 'Z' or naive).
-            Assumes ALL inputs are UTC; returns aware datetime in Pacific/Auckland.
+            - Epoch: treated as UTC
+            - ISO with Z: treated as UTC
+            - Naive ISO: treated as Singapore (Tiger local)
+            Returns aware datetime in Pacific/Auckland for display in Sheets.
             """
             # epoch?
             if isinstance(val, (int, float)):
@@ -259,18 +263,25 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
                 # last-resort: "now" in UTC → NZ for display only
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
 
-            # ISO with trailing Z
+            # ISO with trailing Z → explicit UTC
             if s.endswith("Z"):
                 try:
                     return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
                 except Exception:
                     pass
 
-            # ISO naive → treat as UTC
+            # ISO with explicit offset (+/-)
+            if "+" in s[10:] or "-" in s[10:]:
+                try:
+                    return datetime.fromisoformat(s).astimezone(NZ_TZ)
+                except Exception:
+                    pass
+
+            # Naive ISO (Tiger’s fills are often like this) → assume Singapore local
             try:
-                # strip fractional seconds if present for robustness
                 base = s.replace("T", " ").split(".")[0]
-                return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
+                naive = datetime.fromisoformat(base)
+                return SGT_TZ.localize(naive).astimezone(NZ_TZ)
             except Exception:
                 # final fallback
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
