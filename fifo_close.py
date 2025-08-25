@@ -239,17 +239,16 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_off    = anchor.get("trail_offset", "")
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
 
-        # --- Convert broker time → NZ time **only for Sheets** ---
-        NZ_TZ  = pytz.timezone("Pacific/Auckland")
-        SGT_TZ = pytz.timezone("Asia/Singapore")
+        # --- Convert UTC → NZ time (Sheets only; no Singapore assumptions) ---
+        NZ_TZ = pytz.timezone("Pacific/Auckland")
 
-        def to_nz_dt_entry(val):
+        def to_nz_from_utc(val):
             """
-            Entry timestamps:
-            - Epoch & Z → UTC
-            - Explicit offsets honored
-            - Naive ISO → assume UTC (anchors historically saved as UTC-naive)
+            Accepts: epoch (sec/ms), ISO8601 with Z/offset, or naive ISO.
+            Assumes UTC for anything without an explicit offset.
+            Returns: timezone-aware NZ datetime.
             """
+            # Epoch
             if isinstance(val, (int, float)):
                 ts = float(val)
                 if ts > 1e12:  # ms -> sec
@@ -260,45 +259,19 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             if not s:
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
 
-            if s.endswith("Z") or ("+" in s[10:] or "-" in s[10:]):
-                return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
-
-            # NAIVE → assume Singapore local (Tiger anchor saved local)
-            base = s.replace("T", " ").split(".")[0]
-            naive = datetime.fromisoformat(base)
-            return SGT_TZ.localize(naive).astimezone(NZ_TZ)
-
-        def to_nz_dt(val):
-            """
-            Exit timestamps:
-            - Epoch: treated as UTC
-            - ISO with Z: treated as UTC
-            - Naive ISO: treated as Singapore (Tiger local)
-            """
-            if isinstance(val, (int, float)):
-                ts = float(val)
-                if ts > 1e12:
-                    ts /= 1000.0
-                return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(NZ_TZ)
-
-            s = (str(val) or "").strip()
-            if not s:
-                return datetime.now(timezone.utc).astimezone(NZ_TZ)
-
+            # ISO with 'Z' or explicit offset
             if s.endswith("Z"):
                 return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
-
             if "+" in s[10:] or "-" in s[10:]:
                 return datetime.fromisoformat(s).astimezone(NZ_TZ)
 
-            # NAIVE → assume Singapore local
+            # Naive ISO → treat as UTC
             base = s.replace("T", " ").split(".")[0]
-            naive = datetime.fromisoformat(base)
-            return SGT_TZ.localize(naive).astimezone(NZ_TZ)
+            return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
 
-        # Use entry/exit converters separately
-        entry_dt = to_nz_dt_entry(entry_ts_iso)
-        exit_dt  = to_nz_dt(exit_ts_iso)
+        # Use the SAME converter for both entry/exit
+        entry_dt = to_nz_from_utc(entry_ts_iso)
+        exit_dt  = to_nz_from_utc(exit_ts_iso)
 
         day_date       = entry_dt.strftime("%A %d %B %Y")     # e.g., Thursday 21 August 2025
         entry_time_str = entry_dt.strftime("%I:%M:%S %p")     # 12-hour with AM/PM
@@ -331,19 +304,12 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             raw = (anchor_src or ticket_src or "").strip()
             s = raw.lower()
 
-            # 1) Explicit liquidation channel or flag
             if is_liq_flag or "liquidation" in s:
                 return "Tiger Trade"
-
-            # 2) Exact desktop identifiers from Tiger
             if s in ("desktop", "desktop-mac"):
                 return "Tiger Desktop"
-
-            # 3) Mobile app
             if "mobile" in s:
                 return "Tiger Mobile"
-
-            # 4) Default everything else (incl. openapi/unknown) to your system label
             return "OpGo"
 
         source_val = normalize_source(anchor.get("source"), tx_dict.get("source"), is_liq)
@@ -373,9 +339,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             notes_text,               # Notes ("LIQUIDATION" if so)
         ]
 
-        # Append to Google Sheet
+        # Append to Google Sheet (RAW prevents Google from re-parsing/shifting)
         sheet = get_google_sheet()
-        sheet.append_row(row, value_input_option='USER_ENTERED')
+        sheet.append_row(row, value_input_option='RAW')
         print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
     except Exception as e:
         print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")

@@ -118,21 +118,32 @@ def get_gate_unlock_points(firebase_db, symbol: str) -> float:
     return 1.0
 
 def get_max_open_trades(firebase_db, symbol: str) -> int:
+    # Prefer root per‑symbol node: /max_open_trades/<symbol>
+    try:
+        v = firebase_db.reference(f"/max_open_trades/{symbol}").get()
+        if v is not None:
+            print(f"[SETTINGS] max_open_trades/{symbol} = {v}")
+            return int(v)
+    except Exception as e:
+        print(f"[SETTINGS] read /max_open_trades/{symbol} failed: {e}")
+
+    # Fallbacks (keep existing behavior)
     try:
         v = firebase_db.reference(f"/settings/symbols/{symbol}/max_open_trades").get()
         if v is not None:
-            print(f"[SETTINGS] max_open_trades({symbol})={v}")
+            print(f"[SETTINGS] max_open_trades(settings/{symbol}) = {v}")
             return int(v)
     except Exception:
         pass
     try:
         v = firebase_db.reference("/settings/max_open_trades").get()
         if v is not None:
-            print(f"[SETTINGS] max_open_trades(global)={v}")
+            print(f"[SETTINGS] max_open_trades(global) = {v}")
             return int(v)
     except Exception:
         pass
-    print("[SETTINGS] max_open_trades default=5")
+
+    print("[SETTINGS] max_open_trades default = 5")
     return 5
 
 # ==============================================================
@@ -454,16 +465,24 @@ async def webhook(request: Request):
             print("⏸️ Still not flat after 12s; skipping reverse entry.")
             return JSONResponse({"status": "flatten_in_progress"}, status_code=202)
         
-        # ---------- max-open-trades cap (blocks new entries only) ----------
+        # ---------- max-open-trades cap (general path, runs before any entry) ----------
         cap = get_max_open_trades(firebase_db, symbol)
         open_count = get_open_count(firebase_db, symbol)
-        print(f"[CAP] Current cap={cap}, open_count={open_count}")
+        print(f"[CAP] Pre-entry check {symbol}: open_count={open_count}, cap={cap}")
         if open_count >= cap:
             record_cap_block(firebase_db, symbol, cap, open_count)
-            msg = {"status": "blocked", "reason": "max_open_trades", "cap": cap, "open_count": open_count}
-            print(f"[CAP] Blocked new entry for {symbol}: open_count={open_count} cap={cap}")
-            log_to_file(f"[CAP] Blocked new entry for {symbol}: open_count={open_count} cap={cap}")
+            print(f"[CAP] No trade placed for {symbol}: cap limit hit (open_count={open_count} >= cap={cap})")
+            msg = {
+                "status": "blocked",
+                "reason": "max_open_trades",
+                "cap": cap,
+                "open_count": open_count,
+            }
             return JSONResponse(msg, status_code=202)
+# -------------------------------------------------------------------------------
+
+        print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
+        result = place_entry_trade(request_symbol, action, quantity, firebase_db)
 
     # ---------- place entry ----------
     print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")
