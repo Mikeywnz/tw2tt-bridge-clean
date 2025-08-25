@@ -443,7 +443,7 @@ async def webhook(request: Request):
                 print(f"[WARN] FIFO close in app.py failed softly: {e}")
 
         # brief wait so we don't race the reverse entry
-        deadline = time.time() + 12
+        deadline = time.time() + 18
         while time.time() < deadline:
             if net_position(firebase_db, symbol) == 0:
                 print("✅ Flat confirmed; proceeding with new entry.")
