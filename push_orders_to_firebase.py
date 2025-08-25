@@ -263,48 +263,6 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
-            # ✅ Unified MANUAL CLOSE as exit-ticket (Tiger desktop/desktop-mac FILLED)
-            raw_st    = getattr(order, "status", "")
-            status_up = raw_st.name if hasattr(raw_st, "name") else str(raw_st).split(".")[-1].upper()
-            source_lc = str(getattr(order, "source", "")).lower()
-
-            is_manual_close = (status_up == "FILLED") and (source_lc in ("desktop", "desktop-mac"))
-            if is_manual_close:
-                man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
-                # symbol fallback: prefer order.symbol, else parse contract "MGC2510/FUT/..." → "MGC2510", else active_symbol
-                man_sym = (getattr(order, "symbol", "") or
-                        str(getattr(order, "contract", "")).split("/", 1)[0] or
-                        active_symbol)
-                if man_oid and man_sym:
-                    qty  = int(getattr(order, "filled", None) or getattr(order, "quantity", 1) or 1)
-                    side = (getattr(order, "action", "") or "").upper()  # BUY / SELL
-                    px   = (getattr(order, "avg_fill_price", None)
-                            or getattr(order, "filled_price", None)
-                            or getattr(order, "latest_price", None) or 0.0)
-                    ts   = (getattr(order, "update_time", None)
-                            or getattr(order, "trade_time", None)
-                            or getattr(order, "order_time", None))
-                    iso  = _safe_iso(ts)
-
-                    # Idempotency fence: if this ticket id already exists, skip
-                    t_ref = firebase_db.reference(f"/exit_orders_log/{man_oid}")
-                    if not (t_ref.get() or {}):
-                        t_ref.set({
-                            "status": "SUCCESS",
-                            "order_id": man_oid,
-                            "trade_type": "EXIT",
-                            "symbol": man_sym,
-                            "action": side,                 # SELL closes longs / BUY covers shorts
-                            "quantity": qty,
-                            "filled_price": float(px),
-                            "transaction_time": iso,
-                            "source": "Tiger Desktop",
-                            "_processed": False,
-                            "origin": "manual_desktop"
-                        })
-                        print(f"[MANUAL→EXIT] {man_sym} {side} x{qty} @ {px} → exit_orders_log/{man_oid}")
-                continue  # ⛔ do NOT fall into any open_active_trades logic
-
             # ===================== Check if order ID is already processed and filter out ====================
 
             if not order_id:
