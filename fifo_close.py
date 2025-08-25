@@ -263,9 +263,10 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             if s.endswith("Z") or ("+" in s[10:] or "-" in s[10:]):
                 return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
 
-            # NAIVE → assume UTC (fix)
+            # NAIVE → assume Singapore local (Tiger anchor saved local)
             base = s.replace("T", " ").split(".")[0]
-            return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
+            naive = datetime.fromisoformat(base)
+            return SGT_TZ.localize(naive).astimezone(NZ_TZ)
 
         def to_nz_dt(val):
             """
