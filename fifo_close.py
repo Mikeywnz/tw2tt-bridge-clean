@@ -243,15 +243,13 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         NZ_TZ  = pytz.timezone("Pacific/Auckland")
         SGT_TZ = pytz.timezone("Asia/Singapore")
 
-        def to_nz_dt(val):
+        def to_nz_dt_entry(val):
             """
-            Accepts epoch ms/sec or ISO (with 'Z' or naive).
-            - Epoch: treated as UTC
-            - ISO with Z: treated as UTC
-            - Naive ISO: treated as Singapore (Tiger local)
-            Returns aware datetime in Pacific/Auckland for display in Sheets.
+            Entry timestamps:
+            - Epoch & Z → UTC
+            - Explicit offsets honored
+            - Naive ISO → assume UTC (anchors historically saved as UTC-naive)
             """
-            # epoch?
             if isinstance(val, (int, float)):
                 ts = float(val)
                 if ts > 1e12:  # ms -> sec
@@ -260,33 +258,45 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
             s = (str(val) or "").strip()
             if not s:
-                # last-resort: "now" in UTC → NZ for display only
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
 
-            # ISO with trailing Z → explicit UTC
+            if s.endswith("Z") or ("+" in s[10:] or "-" in s[10:]):
+                return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
+
+            # NAIVE → assume UTC (fix)
+            base = s.replace("T", " ").split(".")[0]
+            return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
+
+        def to_nz_dt(val):
+            """
+            Exit timestamps:
+            - Epoch: treated as UTC
+            - ISO with Z: treated as UTC
+            - Naive ISO: treated as Singapore (Tiger local)
+            """
+            if isinstance(val, (int, float)):
+                ts = float(val)
+                if ts > 1e12:
+                    ts /= 1000.0
+                return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(NZ_TZ)
+
+            s = (str(val) or "").strip()
+            if not s:
+                return datetime.now(timezone.utc).astimezone(NZ_TZ)
+
             if s.endswith("Z"):
-                try:
-                    return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
-                except Exception:
-                    pass
+                return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
 
-            # ISO with explicit offset (+/-)
             if "+" in s[10:] or "-" in s[10:]:
-                try:
-                    return datetime.fromisoformat(s).astimezone(NZ_TZ)
-                except Exception:
-                    pass
+                return datetime.fromisoformat(s).astimezone(NZ_TZ)
 
-            # Naive ISO (Tiger’s fills are often like this) → assume Singapore local
-            try:
-                base = s.replace("T", " ").split(".")[0]
-                naive = datetime.fromisoformat(base)
-                return SGT_TZ.localize(naive).astimezone(NZ_TZ)
-            except Exception:
-                # final fallback
-                return datetime.now(timezone.utc).astimezone(NZ_TZ)
+            # NAIVE → assume Singapore local
+            base = s.replace("T", " ").split(".")[0]
+            naive = datetime.fromisoformat(base)
+            return SGT_TZ.localize(naive).astimezone(NZ_TZ)
 
-        entry_dt = to_nz_dt(entry_ts_iso)
+        # Use entry/exit converters separately
+        entry_dt = to_nz_dt_entry(entry_ts_iso)
         exit_dt  = to_nz_dt(exit_ts_iso)
 
         day_date       = entry_dt.strftime("%A %d %B %Y")     # e.g., Thursday 21 August 2025
