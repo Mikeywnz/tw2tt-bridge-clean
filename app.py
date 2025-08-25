@@ -60,6 +60,25 @@ if not firebase_admin._apps:
 firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
+
+#==========================================
+# ---------- Net Position Helper ----------
+#==========================================
+
+def net_position(firebase_db, symbol: str) -> int:
+    """Return net position (longs minus shorts) for a symbol from open_active_trades."""
+    snap = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
+    net = 0
+    for v in snap.values():
+        if not isinstance(v, dict):
+            continue
+        side = (v.get("action") or "").upper()
+        if side == "BUY":
+            net += 1
+        elif side == "SELL":
+            net -= 1
+    return net
+
 # ==============================================================
 # 🟩 Per‑symbol settings helpers (+ auto‑create defaults)
 # ==============================================================
@@ -134,21 +153,6 @@ def get_open_count(firebase_db, symbol: str) -> int:
             continue
         count += 1
     return count
-
-def get_max_open_trades(firebase_db, symbol: str) -> int:
-    try:
-        per_symbol = firebase_db.reference(f"/settings/symbols/{symbol}/max_open_trades").get()
-        if per_symbol is not None:
-            return int(per_symbol)
-    except Exception:
-        pass
-    try:
-        global_cap = firebase_db.reference("/settings/max_open_trades").get()
-        if global_cap is not None:
-            return int(global_cap)
-    except Exception:
-        pass
-    return 6  # default
 
 def record_cap_block(firebase_db, symbol: str, cap: int, open_count: int) -> None:
     try:
@@ -329,9 +333,23 @@ async def webhook(request: Request):
     # ---------- extract ----------
     request_symbol = data.get("symbol")
     action = (data.get("action") or "").upper()
-    quantity = data.get("quantity")
-    if not request_symbol or action not in {"BUY", "SELL"} or quantity is None:
-        return JSONResponse({"status": "error", "message": "Missing required fields"}, status_code=400)
+    quantity_raw = data.get("quantity", None)
+
+    # ---------- validate ----------
+    # Allow FLATTEN; only require quantity for BUY/SELL
+    if not request_symbol or action not in {"BUY", "SELL", "FLATTEN"}:
+        return JSONResponse({"status": "error", "message": "Missing or invalid symbol/action"}, status_code=400)
+
+    if action in {"BUY", "SELL"}:
+        try:
+            quantity = int(quantity_raw)
+            if quantity <= 0:
+                raise ValueError
+        except Exception:
+            return JSONResponse({"status": "error", "message": "quantity must be a positive integer for BUY/SELL"}, status_code=400)
+    else:
+        # FLATTEN: quantity is optional (None means 'close all'; a positive int means 'close up to that many')
+        quantity = None
     
 
     # ---------- ensure per-symbol settings exist ----------
@@ -349,20 +367,49 @@ async def webhook(request: Request):
     print(f"[LOG] Webhook received: {data}")
     log_to_file(f"Webhook received: {data}")
 
-    # ---------- flatten-before-reverse ----------
-    def net_position(firebase_db, symbol: str) -> int:
-        snap = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
-        net = 0
-        for v in snap.values():
-            if not isinstance(v, dict):
-                continue
-            side = (v.get("action") or "").upper()
-            if side == "BUY":
-                net += 1
-            elif side == "SELL":
-                net -= 1
-        return net
+    # --- Plain FLATTEN (no reverse entry) ---
+    if action == "FLATTEN":
+        # quantity is optional for FLATTEN: None/0 ⇒ close ALL; positive int ⇒ close up to that many
+        q_req = 0 if (quantity is None) else int(quantity)
+        cur   = net_position(firebase_db, request_symbol)
 
+        if cur == 0:
+            return JSONResponse({"status": "already_flat"}, status_code=200)
+
+        # decide exit side from current net
+        exit_side = "SELL" if cur > 0 else "BUY"
+        to_close  = abs(cur) if q_req <= 0 else min(abs(cur), q_req)
+
+        print(f"🧹 FLATTEN: net={cur}, closing {to_close} via {exit_side}")
+
+        for _ in range(to_close):
+            r = place_exit_trade(request_symbol, exit_side, 1, firebase_db)
+            if not r or r.get("status") != "SUCCESS" or not str(r.get("order_id","")).isdigit():
+                print(f"[WARN] exit place failed; skipping FIFO push for this leg: {r}")
+                continue
+
+            tx = {
+                "status": r.get("status","SUCCESS"),
+                "order_id": str(r.get("order_id","")).strip(),
+                "trade_type": "EXIT",
+                "symbol": request_symbol,
+                "action": exit_side,                    # SELL closes longs / BUY covers shorts
+                "quantity": 1,
+                "filled_price": r.get("filled_price"),
+                "transaction_time": normalize_to_utc_iso(
+                    r.get("transaction_time") or dt.datetime.utcnow().isoformat()
+                ),
+                "source": (data.get("source") or "tradingview"),
+            }
+            try:
+                handle_exit_fill_from_tx(firebase_db, tx)   # same FIFO/Sheets path
+            except Exception as e:
+                print(f"[WARN] FIFO close in app.py failed softly: {e}")
+
+        return JSONResponse({"status": "flatten_submitted", "closed_legs": to_close}, status_code=202)
+
+    # ---------- flatten-before-reverse ----------
+   
     symbol   = request_symbol
     incoming = 1 if action == "BUY" else -1
     current  = net_position(firebase_db, symbol)
