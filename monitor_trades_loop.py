@@ -678,6 +678,10 @@ def monitor_trades():
                     tickets_ref.child(tx_id).update({"symbol": symbol})
                     print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
 
+                # [ADD] Ensure source is present on the tx we pass to FIFO (so Sheets can show Tiger Desktop)
+                if not tx.get("source") and tx.get("trade_type") == "MANUAL_EXIT":
+                    tx["source"] = "desktop-mac"       # safe default for manual desktop tickets
+
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
 
                 # If we got an anchor_id back, hide it locally immediately to prevent double-FIFO in this loop

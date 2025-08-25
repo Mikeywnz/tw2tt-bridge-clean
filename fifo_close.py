@@ -33,20 +33,21 @@ def point_value_for(symbol: str) -> float:
     }.get(sym3, 1.0)
 
 # ==============================================
-# 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE
+# 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE + SHEETS LOG
 # ==============================================
 def handle_exit_fill_from_tx(firebase_db, tx_dict):
     """
-    tx_dict example (from execute_trades_live):
+    tx_dict example:
       {
         "status": "SUCCESS",
         "order_id": "40126…",
-        "trade_type": "FLATTENING_SELL" | "FLATTENING_BUY" | "EXIT",
+        "trade_type": "FLATTENING_SELL" | "FLATTENING_BUY" | "EXIT" | "MANUAL_EXIT" | "LIQUIDATION",
         "symbol": "MGC2510",
         "action": "SELL" | "BUY",
         "quantity": 1,
         "filled_price": 3374.3,
-        "transaction_time": "2025-08-13T06:55:46Z"
+        "transaction_time": "2025-08-13T06:55:46Z",
+        "source": "desktop-mac" | "mobile" | "openapi" | "tradingview" | ...
       }
     """
 
@@ -67,18 +68,17 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Invalid exit payload: order_id={exit_oid}, symbol={symbol}, price={exit_price}")
         return False
     
-    # 🔒 Idempotency guard (insert THIS block)
+    # 🔒 Idempotency guard (ticket already handled?)
     ticket_ref = firebase_db.reference(f"/exit_orders_log/{exit_oid}")
     existing = ticket_ref.get() or {}
-    # If already processed by the drain loop or by a prior call, bail early
     if existing.get("_processed") or existing.get("_handled"):
         anchor_already = existing.get("anchor_id")
         print(f"[SKIP] Exit {exit_oid} already handled. anchor_id={anchor_already}")
         return anchor_already or True
 
     # 2) Log/Upsert exit ticket (never in open_active_trades)
-    tickets_ref = firebase_db.reference("/exit_orders_log")
-    tickets_ref.child(exit_oid).update({
+    #    Keep any provided source so Sheets can render the right "Source"
+    payload = {
         "order_id": exit_oid,
         "symbol": symbol, 
         "action": exit_act,
@@ -86,8 +86,11 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         "filled_qty": exit_qty,
         "fill_time": exit_time,
         "status": status,
-        "trade_type": tx_dict.get("trade_type", "EXIT")
-    })
+        "trade_type": tx_dict.get("trade_type", "EXIT"),
+    }
+    if tx_dict.get("source"):
+        payload["source"] = tx_dict.get("source")
+    firebase_db.reference("/exit_orders_log").child(exit_oid).update(payload)
     print(f"[INFO] Exit ticket recorded: {exit_oid} @ {exit_price} ({exit_act})")
 
     # 3) Fetch oldest open anchor (FIFO by entry_timestamp)
@@ -99,19 +102,16 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
     # 🛡️ Robust UTC parser (handles Z/offset/naive)
     def _to_utc(val):
-        """Robust ISO → aware UTC datetime. On failure, use now()."""
         s = (str(val) or "").strip()
         if not s:
             return datetime.utcnow().replace(tzinfo=timezone.utc)
         try:
             if s.endswith("Z"):
                 return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
-            # If there's an explicit offset anywhere after the date part
             if "+" in s[10:] or "-" in s[10:]:
                 return datetime.fromisoformat(s).astimezone(timezone.utc)
         except Exception:
             pass
-        # Naive → assume UTC (safer than broker-local)
         try:
             return datetime.fromisoformat(s.replace("T", " ").split(".")[0]).replace(tzinfo=timezone.utc)
         except Exception:
@@ -133,7 +133,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     entries.sort(key=lambda x: x[1])
     fifo_head_oid, fifo_head_dt = entries[0]
 
-    # Even if exit looks earlier due to tz/naive issues, ALWAYS close FIFO head.
+    # Even if exit appears earlier, ALWAYS close FIFO head.
     if exit_utc < fifo_head_dt:
         print(f"[NOTE] Exit {exit_oid} appears earlier than FIFO head by time "
               f"({exit_utc.isoformat()} < {fifo_head_dt.isoformat()}) — proceeding with FIFO head anyway.")
@@ -145,7 +145,6 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
     candidate_oid = fifo_head_oid
     if not _eligible(candidate_oid):
-        # find next eligible by time
         for oid, _dt in entries[1:]:
             if _eligible(oid):
                 candidate_oid = oid
@@ -163,15 +162,12 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         entry_price = float(anchor.get("filled_price"))
         px_exit     = float(exit_price)
         qty         = exit_qty
-
-        # points move (positive = profit for the trade direction)
         if anchor.get("action", "").upper() == "BUY":
             pnl_points = (px_exit - entry_price) * qty
-        else:  # short anchor
+        else:
             pnl_points = (entry_price - px_exit) * qty
-
         per_point   = point_value_for(symbol)
-        pnl         = pnl_points * per_point            # <-- $$$
+        pnl         = pnl_points * per_point
     except Exception as e:
         print(f"❌ PnL calc error for anchor {anchor_oid}: {e}")
         pnl = 0.0
@@ -217,127 +213,117 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
-    
-    #============================================================================================
-    # --- Log to Google Sheets logging: one row per fully-closed trade (anchor + this exit) ---
-    #============================================================================================
+    #=========================================================================================
+    # 8) --- Google Sheets logging (convert UTC→NZ; prefer ticket source; MANUAL note) ---
+    #=========================================================================================
     try:
-        COMMISSION_FLAT = 7.02  # keep for row + fallback
-
-        # Detect liquidation tickets
-        is_liq = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
-
         # Pull a few fields (with safe fallbacks)
-        entry_ts_iso = anchor.get("entry_timestamp") or exit_time
-        # Fallback stays UTC; only convert for Sheets display
-        exit_ts_iso  = (tx_dict.get("fill_time") or exit_time or datetime.utcnow().isoformat() + "Z")
+        entry_ts_iso = anchor.get("entry_timestamp") or anchor.get("transaction_time") or exit_time
+        exit_ts_iso  = exit_time
 
         entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)
         exit_px      = float(exit_price or 0.0)
-        qty          = int(exit_qty or 1)
         trail_trig   = anchor.get("trail_trigger", "")
         trail_off    = anchor.get("trail_offset", "")
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
 
-        # --- Convert UTC → NZ time (Sheets only; no Singapore assumptions) ---
+        # --- Convert UTC → NZ (Sheets only; unified for entry & exit) ---
         NZ_TZ = pytz.timezone("Pacific/Auckland")
-
         def to_nz_from_utc(val):
-            """
-            Accepts: epoch (sec/ms), ISO8601 with Z/offset, or naive ISO.
-            Assumes UTC for anything without an explicit offset.
-            Returns: timezone-aware NZ datetime.
-            """
-            # Epoch
             if isinstance(val, (int, float)):
                 ts = float(val)
-                if ts > 1e12:  # ms -> sec
-                    ts /= 1000.0
+                if ts > 1e12: ts /= 1000.0
                 return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(NZ_TZ)
-
             s = (str(val) or "").strip()
             if not s:
                 return datetime.now(timezone.utc).astimezone(NZ_TZ)
-
-            # ISO with 'Z' or explicit offset
             if s.endswith("Z"):
                 return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
             if "+" in s[10:] or "-" in s[10:]:
                 return datetime.fromisoformat(s).astimezone(NZ_TZ)
-
-            # Naive ISO → treat as UTC
             base = s.replace("T", " ").split(".")[0]
             return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
 
-        # Use the SAME converter for both entry/exit
         entry_dt = to_nz_from_utc(entry_ts_iso)
         exit_dt  = to_nz_from_utc(exit_ts_iso)
 
-        day_date       = entry_dt.strftime("%A %d %B %Y")     # e.g., Thursday 21 August 2025
-        entry_time_str = entry_dt.strftime("%I:%M:%S %p")     # 12-hour with AM/PM
-        exit_time_str  = exit_dt.strftime("%I:%M:%S %p")      # 12-hour with AM/PM
+        day_date       = entry_dt.strftime("%A %d %B %Y")
+        entry_time_str = entry_dt.strftime("%I:%M:%S %p")
+        exit_time_str  = exit_dt.strftime("%I:%M:%S %p")
 
-        # Stable HH:MM:SS duration (always positive)
+        # Duration HH:MM:SS (always positive)
         total_secs = int(abs((exit_dt - entry_dt).total_seconds()))
         hh = total_secs // 3600
         mm = (total_secs % 3600) // 60
         ss = total_secs % 60
         time_in_trade = f"{hh:02d}:{mm:02d}:{ss:02d}"
 
-        # Flip? -> label Liquidation explicitly
+        # Flip? (Liquidation explicit; Flattening prefix handled by trade_type)
+        is_liq = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
-        flip_str = "Liquidation" if is_liq else ("Yes" if (tx_dict.get("trade_type","").startswith("FLATTENING_")) else "No")
+        flip_str = "Liquidation" if is_liq else ("Yes" if (str(tx_dict.get("trade_type","")).startswith("FLATTENING_")) else "No")
 
-        # ✅ Use the just-computed pnl from this function
+        # ✅ Use computed pnl above
         realized_pnl_fb = float(pnl)
-        net_fb = realized_pnl_fb - COMMISSION_FLAT
+        net_fb = realized_pnl_fb - 7.02
 
-        # --- Source normalization per your labels ---
-        def normalize_source(anchor_src, ticket_src, is_liq_flag):
-            """
-            Rules:
-            - Any liquidation → "Tiger Trade"
-            - Tiger desktop (exactly "desktop" or "desktop-mac") → "Tiger Desktop"
-            - Tiger mobile (contains "mobile") → "Tiger Mobile"
-            - Anything else (incl. openapi/unknown/empty) → "OpGo"
-            """
-            raw = (anchor_src or ticket_src or "").strip()
+        # --- Source normalization: prefer ticket source over anchor ---
+        ticket_src = (tx_dict.get("source") or "").strip()
+        anchor_src = (anchor.get("source") or "").strip()
+        def normalize_source(ticket_src, anchor_src, is_liq_flag):
+            raw = (ticket_src or anchor_src or "").strip()
             s = raw.lower()
-
             if is_liq_flag or "liquidation" in s:
                 return "Tiger Trade"
-            if s in ("desktop", "desktop-mac"):
+            if s in ("desktop", "desktop-mac", "tiger desktop"):
                 return "Tiger Desktop"
-            if "mobile" in s:
+            if "mobile" in s or "tiger-mobile" in s:
                 return "Tiger Mobile"
+            if "opgo" in s or "openapi" in s:
+                return "OpGo"
             return "OpGo"
+        source_val = normalize_source(ticket_src, anchor_src, is_liq)
 
-        source_val = normalize_source(anchor.get("source"), tx_dict.get("source"), is_liq)
+        # Notes: LIQUIDATION or MANUAL for manual desktop exits
+        notes_text = (
+            "LIQUIDATION" if is_liq
+            else ("MANUAL" if (tx_dict.get("trade_type") == "MANUAL_EXIT" or ticket_src.lower() == "desktop-mac") else "")
+        )
 
-        # Optional notes text for the last column
-        notes_text = "LIQUIDATION" if is_liq else ""
-
-        # Build the row in your target column order
         row = [
             day_date,                 # Day Date (NZ)
             entry_time_str,           # Entry Time (NZ, 12h)
             exit_time_str,            # Exit Time (NZ, 12h)
             time_in_trade,            # Time in Trade
-            trade_type_str.title(),   # Trade Type ("Long"/"Short")
-            flip_str,                 # Flip? (or "Liquidation")
+            trade_type_str.title(),   # Long/Short
+            flip_str,                 # Flip? (or Liquidation)
             entry_px,                 # Entry Price
             exit_px,                  # Exit Price
             trail_trig,               # Trail Trigger Value
             trail_off,                # Trail Offset
             trail_hit,                # Trailing Take Profit Hit (Yes/No)
-            round(realized_pnl_fb, 2),# Realised PnL (from computed pnl)
-            COMMISSION_FLAT,          # Tiger Commissions
+            round(realized_pnl_fb, 2),# Realised PnL
+            7.02,                     # Tiger Commissions
             round(net_fb, 2),         # Net PNL
             anchor_oid,               # Order ID (entry / anchor)
             exit_oid,                 # FIFO Match Order ID (exit)
-            source_val,               # Source (OpGo / Tiger Trade / Desktop / Mobile / unknown)
-            notes_text,               # Notes ("LIQUIDATION" if so)
+            source_val,               # Source (OpGo / Tiger Desktop / Tiger Mobile / Tiger Trade)
+            notes_text,               # Notes ("MANUAL"/"LIQUIDATION"/"")
         ]
+
+        # Debug trace for this row
+        print("[TRACE-SHEETS]", {
+            "anchor_id": anchor_oid,
+            "raw_entry_ts": entry_ts_iso,
+            "raw_exit_ts":  exit_ts_iso,
+            "entry_dt_nz":  entry_dt.isoformat(),
+            "exit_dt_nz":   exit_dt.isoformat(),
+            "emit_entry":   entry_time_str,
+            "emit_exit":    exit_time_str,
+            "source_raw":   {"ticket": ticket_src, "anchor": anchor_src},
+            "source_final": source_val,
+            "notes":        notes_text,
+        })
 
         # Append to Google Sheet (RAW prevents Google from re-parsing/shifting)
         sheet = get_google_sheet()
@@ -346,5 +332,4 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Sheets logging failed for anchor={anchor_oid}, exit={exit_oid}: {e}")
 
-    print(f"[INFO] Exit ticket retained under /exit_orders_log/{exit_oid}")
     return anchor_oid
