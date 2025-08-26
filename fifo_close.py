@@ -55,7 +55,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     exit_oid   = str(tx_dict.get("order_id", "")).strip()
     symbol     = tx_dict.get("symbol")
     exit_price = tx_dict.get("filled_price")
-    exit_time  = tx_dict.get("transaction_time")
+    exit_time  = tx_dict.get("transaction_time") or tx_dict.get("fill_time")
     exit_act   = (tx_dict.get("action") or "").upper()
     status     = tx_dict.get("status", "SUCCESS")
     qty_raw    = tx_dict.get("quantity") or tx_dict.get("filled_qty") or 1
@@ -217,9 +217,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     # 8) --- Google Sheets logging (convert UTC→NZ; prefer ticket source; MANUAL note) ---
     #=========================================================================================
     try:
-        # Pull a few fields (with safe fallbacks)
-        entry_ts_iso = anchor.get("entry_timestamp") or anchor.get("transaction_time") or exit_time
-        exit_ts_iso  = exit_time
+        # --- timestamps used for Sheets (DISPLAY ONLY) ---
+        entry_ts_iso = anchor.get("entry_timestamp")             # always like "...Z" from Firebase
+        exit_ts_iso  = exit_time                                  # Tiger fill time (UTC Z or offset)
 
         entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)
         exit_px      = float(exit_price or 0.0)
@@ -227,25 +227,19 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trail_off    = anchor.get("trail_offset", "")
         trail_hit    = "Yes" if anchor.get("trail_hit") else "No"
 
-        # --- Convert UTC → NZ (Sheets only; unified for entry & exit) ---
+        # --- UTC(Z)/offset → NZ conversion (no other assumptions) ---
         NZ_TZ = pytz.timezone("Pacific/Auckland")
-        def to_nz_from_utc(val):
-            if isinstance(val, (int, float)):
-                ts = float(val)
-                if ts > 1e12: ts /= 1000.0
-                return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(NZ_TZ)
-            s = (str(val) or "").strip()
-            if not s:
-                return datetime.now(timezone.utc).astimezone(NZ_TZ)
-            if s.endswith("Z"):
-                return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(NZ_TZ)
-            if "+" in s[10:] or "-" in s[10:]:
-                return datetime.fromisoformat(s).astimezone(NZ_TZ)
-            base = s.replace("T", " ").split(".")[0]
+        def nz_from_iso(s: str):
+            s = (s or "").strip()
+            if not s: return datetime.now(timezone.utc).astimezone(NZ_TZ)
+            if s.endswith("Z"): return datetime.fromisoformat(s.replace("Z","+00:00")).astimezone(NZ_TZ)
+            if "+" in s[10:] or "-" in s[10:]: return datetime.fromisoformat(s).astimezone(NZ_TZ)
+            # rare fallback: treat naive as UTC
+            base = s.replace("T"," ").split(".")[0]
             return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
 
-        entry_dt = to_nz_from_utc(entry_ts_iso)
-        exit_dt  = to_nz_from_utc(exit_ts_iso)
+        entry_dt = nz_from_iso(entry_ts_iso)
+        exit_dt  = nz_from_iso(exit_ts_iso)
 
         day_date       = entry_dt.strftime("%A %d %B %Y")
         entry_time_str = entry_dt.strftime("%I:%M:%S %p")
