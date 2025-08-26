@@ -61,6 +61,58 @@ firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
+#====================================================================
+#Helper: Tokyo Chop Stop
+#====================================================================
+
+def _today_local_window(start_hhmm: str, duration_min: int, tzname: str, now_utc=None):
+    """Return today's [start_utc, end_utc) window for a local start time + duration."""
+    now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
+    tz = pytz.timezone(tzname or "UTC")
+
+    local_now = now_utc.astimezone(tz)
+    try:
+        hh, mm = map(int, (start_hhmm or "00:00").split(":"))
+    except Exception:
+        hh, mm = 0, 0
+
+    start_local = local_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    # let pytz handle DST
+    start_utc = tz.localize(start_local.replace(tzinfo=None)).astimezone(dt.timezone.utc)
+    end_utc   = start_utc + dt.timedelta(minutes=int(duration_min or 0))
+    return start_utc, end_utc
+
+def get_active_session_guard(firebase_db, now_utc=None):
+    """
+    Returns {'session','start_utc','end_utc'} if inside any enabled guard window; else None.
+    Reads /settings/session_guards from Firebase.
+    """
+    now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
+    cfg = firebase_db.reference("/settings/session_guards").get() or {}
+    if not cfg or not cfg.get("enabled", False):
+        return None
+
+    for name in ("tokyo", "new_york", "london"):
+        s = cfg.get(name) or {}
+        if not s.get("enabled", False):
+            continue
+        dur = int(s.get("duration_min", 0))
+        if dur <= 0:
+            continue
+        start_utc, end_utc = _today_local_window(
+            s.get("start_local", "00:00"),
+            dur,
+            s.get("tz", "UTC"),
+            now_utc=now_utc
+        )
+        if start_utc <= now_utc <= end_utc:
+            return {
+                "session": name,
+                "start_utc": start_utc.isoformat(),
+                "end_utc": end_utc.isoformat(),
+            }
+    return None
+
 #==========================================
 # ---------- Net Position Helper ----------
 #==========================================
@@ -168,7 +220,7 @@ def get_open_count(firebase_db, symbol: str) -> int:
 def record_cap_block(firebase_db, symbol: str, cap: int, open_count: int) -> None:
     try:
         firebase_db.reference(f"/rate_limits/{symbol}").update({
-            "last_blocked_at": datetime.utcnow().isoformat() + "Z",
+            "last_blocked_at": dt.datetime.utcnow().isoformat() + "Z",
             "cap": int(cap),
             "open_count": int(open_count),
         })
@@ -418,8 +470,9 @@ async def webhook(request: Request):
                 print(f"[WARN] FIFO close in app.py failed softly: {e}")
 
         return JSONResponse({"status": "flatten_submitted", "closed_legs": to_close}, status_code=202)
-
-    # ---------- flatten-before-reverse ----------
+    #==================================================+++++++++++++++++++++++++++++++++++++++++++++
+    # ---------- flatten-before-reverse ---This is for the 20EM Stop Flip that we no loneger use 
+    #===============================================+++++++++++++++++++++++++++++++++++++++++++++++
    
     symbol   = request_symbol
     incoming = 1 if action == "BUY" else -1
@@ -479,6 +532,17 @@ async def webhook(request: Request):
                 "open_count": open_count,
             }
             return JSONResponse(msg, status_code=202)
+        
+        # ---------- session-guard: block NEW entries during Tokyo/NY window ----------
+        if action in {"BUY", "SELL"}:
+            guard = get_active_session_guard(firebase_db, now_utc=dt.datetime.now(dt.timezone.utc))
+            if guard:
+                print(f"[SESSION] Blocked new entry for {request_symbol} during {guard['session']} window "
+                    f"{guard['start_utc']}→{guard['end_utc']}")
+                return JSONResponse(
+                    {"status": "blocked", "reason": "session_guard", "session": guard["session"]},
+                    status_code=202
+                )
 # -------------------------------------------------------------------------------
 
         print("[DEBUG] Sending trade to execute_trade_live place_entry_trade()")

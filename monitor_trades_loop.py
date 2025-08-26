@@ -10,6 +10,7 @@ import pprint
 from fifo_close import handle_exit_fill_from_tx
 from collections import defaultdict
 import time
+import pytz
 from datetime import datetime, timezone as dt_timezone, timedelta
 # (UTC-only) — removed NZ local timezone usage
 
@@ -35,6 +36,130 @@ if not firebase_admin._apps:
     })
 
 firebase_db = db
+
+
+#################### ALL HELPERS FOR THIS SCRIPT ####################
+# ======================================
+# Helper: Session guard for Tokyo Chop
+# =====================================
+
+def ensure_session_guards_defaults(firebase_db):
+    """
+    Seed /settings/session_guards with safe defaults IF any keys are missing.
+    It never overwrites existing values in Firebase.
+    """
+    base = "/settings/session_guards"
+    snap = firebase_db.reference(base).get() or {}
+
+    def _need(path: str, default):
+        # path like "tokyo/enabled"
+        parts = path.split("/")
+        cur = snap
+        for p in parts[:-1]:
+            cur = (cur or {}).get(p, {})
+        if parts[-1] not in (cur or {}):
+            firebase_db.reference(f"{base}/{path}").set(default)
+
+    # Master switch
+    _need("enabled", True)
+
+    # Tokyo (NZ local 12:00, 30 min block)
+    _need("tokyo/enabled", True)
+    _need("tokyo/start_local", "12:00")
+    _need("tokyo/duration_min", 30)
+    _need("tokyo/tz", "Pacific/Auckland")
+
+    # New York (09:30 local, 15 min block)
+    _need("new_york/enabled", True)
+    _need("new_york/start_local", "09:30")
+    _need("new_york/duration_min", 15)
+    _need("new_york/tz", "America/New_York")
+
+    # London (off by default)
+    _need("london/enabled", False)
+    _need("london/start_local", "08:00")
+    _need("london/duration_min", 15)
+    _need("london/tz", "Europe/London")
+
+# ==============================================================
+# 🟩 Helper: Get active session guard (Tokyo, London, New York)
+# ==============================================================
+def _today_local_window(start_hhmm: str, duration_min: int, tzname: str, now_utc=None):
+    """Build today's [start,end) window in UTC for a given local time + duration."""
+    now_utc = now_utc or datetime.now(dt_timezone.utc)
+    tz = pytz.timezone(tzname or "UTC")
+
+    # "today" in that tz
+    local_now = now_utc.astimezone(tz)
+    try:
+        hh, mm = map(int, (start_hhmm or "00:00").split(":"))
+    except Exception:
+        hh, mm = 0, 0
+
+    # today's local start at hh:mm
+    start_local = local_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+
+    # convert to UTC (pytz handles DST)
+    start_utc = tz.localize(start_local.replace(tzinfo=None)).astimezone(dt_timezone.utc)
+    end_utc   = start_utc + timedelta(minutes=int(duration_min or 0))
+    return start_utc, end_utc
+
+def get_active_session_guard(firebase_db, now_utc=None):
+    """
+    Reads /settings/session_guards and returns a dict when 'now_utc' is inside a window:
+      {"session": "<tokyo|new_york|london>", "start_utc": "...", "end_utc": "..."}
+    """
+    now_utc = now_utc or datetime.now(dt_timezone.utc)
+    cfg = firebase_db.reference("/settings/session_guards").get() or {}
+    if not cfg or not cfg.get("enabled", False):
+        return None
+
+    for name in ("tokyo", "new_york", "london"):
+        s = cfg.get(name) or {}
+        if not s.get("enabled", False):
+            continue
+        dur = int(s.get("duration_min", 0))
+        if dur <= 0:
+            continue
+
+        start_utc, end_utc = _today_local_window(
+            s.get("start_local", "00:00"),
+            dur,
+            s.get("tz", "UTC"),
+            now_utc=now_utc
+        )
+
+        if start_utc <= now_utc <= end_utc:
+            return {
+                "session": name,
+                "start_utc": start_utc.isoformat(),
+                "end_utc": end_utc.isoformat(),
+            }
+    return None
+
+# ==============================================
+# Helper: Net position from /open_active_trades
+# ==============================================
+def net_position(firebase_db, symbol: str) -> int:
+    """
+    Net = (# BUY legs) - (# SELL legs) for *open* trades of this symbol.
+    Ignores exited/closed/failed and zero-qty legs.
+    """
+    snap = firebase_db.reference(f"/open_active_trades/{symbol}").get() or {}
+    net = 0
+    for v in snap.values():
+        if not isinstance(v, dict):
+            continue
+        if v.get("exited") or (v.get("status", "").lower() in ("closed", "failed")):
+            continue
+        if int(v.get("contracts_remaining", 1) or 0) <= 0:
+            continue
+        side = (v.get("action") or "").upper()
+        if side == "BUY":
+            net += 1
+        elif side == "SELL":
+            net -= 1
+    return net
 
 # =====================================================================================
 # 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
@@ -480,8 +605,52 @@ def monitor_trades():
     except Exception as e:
         print(f"⚠️ Settings seed skipped: {e}")
 
+    ensure_session_guards_defaults(firebase_db)
+
     # Load trailing TP settings
     trigger_points, offset_points = load_trailing_tp_settings()
+
+    # === Session guard: auto-flatten once at window start ===
+    try:
+        now_utc = datetime.now(dt_timezone.utc)
+        guard = get_active_session_guard(firebase_db, now_utc=now_utc)
+        if guard:
+            stamp_key = f"/runtime/session_guard/{guard['session']}/last_flatten_iso"
+            last = firebase_db.reference(stamp_key).get()
+
+            if not last or last < guard["start_utc"]:
+                cur = net_position(firebase_db, symbol)
+                if cur != 0:
+                    side = "SELL" if cur > 0 else "BUY"
+                    n = abs(cur)
+                    print(f"[SESSION] Auto-flatten {n} legs ({side}) for {symbol} "
+                          f"during {guard['session']} window {guard['start_utc']}→{guard['end_utc']}")
+
+                    for _ in range(n):
+                        r = place_exit_trade(symbol, side, 1, firebase_db)
+                        if r and str(r.get("order_id","")).isdigit():
+                            tx = {
+                                "status": r.get("status","SUCCESS"),
+                                "order_id": str(r.get("order_id","")).strip(),
+                                "trade_type": "SESSION_GUARD_EXIT",   # ✅ custom tag
+                                "symbol": symbol,
+                                "action": side,
+                                "quantity": 1,
+                                "filled_price": r.get("filled_price"),
+                                "transaction_time": (r.get("transaction_time")
+                                                     or datetime.utcnow().isoformat() + "Z"),
+                                "source": "Session Guard"             # ✅ shows up in Sheets
+                            }
+                            handle_exit_fill_from_tx(firebase_db, tx)
+                        else:
+                            print(f"[SESSION] Exit place failed (skipping this leg): {r}")
+                else:
+                    print(f"[SESSION] Net already flat for {symbol}; nothing to flatten.")
+
+                firebase_db.reference(stamp_key).set(guard["start_utc"])
+                print(f"[SESSION] Flattened at {guard['session']} open ({guard['start_utc']}).")
+    except Exception as e:
+        print(f"⚠️ Session guard flatten block failed softly: {e}")
 
     # Heartbeat (60s)
     now = time.time()
