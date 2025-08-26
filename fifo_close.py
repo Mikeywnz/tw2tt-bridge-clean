@@ -272,7 +272,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
                 return "Tiger Trade"
             if s in ("desktop", "desktop-mac", "tiger desktop"):
                 return "Tiger Desktop"
-            if "mobile" in s or "tiger-mobile" in s:
+            if "mobile" in s or "tiger-mobile" in s or "ios" in s or "iphone" in s or "ipad" in s or "android" in s:
                 return "Tiger Mobile"
             if "opgo" in s or "openapi" in s:
                 return "OpGo"

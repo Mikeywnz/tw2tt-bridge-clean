@@ -263,22 +263,20 @@ def push_orders_main():
                 print(f"[LIQ] Queued liquidation as exit ticket {liq_oid} for {liq_sym} at {liq_px}")
                 continue
 
-                        # ✅ Manual desktop exits → enqueue exit ticket (no open_active_trades writes)
-            #    - Mirror liquidation path
-            #    - Only if source == "desktop-mac"
-            #    - Only if the order is very recent (<= 180 seconds)
+                        # ✅ Manual manual exits (desktop or mobile) → enqueue exit ticket (no open_active_trades writes)
+            #    - Sources: desktop-mac / desktop / ios / iphone / ipad / android / tiger-mobile / mobile
             try:
                 src_raw = str(getattr(order, "source", "") or "").strip().lower()
-                if src_raw == "desktop-mac":
+                manual_sources = {"desktop-mac", "desktop", "ios", "iphone", "ipad", "android", "tiger-mobile", "mobile"}
+                if src_raw in manual_sources:
                     # pick the freshest Tiger time (ms since epoch)
                     ts_ms = (getattr(order, "update_time", None)
                             or getattr(order, "trade_time", None)
                             or getattr(order, "order_time", None))
-                    # skip if Tiger didn’t give us a time
                     if ts_ms:
-                        now_s  = time.time()
-                        t_s    = float(ts_ms) / 1000.0
-                        age    = now_s - t_s  # seconds
+                        now_s = time.time()
+                        t_s   = float(ts_ms) / 1000.0
+                        age   = now_s - t_s  # seconds
                         if age <= 180.0:  # <= 3 minutes
                             man_oid = str(getattr(order, "id", "") or getattr(order, "order_id", "")).strip()
                             if man_oid and man_oid.isdigit():
@@ -286,32 +284,30 @@ def push_orders_main():
                                             or getattr(order, "filled_price", None)
                                             or getattr(order, "latest_price", None)
                                             or 0.0)
-                                man_iso  = _safe_iso(ts_ms)  # you already use this for liquidation
+                                man_iso  = _safe_iso(ts_ms)
                                 man_side = str(getattr(order, "action", "") or "").upper()
                                 man_sym  = getattr(order, "symbol", "") or active_symbol
 
-                                # Early/late fences already guard duplicates elsewhere; still write idempotently
                                 firebase_db.reference(f"/exit_orders_log/{man_oid}").update({
                                     "order_id": man_oid,
                                     "symbol": man_sym,
                                     "action": man_side,
                                     "filled_price": float(man_px),
-                                    "filled_qty": 1,  # close 1 FIFO leg
+                                    "filled_qty": 1,                  # close 1 FIFO leg
                                     "fill_time": man_iso,
                                     "status": "FILLED",
                                     "trade_type": "MANUAL_EXIT",
-                                    "source": "desktop-mac"
+                                    "source": src_raw,                 # preserve exact source (e.g., "ios")
                                 })
-                                print(f"[MANUAL] Queued manual desktop exit ticket {man_oid} for {man_sym} at {man_px} (age {age:.1f}s)")
-                                # Important: do NOT touch /open_active_trades here; let FIFO drain handle it
+                                print(f"[MANUAL] Queued manual exit ticket {man_oid} ({src_raw}) for {man_sym} at {man_px} (age {age:.1f}s)")
+                                # Do NOT touch /open_active_trades here; FIFO drain will close it.
                                 continue
                             else:
-                                print(f"[MANUAL] desktop-mac recent order has non-numeric id; skipping: id={man_oid}")
+                                print(f"[MANUAL] recent manual order has non-numeric id; skipping: id={man_oid}, source={src_raw}")
                         else:
-                            # Old desktop orders are ignored; we only honor fresh manual exits
-                            pass
+                            print(f"[MANUAL] ignored stale manual order (age {age:.1f}s, source={src_raw})")
             except Exception as e:
-                print(f"⚠️ Manual desktop exit block failed softly: {e}")
+                print(f"⚠️ Manual exit block failed softly: {e}")
 
             # ===================== Check if order ID is already processed and filter out ====================
 
