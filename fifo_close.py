@@ -218,7 +218,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     #=========================================================================================
     try:
         # --- timestamps used for Sheets (DISPLAY ONLY) ---
-        entry_ts_iso = anchor.get("entry_timestamp")             # always like "...Z" from Firebase
+        entry_ts_iso = anchor.get("entry_timestamp") or ""         # always like "...Z" from Firebase
         exit_ts_iso  = exit_time                                  # Tiger fill time (UTC Z or offset)
 
         entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)

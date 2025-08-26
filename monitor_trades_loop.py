@@ -839,17 +839,29 @@ def monitor_trades():
             )
 
             for tx_id, tx in items:
-                if not isinstance(tx, dict) or tx.get("_processed"):
+                # --- type check
+                if not isinstance(tx, dict):
+                    print(f"[DRAIN] Skip {tx_id}: not a dict")
                     continue
 
+                # --- idempotency check (either flag means already handled)
+                if bool(tx.get("_processed")) or bool(tx.get("_handled")):
+                    print(f"[DRAIN] Skip {tx_id}: already processed (_processed/_handled set)")
+                    continue
+
+                # --- ensure symbol (some manual tickets may lack it)
                 if not tx.get("symbol"):
                     tx["symbol"] = symbol
                     tickets_ref.child(tx_id).update({"symbol": symbol})
                     print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
 
-                # [ADD] Ensure source is present on the tx we pass to FIFO (so Sheets can show Tiger Desktop)
+                # --- ensure source on manual desktop tickets (so Sheets shows it)
                 if not tx.get("source") and tx.get("trade_type") == "MANUAL_EXIT":
-                    tx["source"] = "desktop-mac"       # safe default for manual desktop tickets
+                    tx["source"] = "desktop-mac"  # safe default
+
+                # --- trace: missing time fields (just a warning; handler will still decide)
+                if not (tx.get("transaction_time") or tx.get("fill_time")):
+                    print(f"[DRAIN] Warn {tx_id}: missing time (transaction_time/fill_time)")
 
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
 
