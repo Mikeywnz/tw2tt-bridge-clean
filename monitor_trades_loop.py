@@ -333,6 +333,8 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
 
         # 2) Load existing to apply short grace for very-new trades
         existing = ref.get() or {}
+        if not isinstance(existing, dict):
+            existing = {}
         now_utc = datetime.now(dt_timezone.utc)
         cutoff = now_utc - timedelta(seconds=grace_seconds)
 
@@ -634,6 +636,8 @@ def monitor_trades():
 
     # ---- Iterate per symbol ----
     for symbol, open_trades_map in all_trades_by_symbol.items():
+        if not isinstance(open_trades_map, dict):  # e.g., "_heartbeat": "alive"
+            continue
         if not open_trades_map:
             continue
 
