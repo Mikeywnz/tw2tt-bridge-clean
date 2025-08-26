@@ -213,13 +213,14 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
-    #=========================================================================================
+   #=========================================================================================
     # 8) --- Google Sheets logging (convert UTC→NZ; prefer ticket source; MANUAL note) ---
     #=========================================================================================
     try:
         # --- timestamps used for Sheets (DISPLAY ONLY) ---
-        entry_ts_iso = anchor.get("entry_timestamp") or ""         # always like "...Z" from Firebase
-        exit_ts_iso  = exit_time                                  # Tiger fill time (UTC Z or offset)
+        # ⬇️ CHANGE #1: prefer Tiger execution time saved on the anchor
+        entry_src_iso = str(anchor.get("transaction_time") or anchor.get("entry_timestamp") or "").strip()
+        exit_ts_iso   = str(exit_time or "").strip()  # Tiger fill time (UTC Z or offset)
 
         entry_px     = float(anchor.get("filled_price", 0.0) or 0.0)
         exit_px      = float(exit_price or 0.0)
@@ -238,7 +239,8 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             base = s.replace("T"," ").split(".")[0]
             return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
 
-        entry_dt = nz_from_iso(entry_ts_iso)
+        # ⬇️ CHANGE #2: convert using entry_src_iso (not just entry_timestamp)
+        entry_dt = nz_from_iso(entry_src_iso)
         exit_dt  = nz_from_iso(exit_ts_iso)
 
         day_date       = entry_dt.strftime("%A %d %B %Y")
@@ -257,7 +259,6 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
         flip_str = "Liquidation" if is_liq else ("Yes" if (str(tx_dict.get("trade_type","")).startswith("FLATTENING_")) else "No")
 
-        # ✅ Use computed pnl above
         realized_pnl_fb = float(pnl)
         net_fb = realized_pnl_fb - 7.02
 
@@ -278,37 +279,36 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             return "OpGo"
         source_val = normalize_source(ticket_src, anchor_src, is_liq)
 
-        # Notes: LIQUIDATION or MANUAL for manual desktop exits
         notes_text = (
             "LIQUIDATION" if is_liq
             else ("MANUAL" if (tx_dict.get("trade_type") == "MANUAL_EXIT" or ticket_src.lower() == "desktop-mac") else "")
         )
 
         row = [
-            day_date,                 # Day Date (NZ)
-            entry_time_str,           # Entry Time (NZ, 12h)
-            exit_time_str,            # Exit Time (NZ, 12h)
-            time_in_trade,            # Time in Trade
-            trade_type_str.title(),   # Long/Short
-            flip_str,                 # Flip? (or Liquidation)
-            entry_px,                 # Entry Price
-            exit_px,                  # Exit Price
-            trail_trig,               # Trail Trigger Value
-            trail_off,                # Trail Offset
-            trail_hit,                # Trailing Take Profit Hit (Yes/No)
-            round(realized_pnl_fb, 2),# Realised PnL
-            7.02,                     # Tiger Commissions
-            round(net_fb, 2),         # Net PNL
-            anchor_oid,               # Order ID (entry / anchor)
-            exit_oid,                 # FIFO Match Order ID (exit)
-            source_val,               # Source (OpGo / Tiger Desktop / Tiger Mobile / Tiger Trade)
-            notes_text,               # Notes ("MANUAL"/"LIQUIDATION"/"")
+            day_date,
+            entry_time_str,
+            exit_time_str,
+            time_in_trade,
+            trade_type_str.title(),
+            flip_str,
+            entry_px,
+            exit_px,
+            trail_trig,
+            trail_off,
+            trail_hit,
+            round(realized_pnl_fb, 2),
+            7.02,
+            round(net_fb, 2),
+            anchor_oid,
+            exit_oid,
+            source_val,
+            notes_text,
         ]
 
-        # Debug trace for this row
+        # ⬇️ CHANGE #3: trace prints the exact raw source we used
         print("[TRACE-SHEETS]", {
             "anchor_id": anchor_oid,
-            "raw_entry_ts": entry_ts_iso,
+            "raw_entry_ts": entry_src_iso,
             "raw_exit_ts":  exit_ts_iso,
             "entry_dt_nz":  entry_dt.isoformat(),
             "exit_dt_nz":   exit_dt.isoformat(),
@@ -319,7 +319,6 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             "notes":        notes_text,
         })
 
-        # Append to Google Sheet (RAW prevents Google from re-parsing/shifting)
         sheet = get_google_sheet()
         sheet.append_row(row, value_input_option='RAW')
         print(f"✅ Logged CLOSED trade to Sheets: anchor={anchor_oid} matched_exit={exit_oid}")
