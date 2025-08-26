@@ -243,9 +243,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         entry_dt = nz_from_iso(entry_src_iso)
         exit_dt  = nz_from_iso(exit_ts_iso)
 
-        day_date       = entry_dt.strftime("%A %d %B %Y")
-        entry_time_str = entry_dt.strftime("%I:%M:%S %p")
-        exit_time_str  = exit_dt.strftime("%I:%M:%S %p")
+        day_date       = "'" + entry_dt.strftime("%A %d %B %Y")
+        entry_time_str = "'" + entry_dt.strftime("%I:%M:%S %p")
+        exit_time_str  = "'" + exit_dt.strftime("%I:%M:%S %p")
 
         # Duration HH:MM:SS (always positive)
         total_secs = int(abs((exit_dt - entry_dt).total_seconds()))
