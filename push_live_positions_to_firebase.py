@@ -64,28 +64,38 @@ def push_live_positions():
                 rollover_updater.main()  # Call rollover script main function
                 last_rollover_date = now_nz
 
-            # --- Update position count ---
-            positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-            position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
-            timestamp_iso = datetime.now(timezone.utc).isoformat()
+            # --- Collect positions (Futures + Stocks) ---
+            all_positions = []
+            for sec_type in [SegmentType.FUT, SegmentType.STK]:
+                try:
+                    pos = client.get_positions(account="21807597867063647", sec_type=sec_type) or []
+                    all_positions.extend(pos)
+                except Exception as e:
+                    print(f"⚠️ Failed to fetch {sec_type}: {e}")
 
-            now_nz = datetime.now(pytz.timezone("Pacific/Auckland"))
-            timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
+            # --- Push each position into Firebase ---
+            updates = {}
+            for pos in all_positions:
+                symbol = getattr(pos, "symbol", None)
+                qty    = getattr(pos, "quantity", 0)
+                avg_px = getattr(pos, "avg_price", 0.0)
+                sec    = getattr(pos, "sec_type", "UNKNOWN")
+                if not symbol:
+                    continue
+                updates[symbol] = {
+                    "quantity": qty,
+                    "avg_price": avg_px,
+                    "sec_type": str(sec)
+                }
 
-            live_ref.update({
-                "position_count": position_count,
-                "last_updated": timestamp_readable
-            })
-            print(f"✅ Pushed position count {position_count} at {timestamp_iso}")
+            # Always include timestamp
+            now_nz_dt = datetime.now(pytz.timezone("Pacific/Auckland"))
+            updates["last_updated"] = now_nz_dt.strftime("%Y-%m-%d %H:%M:%S NZST")
 
-            # # --- Fetch trade activities for accurate prices ---
-            # transactions = fetch_trade_transactions(account_id="21807597867063647")
+            live_ref.set(updates)
+            print(f"✅ Pushed {len(all_positions)} positions at {updates['last_updated']}")
 
-            # print(f"🔍 Fetched {len(transactions)} transactions")
-            # for tx in transactions:
-            #     print(vars(tx))
-
-            # --- Keep /live_total_positions/ path alive ---
+            # --- Keep /live_total_positions/ path alive if empty ---
             if not live_ref.get():
                 live_ref.child("_heartbeat").set("alive")
 
@@ -93,9 +103,3 @@ def push_live_positions():
             print(f"❌ Error pushing live positions: {e}")
 
         time.sleep(20)  # Pause 20 seconds before next update
-
-
-if __name__ == "__main__":
-    push_live_positions()
-
-#=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE (END OF SCRIPT)  ================================

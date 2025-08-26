@@ -41,9 +41,18 @@ except Exception as e:
 def get_contract(symbol: str):
     contract = Contract()
     contract.symbol = symbol
-    contract.sec_type = 'FUT'
-    contract.currency = 'USD'
-    contract.exchange = 'CME'
+
+    # Futures contracts always have digits (expiry code) e.g. MGC2510, MES2509
+    if any(char.isdigit() for char in symbol):
+        contract.sec_type = 'FUT'
+        contract.currency = 'USD'
+        contract.exchange = 'CME'
+    else:
+        # Assume stock (can refine later if you add FX/ETF)
+        contract.sec_type = 'STK'
+        contract.currency = 'USD'
+        contract.exchange = 'NYSE'  # or leave blank; Tiger will often resolve automatically
+
     return contract
 
 # ==========================

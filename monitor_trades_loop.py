@@ -208,6 +208,23 @@ def _iso_to_utc(s: str):
 def load_live_prices():
     return db.reference("live_prices").get() or {}
 
+# ===============================================================
+# 🟩 HELPER: Both symbol and falt check in Zombie and ghost logs
+# ================================================================
+
+def _log_ids_for(dbh, path, symbol):
+    try:
+        node = dbh.reference(path).get() or {}
+    except Exception:
+        return set()
+    ids = set()
+    if isinstance(node, dict):
+        sym_child = node.get(symbol)
+        if isinstance(sym_child, dict): ids |= set(map(str, sym_child.keys()))
+        for k in node.keys():
+            if str(k).isdigit(): ids.add(str(k))  # flat layout
+    return ids
+
 
 # ========================================================
 # 🟩 Helper: Load_trailing_tp_settings() 
@@ -237,29 +254,27 @@ def load_trailing_tp_settings():
 #=======================================
 
 def is_archived_trade(order_id, firebase_db):
-    archived_ref = firebase_db.reference("/archived_trades_log")
-    archived_trades = archived_ref.get() or {}
-    return order_id in archived_trades
-
-#=============================================
-# 🟢  HELPER: to Archive trade before deletion
-#=============================================
-
-def archive_trade(symbol, trade):
-    order_id = trade.get("order_id")
-    if not order_id:
-        print(f"❌ Cannot archive trade without order_id")
-        return False
+    """
+    Works with BOTH layouts:
+      1) Flat:   /archived_trades_log/{order_id}: {...}
+      2) Scoped: /archived_trades_log/{symbol}/{order_id}: {...}
+    """
     try:
-        archive_ref = db.reference(f"/archived_trades_log/{order_id}")
-        if "trade_type" not in trade or not trade["trade_type"]:
-            trade["trade_type"] = "UNKNOWN"
-        archive_ref.set(trade)
-        print(f"[DEBUG] Archiving trade {order_id} with trade_type: {trade.get('trade_type')}")
+        node = firebase_db.reference("/archived_trades_log").get() or {}
+    except Exception:
+        node = {}
+
+    # Flat layout
+    if order_id in node:
         return True
-    except Exception as e:
-        print(f"❌ Failed to archive trade {order_id}: {e}")
-        return False
+
+    # Symbol-scoped layout
+    if isinstance(node, dict):
+        for child in node.values():
+            if isinstance(child, dict) and order_id in child:
+                return True
+
+    return False
 
 #=============================
 # Firebase open trades handler
@@ -545,7 +560,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                         }
 
                         # Enqueue the exit ticket; drain loop will process it exactly once
-                        tickets_ref = firebase_db.reference("/exit_orders_log")
+                        tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
                         try:
                             tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
                         except Exception as e2:
@@ -583,277 +598,288 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
     return active_trades
 
 # ========================================================
-# MONITOR TRADES LOOP - CENTRAL LOOP 
+# MONITOR TRADES LOOP - CENTRAL LOOP  (multi-symbol, symbol-scoped logs)
 # ========================================================
 
 def monitor_trades():
     print("[DEBUG] - entering monitor_trades()")
-    symbol = firebase_active_contract.get_active_contract()
-    if not symbol:
-        print("❌ No active contract symbol found in Firebase; aborting monitor_trades")
-        return
-    
-    # 🔑 Ensure per‑symbol toggles exist (runs every loop, harmless if already set)
-    try:
-        sref = firebase_db.reference(f"/settings/symbols/{symbol}")
-        cfg  = sref.get() or {}
-        if "gate_unlock_points" not in cfg:
-            sref.update({"gate_unlock_points": 1.0})
-        cref = firebase_db.reference(f"/max_open_trades/{symbol}")
-        if cref.get() is None:
-            cref.set(6)
-    except Exception as e:
-        print(f"⚠️ Settings seed skipped: {e}")
 
+    # Ensure global/session guards once per loop (unchanged)
     ensure_session_guards_defaults(firebase_db)
 
-    # Load trailing TP settings
+    # Load trailing TP settings once (global defaults or your Firebase-backed values)
     trigger_points, offset_points = load_trailing_tp_settings()
 
-    # === Session guard: auto-flatten once at window start ===
+    # Single fetch of live prices for this loop; dict of {symbol: {price:..., ema...} or number}
+    prices = load_live_prices()
+
+    # Pull ALL symbols' open trades and iterate per symbol
     try:
-        now_utc = datetime.now(dt_timezone.utc)
-        guard = get_active_session_guard(firebase_db, now_utc=now_utc)
-        if guard:
-            stamp_key = f"/runtime/session_guard/{guard['session']}/last_flatten_iso"
-            last = firebase_db.reference(stamp_key).get()
-
-            if not last or last < guard["start_utc"]:
-                cur = net_position(firebase_db, symbol)
-                if cur != 0:
-                    side = "SELL" if cur > 0 else "BUY"
-                    n = abs(cur)
-                    print(f"[SESSION] Auto-flatten {n} legs ({side}) for {symbol} "
-                          f"during {guard['session']} window {guard['start_utc']}→{guard['end_utc']}")
-
-                    for _ in range(n):
-                        r = place_exit_trade(symbol, side, 1, firebase_db)
-                        if r and str(r.get("order_id","")).isdigit():
-                            tx = {
-                                "status": r.get("status","SUCCESS"),
-                                "order_id": str(r.get("order_id","")).strip(),
-                                "trade_type": "SESSION_GUARD_EXIT",   # ✅ custom tag
-                                "symbol": symbol,
-                                "action": side,
-                                "quantity": 1,
-                                "filled_price": r.get("filled_price"),
-                                "transaction_time": (r.get("transaction_time")
-                                                     or datetime.utcnow().isoformat() + "Z"),
-                                "source": "Session Guard"             # ✅ shows up in Sheets
-                            }
-                            handle_exit_fill_from_tx(firebase_db, tx)
-                        else:
-                            print(f"[SESSION] Exit place failed (skipping this leg): {r}")
-                else:
-                    print(f"[SESSION] Net already flat for {symbol}; nothing to flatten.")
-
-                firebase_db.reference(stamp_key).set(guard["start_utc"])
-                print(f"[SESSION] Flattened at {guard['session']} open ({guard['start_utc']}).")
+        all_trades_by_symbol = firebase_db.reference("/open_active_trades").get() or {}
     except Exception as e:
-        print(f"⚠️ Session guard flatten block failed softly: {e}")
+        print(f"❌ Failed to load /open_active_trades: {e}")
+        return
 
-    # Heartbeat (60s)
+    if not isinstance(all_trades_by_symbol, dict) or not all_trades_by_symbol:
+        print("⚠️ No open trades found; nothing to monitor")
+        return
+
+    # Heartbeat (60s) — print a quick per-symbol price snapshot
     now = time.time()
     if not hasattr(monitor_trades, 'last_heartbeat'):
         monitor_trades.last_heartbeat = 0
-    if now - monitor_trades.last_heartbeat >= 60:
-        live = load_live_prices()
-        mgc_price = (live.get(symbol) or {}).get('price')
-        print(f"🛰️  System working – {symbol} price: {mgc_price}")
+    do_hb = (now - monitor_trades.last_heartbeat) >= 60
+    if do_hb:
         monitor_trades.last_heartbeat = now
 
-    # Load open trades
-    all_trades = load_open_trades(symbol)
-
-    # Position count + zombie cleanup
-    live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
-    position_count = live_pos_data.get("position_count", 0)
-    run_zombie_cleanup_if_ready(all_trades, firebase_db, position_count, grace_period_seconds=20)
-
-    # Filter active trades
-    active_trades = []
-    GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
-    existing_zombies = set(firebase_db.reference("/zombie_trades_log").get() or {})
-    existing_ghosts  = set(firebase_db.reference("/ghost_trades_log").get() or {})
-
-    for t in all_trades:
-        order_id = t.get('order_id')
-        if not order_id:
-            print("⚠️ Skipping trade with no order_id")
+    # ---- Iterate per symbol ----
+    for symbol, open_trades_map in all_trades_by_symbol.items():
+        if not open_trades_map:
             continue
-        if is_archived_trade(order_id, firebase_db):
-            print(f"⏭️ Skipping archived trade {order_id}")
-            continue
-        if order_id in existing_zombies:
-            print(f"⏭️ Skipping zombie trade {order_id}")
-            continue
-        if order_id in existing_ghosts:
-            print(f"⏭️ Skipping ghost trade {order_id}")
-            continue
-        if t.get('exited') or t.get('status') in ['failed', 'closed']:
-            print(f"🔁 Skipping exited/closed trade {order_id}")
-            continue
-        if not t.get('filled') and (t.get('status', '').upper() not in GHOST_STATUSES):
-            print(f"🧾 Skipping {order_id} ⚠️ not filled and not a ghost trade")
-            continue
-        if trigger_points < 0.01 or offset_points < 0.01:
-            print(f"⚠️ Skipping trade {order_id} due to invalid TP config: trigger={trigger_points}, buffer={offset_points}")
-            continue
-        active_trades.append(t)
 
-    if not active_trades:
-        print("⚠️ No active trades found — Trade Worker happy & awake.")
+        if do_hb:
+            sym_px = (prices.get(symbol) or {}).get('price') if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+            print(f"🛰️  Worker alive — {symbol} price: {sym_px}")
 
-    # Prices (single fetch per loop)
-    prices = load_live_prices()
+        # 🔑 Ensure per-symbol toggles exist (harmless if already set)
+        try:
+            sref = firebase_db.reference(f"/settings/symbols/{symbol}")
+            cfg  = sref.get() or {}
+            if "gate_unlock_points" not in cfg:
+                sref.update({"gate_unlock_points": 1.0})
+            cref = firebase_db.reference(f"/max_open_trades/{symbol}")
+            if cref.get() is None:
+                cref.set(6)
+        except Exception as e:
+            print(f"⚠️ Settings seed skipped for {symbol}: {e}")
 
-# =========================
-# 🟩 ANCHOR GATE – Sticky unlock (+config)  🟩
-#   - Unlock followers only after anchor is +gate_unlock_points (default 1.0)
-#   - Followers still track their own trail_peak while parked
-#   - Short pause after anchor handoff to avoid instant re-gating
-# =========================
+        # === Session guard: auto-flatten once at window start (per symbol) ===
+        try:
+            now_utc = datetime.now(dt_timezone.utc)
+            guard = get_active_session_guard(firebase_db, now_utc=now_utc)
+            if guard:
+                stamp_key = f"/runtime/session_guard/{guard['session']}/last_flatten_iso"
+                last = firebase_db.reference(stamp_key).get()
 
-    if active_trades:
-        # ---- choose FIFO anchor
-        anchor = min(
-            active_trades,
-            key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
-        )
-        anchor_id = anchor.get("order_id")
-        symbol_of_anchor = anchor.get("symbol") or symbol  # keep same symbol key
+                if not last or last < guard["start_utc"]:
+                    cur = net_position(firebase_db, symbol)
+                    if cur != 0:
+                        side = "SELL" if cur > 0 else "BUY"
+                        n = abs(cur)
+                        print(f"[SESSION] Auto-flatten {n} legs ({side}) for {symbol} "
+                              f"during {guard['session']} window {guard['start_utc']}→{guard['end_utc']}")
 
-        # ---- load per-symbol settings (auto-seed if missing)
-        settings_ref = firebase_db.reference(f"/settings/symbols/{symbol_of_anchor}")
-        cfg = settings_ref.get() or {}
-        if "gate_unlock_points" not in cfg:
-            try:
-                settings_ref.update({"gate_unlock_points": 1.0})
-            except Exception:
-                pass
-            cfg = {"gate_unlock_points": 1.0}
-        GATE_UNLOCK_PTS = float(cfg.get("gate_unlock_points", 1.0))
-        HANDOFF_PAUSE_SEC = 2.0
+                        for _ in range(n):
+                            r = place_exit_trade(symbol, side, 1, firebase_db)
+                            if r and str(r.get("order_id","")).isdigit():
+                                tx = {
+                                    "status": r.get("status","SUCCESS"),
+                                    "order_id": str(r.get("order_id","")).strip(),
+                                    "trade_type": "SESSION_GUARD_EXIT",   # ✅ custom tag
+                                    "symbol": symbol,
+                                    "action": side,
+                                    "quantity": 1,
+                                    "filled_price": r.get("filled_price"),
+                                    "transaction_time": (r.get("transaction_time")
+                                                         or datetime.utcnow().isoformat() + "Z"),
+                                    "source": "Session Guard"             # ✅ shows up in Sheets
+                                }
+                                handle_exit_fill_from_tx(firebase_db, tx)
+                            else:
+                                print(f"[SESSION] Exit place failed (skipping this leg): {r}")
+                    else:
+                        print(f"[SESSION] Net already flat for {symbol}; nothing to flatten.")
 
-        # ---- state across loops
-        if not hasattr(monitor_trades, "_last_anchor_id"):
-            monitor_trades._last_anchor_id = None
-        if not hasattr(monitor_trades, "_handoff_clear_at"):
-            monitor_trades._handoff_clear_at = 0.0
-        if not hasattr(monitor_trades, "_sticky_unlock"):
-            monitor_trades._sticky_unlock = {}  # per-symbol bool
+                    firebase_db.reference(stamp_key).set(guard["start_utc"])
+                    print(f"[SESSION] Flattened at {guard['session']} open ({guard['start_utc']}).")
+        except Exception as e:
+            print(f"⚠️ Session guard flatten block failed softly for {symbol}: {e}")
 
-        # ---- detect anchor handoff -> short pause, reset sticky
-        if anchor_id != monitor_trades._last_anchor_id:
-            print(f"[INFO] Anchor handoff: {monitor_trades._last_anchor_id} → {anchor_id}")
-            monitor_trades._last_anchor_id = anchor_id
-            monitor_trades._handoff_clear_at = time.time() + HANDOFF_PAUSE_SEC
-            monitor_trades._sticky_unlock[symbol_of_anchor] = False
+        # Load open trades list for this symbol (adapter keeps your existing behavior)
+        all_trades = load_open_trades(symbol)
 
-        handoff_active = time.time() < monitor_trades._handoff_clear_at
+        # Position count + zombie cleanup (pass only this symbol's trades)
+        live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
+        position_count = live_pos_data.get("position_count", 0)
+        run_zombie_cleanup_if_ready(all_trades, firebase_db, position_count, grace_period_seconds=20)
 
-        # ---- compute anchor unrealized (points) vs current price
-        cur_px = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
-        entry  = float(anchor.get("filled_price", 0.0) or 0.0)
-        side   = (anchor.get("action") or "BUY").upper()
+        # Filter active trades (symbol-scoped ghost/zombie logs)
+        active_trades = []
+        GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}
+        existing_zombies = _log_ids_for(firebase_db, "/zombie_trades_log", symbol)
+        existing_ghosts  = _log_ids_for(firebase_db, "/ghost_trades_log",  symbol)
 
-        if cur_px is None:
-            cur_px = entry  # last resort to avoid None math
-
-        if side == "BUY":
-            unreal_pts = float(cur_px) - entry
-        else:
-            unreal_pts = entry - float(cur_px)
-
-        # ---- sticky unlock: once >= threshold, it stays unlocked until handoff
-        sticky = monitor_trades._sticky_unlock.get(symbol_of_anchor, False)
-        if (unreal_pts >= GATE_UNLOCK_PTS) and not handoff_active:
-            if not sticky:
-                print(f"[GATE] Sticky UNLOCK set for {symbol_of_anchor} (+{unreal_pts:.2f}≥{GATE_UNLOCK_PTS})")
-            sticky = True
-            monitor_trades._sticky_unlock[symbol_of_anchor] = True
-
-        # ---- apply gating to followers (anchor always unlocked)
-        gate_updates = []
-        for t in active_trades:
-            if t is anchor:
-                if t.get("gate_state") != "UNLOCKED":
-                    t["gate_state"] = "UNLOCKED"
-                    gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
-                t["anchor_order_id"] = anchor_id
+        for t in all_trades:
+            order_id = t.get('order_id')
+            if not order_id:
+                print(f"[{symbol}] ⚠️ Skipping trade with no order_id")
                 continue
+            if is_archived_trade(order_id, firebase_db):
+                print(f"[{symbol}] ⏭️ Skipping archived trade {order_id}")
+                continue
+            if order_id in existing_zombies:
+                print(f"[{symbol}] ⏭️ Skipping zombie trade {order_id}")
+                continue
+            if order_id in existing_ghosts:
+                print(f"[{symbol}] ⏭️ Skipping ghost trade {order_id}")
+                continue
+            if t.get('exited') or t.get('status') in ['failed', 'closed']:
+                print(f"[{symbol}] 🔁 Skipping exited/closed trade {order_id}")
+                continue
+            if not t.get('filled') and (t.get('status', '').upper() not in GHOST_STATUSES):
+                print(f"[{symbol}] 🧾 Skipping {order_id} ⚠️ not filled and not a ghost trade")
+                continue
+            if trigger_points < 0.01 or offset_points < 0.01:
+                print(f"[{symbol}] ⚠️ Skipping trade {order_id} due to invalid TP config: "
+                      f"trigger={trigger_points}, buffer={offset_points}")
+                continue
+            active_trades.append(t)
 
-            was = t.get("gate_state", "PARKED")
-            t["anchor_order_id"] = anchor_id
+        if not active_trades:
+            print(f"[{symbol}] ⚠️ No active trades — Trade Worker happy & awake.")
+            # still continue to drain any symbol-scoped exit tickets below
 
-            if sticky and not handoff_active:
-                # followers may arm TP/trailing
-                t["gate_state"] = "UNLOCKED"
-                t.pop("skip_tp_trailing", None)
-                if was != "UNLOCKED":
-                    gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+        # =========================
+        # 🟩 ANCHOR GATE – Sticky unlock (+config)  🟩
+        # =========================
+        if active_trades:
+            # ---- choose FIFO anchor
+            anchor = min(
+                active_trades,
+                key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
+            )
+            anchor_id = anchor.get("order_id")
+            symbol_of_anchor = symbol  # normalized to this loop's symbol
+
+            # ---- load per-symbol settings (auto-seed if missing)
+            settings_ref = firebase_db.reference(f"/settings/symbols/{symbol_of_anchor}")
+            cfg = settings_ref.get() or {}
+            if "gate_unlock_points" not in cfg:
+                try:
+                    settings_ref.update({"gate_unlock_points": 1.0})
+                except Exception:
+                    pass
+                cfg = {"gate_unlock_points": 1.0}
+            GATE_UNLOCK_PTS = float(cfg.get("gate_unlock_points", 1.0))
+            HANDOFF_PAUSE_SEC = 2.0
+
+            # ---- state across loops
+            if not hasattr(monitor_trades, "_last_anchor_id"):
+                monitor_trades._last_anchor_id = None
+            if not hasattr(monitor_trades, "_handoff_clear_at"):
+                monitor_trades._handoff_clear_at = 0.0
+            if not hasattr(monitor_trades, "_sticky_unlock"):
+                monitor_trades._sticky_unlock = {}  # per-symbol bool
+
+            # ---- detect anchor handoff -> short pause, reset sticky
+            if anchor_id != monitor_trades._last_anchor_id:
+                print(f"[{symbol}] [INFO] Anchor handoff: {monitor_trades._last_anchor_id} → {anchor_id}")
+                monitor_trades._last_anchor_id = anchor_id
+                monitor_trades._handoff_clear_at = time.time() + HANDOFF_PAUSE_SEC
+                monitor_trades._sticky_unlock[symbol_of_anchor] = False
+
+            handoff_active = time.time() < monitor_trades._handoff_clear_at
+
+            # ---- compute anchor unrealized (points) vs current price
+            cur_px = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+            entry  = float(anchor.get("filled_price", 0.0) or 0.0)
+            side   = (anchor.get("action") or "BUY").upper()
+
+            if cur_px is None:
+                cur_px = entry  # last resort to avoid None math
+
+            if side == "BUY":
+                unreal_pts = float(cur_px) - entry
             else:
-                # parked until sticky unlock
-                t["gate_state"] = "PARKED"
-                t["skip_tp_trailing"] = True
-                if was != "PARKED" or "gate_state" not in t:
-                    gate_updates.append((t.get("order_id"), {"gate_state": "PARKED"}))
+                unreal_pts = entry - float(cur_px)
 
-        # ---- best-effort write of gate states
+            # ---- sticky unlock: once >= threshold, it stays unlocked until handoff
+            sticky = monitor_trades._sticky_unlock.get(symbol_of_anchor, False)
+            if (unreal_pts >= GATE_UNLOCK_PTS) and not handoff_active:
+                if not sticky:
+                    print(f"[{symbol}] [GATE] Sticky UNLOCK set (+{unreal_pts:.2f}≥{GATE_UNLOCK_PTS})")
+                sticky = True
+                monitor_trades._sticky_unlock[symbol_of_anchor] = True
+
+            # ---- apply gating to followers (anchor always unlocked)
+            gate_updates = []
+            for t in active_trades:
+                if t is anchor:
+                    if t.get("gate_state") != "UNLOCKED":
+                        t["gate_state"] = "UNLOCKED"
+                        gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+                    t["anchor_order_id"] = anchor_id
+                    continue
+
+                was = t.get("gate_state", "PARKED")
+                t["anchor_order_id"] = anchor_id
+
+                if sticky and not handoff_active:
+                    # followers may arm TP/trailing
+                    t["gate_state"] = "UNLOCKED"
+                    t.pop("skip_tp_trailing", None)
+                    if was != "UNLOCKED":
+                        gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+                else:
+                    # parked until sticky unlock
+                    t["gate_state"] = "PARKED"
+                    t["skip_tp_trailing"] = True
+                    if was != "PARKED" or "gate_state" not in t:
+                        gate_updates.append((t.get("order_id"), {"gate_state": "PARKED"}))
+
+            # ---- best-effort write of gate states (symbol-scoped)
+            try:
+                ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+                for oid, payload in gate_updates:
+                    if oid:
+                        ref.child(oid).update(payload)
+            except Exception as e:
+                print(f"[{symbol}] ⚠️ Gate state update skipped: {e}")
+
+            # ---- filter for trailing/TP processing (parked followers are skipped)
+            gated_trades = [t for t in active_trades if not (t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"))]
+            print(f"[{symbol}] [DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
+
+            try:
+                active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
+            except Exception as e:
+                print(f"[{symbol}] ❌ process_trailing_tp_and_exits error: {e}")
+        # =========================  END ANCHOR GATE  =========================
+
+        # Track anchors closed in this loop so they cannot be written back
+        closed_anchor_ids = set()
+
+        # 🔽 EXIT LOGIC: drain (sorted, one per loop, immediate local delete) — SYMBOL-SCOPED
         try:
-            ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-            for oid, payload in gate_updates:
-                if oid:
-                    ref.child(oid).update(payload)
-        except Exception as e:
-            print(f"⚠️ Gate state update skipped: {e}")
-
-        # ---- filter for trailing/TP processing (parked followers are skipped)
-        gated_trades = [t for t in active_trades if not (t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"))]
-        print(f"[DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
-
-        try:
-            active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
-        except Exception as e:
-            print(f"❌ process_trailing_tp_and_exits error: {e}")
-    # =========================  END ANCHOR GATE  =========================
-
-    # [ADD] Track anchors closed in this loop so they cannot be written back
-    closed_anchor_ids = set()
-
-    # Only drain exit tickets if we actually have open anchors to match
-    if not active_trades:
-        print("⏭️ No open anchors; skipping exit ticket drain this loop.")
-    else:
-
-       # 🔽 EXIT LOGIC: drain (sorted, one per loop, immediate local delete)
-        try:
-            tickets_ref = firebase_db.reference("/exit_orders_log")
+            tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
             open_ref    = firebase_db.reference(f"/open_active_trades/{symbol}")
             tickets     = tickets_ref.get() or {}
 
             # Oldest first by fill_time/transaction_time
-            items = sorted(
-                tickets.items(),
-                key=lambda kv: _iso_to_utc((kv[1] or {}).get("fill_time") or (kv[1] or {}).get("transaction_time") or "")
-            )
+            if isinstance(tickets, dict):
+                items = sorted(
+                    tickets.items(),
+                    key=lambda kv: _iso_to_utc((kv[1] or {}).get("fill_time") or (kv[1] or {}).get("transaction_time") or "")
+                )
+            else:
+                items = []
 
             for tx_id, tx in items:
                 # --- type check
                 if not isinstance(tx, dict):
-                    print(f"[DRAIN] Skip {tx_id}: not a dict")
+                    print(f"[{symbol}] [DRAIN] Skip {tx_id}: not a dict")
                     continue
 
                 # --- idempotency check (either flag means already handled)
                 if bool(tx.get("_processed")) or bool(tx.get("_handled")):
-                    print(f"[DRAIN] Skip {tx_id}: already processed (_processed/_handled set)")
+                    print(f"[{symbol}] [DRAIN] Skip {tx_id}: already processed (_processed/_handled set)")
                     continue
 
-                # --- ensure symbol (some manual tickets may lack it)
+                # --- ensure symbol (legacy/manual tickets may lack it)
                 if not tx.get("symbol"):
                     tx["symbol"] = symbol
                     tickets_ref.child(tx_id).update({"symbol": symbol})
-                    print(f"[PATCH] Added symbol to stale exit ticket {tx_id}")
+                    print(f"[{symbol}] [PATCH] Added symbol to stale exit ticket {tx_id}")
 
                 # --- ensure source on manual desktop tickets (so Sheets shows it)
                 if not tx.get("source") and tx.get("trade_type") == "MANUAL_EXIT":
@@ -861,7 +887,7 @@ def monitor_trades():
 
                 # --- trace: missing time fields (just a warning; handler will still decide)
                 if not (tx.get("transaction_time") or tx.get("fill_time")):
-                    print(f"[DRAIN] Warn {tx_id}: missing time (transaction_time/fill_time)")
+                    print(f"[{symbol}] [DRAIN] Warn {tx_id}: missing time (transaction_time/fill_time)")
 
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
 
@@ -870,42 +896,44 @@ def monitor_trades():
                     try:
                         open_ref.child(ok).delete()
                         closed_anchor_ids.add(ok)
-                        print(f"[LOCAL] Removed {ok} from open_active_trades (same-loop protection)")
+                        print(f"[{symbol}] [LOCAL] Removed {ok} from open_active_trades (same-loop protection)")
                     except Exception as e:
-                        print(f"[LOCAL] Could not delete {ok} locally: {e}")
+                        print(f"[{symbol}] [LOCAL] Could not delete {ok} locally: {e}")
 
                 # Mark processed either way (matches prior behavior)
                 tickets_ref.child(tx_id).update({"_processed": True})
-                print(f"[INFO] Exit ticket {tx_id} processed and marked _processed")
+                print(f"[{symbol}] [INFO] Exit ticket {tx_id} processed and marked _processed")
 
-                break  # process only ONE ticket per loop
+                break  # process only ONE ticket per loop (per symbol)
         except Exception as e:
-            print(f"❌ Exit ticket drain error: {e}")
+            print(f"[{symbol}] ❌ Exit ticket drain error: {e}")
 
-    # 3B: Remove any trades from Firebase that were closed by exit tickets
-    open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-    for t in list(active_trades):
-        if t.get('exited') or t.get('contracts_remaining', 0) <= 0:
-            oid = t.get('order_id')
-            if not oid:
-                continue
-            try:
-                open_trades_ref.child(oid).delete()
-                print(f"🗑️ Removed closed trade {oid} from Firebase after exit match")
-            except Exception as e:
-                print(f"⚠️ Failed to delete {oid} from Firebase: {e}")
+        # 3B: Remove any trades from Firebase that were closed by exit tickets
+        open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+        for t in list(active_trades):
+            if t.get('exited') or t.get('contracts_remaining', 0) <= 0:
+                oid = t.get('order_id')
+                if not oid:
+                    continue
+                try:
+                    open_trades_ref.child(oid).delete()
+                    print(f"[{symbol}] 🗑️ Removed closed trade {oid} from Firebase after exit match")
+                except Exception as e:
+                    print(f"[{symbol}] ⚠️ Failed to delete {oid} from Firebase: {e}")
 
-    if closed_anchor_ids:
-        active_trades = [t for t in active_trades if t.get("order_id") not in closed_anchor_ids]
+        if closed_anchor_ids:
+            active_trades = [t for t in active_trades if t.get("order_id") not in closed_anchor_ids]
 
-    active_trades = [
-        t for t in active_trades
-        if t.get('contracts_remaining', 0) > 0
-        and not t.get('exited')
-        and t.get('status') not in ('closed', 'failed')
-    ]
-    save_open_trades(symbol, active_trades)
-    print(f"[DEBUG] Saved {len(active_trades)} active trades after processing")
+        # Persist only still-active trades for this symbol
+        active_trades = [
+            t for t in active_trades
+            if t.get('contracts_remaining', 0) > 0
+            and not t.get('exited')
+            and t.get('status') not in ('closed', 'failed')
+        ]
+        save_open_trades(symbol, active_trades)
+        print(f"[{symbol}] [DEBUG] Saved {len(active_trades)} active trades after processing")
+
     ##========END OF MAIN MONITOR TRADES LOOP FUNCTION========##
 
 # ============================================================================
@@ -915,7 +943,7 @@ def monitor_trades():
 # =========================
 # 🟩 ZOMBIE CLEANUP — HARD MODE (no pauses, no ticket checks)
 # =========================
-zombie_first_seen = {}
+zombie_first_seen = {}  # keys: f"{sym}:{oid}"
 
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_period_seconds=90):
     now = time.time()
@@ -936,9 +964,10 @@ def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_
         if not oid:
             continue
 
-        t0 = zombie_first_seen.get(oid)
+        key = f"{sym}:{oid}"
+        t0 = zombie_first_seen.get(key)
         if t0 is None:
-            zombie_first_seen[oid] = now
+            zombie_first_seen[key] = now
             print(f"⏳ Started zombie timer for {oid} on {sym} (flat book)")
             continue
 
@@ -952,13 +981,13 @@ def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, grace_
             trade['contracts_remaining'] = 0
             trade['trade_state'] = 'closed'
             trade['is_open'] = False
-            zombie_trades_ref.child(oid).set(trade)
-            open_trades_ref.child(sym).child(oid).delete()
+            zombie_trades_ref.child(sym).child(oid).set(trade)
+            open_trades_ref.child(sym).child(oid).delete()      
             print(f"🗑️ Deleted {oid} from open_active_trades")
         except Exception as e:
             print(f"❌ Failed to archive/delete {oid}: {e}")
         finally:
-            zombie_first_seen.pop(oid, None)
+            zombie_first_seen.pop(key, None)
 
 if __name__ == '__main__':
     while True:

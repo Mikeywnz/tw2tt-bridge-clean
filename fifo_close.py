@@ -32,6 +32,20 @@ def point_value_for(symbol: str) -> float:
         # add others here as needed
     }.get(sym3, 1.0)
 
+# ====================================================
+# 🟩 Helper: Commission by instrument
+# ====================================================
+def commission_for(symbol: str) -> float:
+    """
+    Return round-trip commission per contract.
+    """
+    sym3 = (symbol or "").upper()[:3]
+    return {
+        "MGC": 7.02,  # Micro Gold: $3.51 per side → $7.02 round-trip
+        "MES": 2.64,  # Micro S&P: $1.32 per side → $2.64 round-trip
+        "MCL": 4.00,  # (example) Micro Crude Oil: $2.00 per side → $4.00 round-trip
+    }.get(sym3, 5.00)   # fallback default
+
 # ==============================================
 # 🟩 EXIT TICKET (tx_dict) → MINIMAL FIFO CLOSE + SHEETS LOG
 # ==============================================
@@ -68,15 +82,15 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Invalid exit payload: order_id={exit_oid}, symbol={symbol}, price={exit_price}")
         return False
     
-    # 🔒 Idempotency guard (ticket already handled?)
-    ticket_ref = firebase_db.reference(f"/exit_orders_log/{exit_oid}")
+    # 🔒 Idempotency guard (ticket already handled?) — SYMBOL-SCOPED
+    ticket_ref = firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}")
     existing = ticket_ref.get() or {}
     if existing.get("_processed") or existing.get("_handled"):
         anchor_already = existing.get("anchor_id")
         print(f"[SKIP] Exit {exit_oid} already handled. anchor_id={anchor_already}")
         return anchor_already or True
 
-    # 2) Log/Upsert exit ticket (never in open_active_trades)
+    # 2) Log/Upsert exit ticket (never in open_active_trades) — SYMBOL-SCOPED
     #    Keep any provided source so Sheets can render the right "Source"
     payload = {
         "order_id": exit_oid,
@@ -90,7 +104,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     }
     if tx_dict.get("source"):
         payload["source"] = tx_dict.get("source")
-    firebase_db.reference("/exit_orders_log").child(exit_oid).update(payload)
+    firebase_db.reference(f"/exit_orders_log/{symbol}").child(exit_oid).update(payload)
     print(f"[INFO] Exit ticket recorded: {exit_oid} @ {exit_price} ({exit_act})")
 
     # 3) Fetch oldest open anchor (FIFO by entry_timestamp)
@@ -175,7 +189,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     print(f"[INFO] P&L for {anchor_oid} via exit {exit_oid}: {pnl:.2f}")
 
     # 5) Close anchor (sticky entry_timestamp preserved)
-    COMMISSION_FLAT = 7.02
+    commission = commission_for(symbol)
     update = {
         "exited": True,
         "trade_state": "closed",
@@ -183,8 +197,8 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         "exit_timestamp": exit_time,
         "exit_reason": "FILLED",
         "realized_pnl": round(pnl, 2),                # dollars
-        "tiger_commissions": COMMISSION_FLAT,
-        "net_pnl": round(pnl - COMMISSION_FLAT, 2),   # dollars
+        "tiger_commissions": commission,
+        "net_pnl": round(pnl - commission, 2),   # dollars
         "exit_order_id": exit_oid,
     }
     try:
@@ -194,18 +208,18 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         print(f"❌ Failed to update anchor {anchor_oid}: {e}")
         return False
 
-    # 6) Archive & delete anchor (minimal + deterministic)
+    # 6) Archive & delete anchor (minimal + deterministic) — SYMBOL-SCOPED
     try:
-        firebase_db.reference(f"/archived_trades_log/{anchor_oid}").set({**anchor, **update})
+        firebase_db.reference(f"/archived_trades_log/{symbol}/{anchor_oid}").set({**anchor, **update})
         firebase_db.reference(f"/open_active_trades/{symbol}/{anchor_oid}").delete()
         print(f"[INFO] Archived + deleted anchor {anchor_oid}")
     except Exception as e:
         print(f"❌ Archive/delete failed for {anchor_oid}: {e}")
         return None
 
-    # 7) Mark exit ticket handled/processed (prevents reprocessing)
+    # 7) Mark exit ticket handled/processed (prevents reprocessing) — SYMBOL-SCOPED
     try:
-        firebase_db.reference(f"/exit_orders_log/{exit_oid}").update({
+        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({
             "_handled": True,
             "_processed": True,
             "anchor_id": anchor_oid,
@@ -218,7 +232,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     #=========================================================================================
     try:
         # --- timestamps used for Sheets (DISPLAY ONLY) ---
-        # ⬇️ CHANGE #1: prefer Tiger execution time saved on the anchor
+        # Prefer Tiger execution time saved on the anchor (if present); else use original entry_timestamp
         entry_src_iso = str(anchor.get("transaction_time") or anchor.get("entry_timestamp") or "").strip()
         exit_ts_iso   = str(exit_time or "").strip()  # Tiger fill time (UTC Z or offset)
 
@@ -230,18 +244,10 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
         # --- UTC(Z)/offset → NZ conversion (no other assumptions) ---
         NZ_TZ = pytz.timezone("Pacific/Auckland")
-        def nz_from_iso(s: str):
-            s = (s or "").strip()
-            if not s: return datetime.now(timezone.utc).astimezone(NZ_TZ)
-            if s.endswith("Z"): return datetime.fromisoformat(s.replace("Z","+00:00")).astimezone(NZ_TZ)
-            if "+" in s[10:] or "-" in s[10:]: return datetime.fromisoformat(s).astimezone(NZ_TZ)
-            # rare fallback: treat naive as UTC
-            base = s.replace("T"," ").split(".")[0]
-            return datetime.fromisoformat(base).replace(tzinfo=timezone.utc).astimezone(NZ_TZ)
 
-        # ⬇️ CHANGE #2: convert using entry_src_iso (not just entry_timestamp)
-        entry_dt = nz_from_iso(entry_src_iso)
-        exit_dt  = nz_from_iso(exit_ts_iso)
+        # Direct UTC → NZ conversion, but ONLY once.
+        entry_dt = datetime.fromisoformat(entry_src_iso.replace("Z", "+00:00")).astimezone(NZ_TZ) if entry_src_iso else None
+        exit_dt  = datetime.fromisoformat(exit_ts_iso.replace("Z", "+00:00")).astimezone(NZ_TZ) if exit_ts_iso else None
 
         day_date       = "'" + entry_dt.strftime("%A %d %B %Y")
         entry_time_str = "'" + entry_dt.strftime("%I:%M:%S %p")
@@ -260,7 +266,8 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         flip_str = "Liquidation" if is_liq else ("Yes" if (str(tx_dict.get("trade_type","")).startswith("FLATTENING_")) else "No")
 
         realized_pnl_fb = float(pnl)
-        net_fb = realized_pnl_fb - 7.02
+        commission = commission_for(symbol)
+        net_fb = realized_pnl_fb - commission
 
         # --- Source normalization: prefer ticket source over anchor ---
         ticket_src = (tx_dict.get("source") or "").strip()
@@ -285,27 +292,27 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         )
 
         row = [
-            day_date,
-            entry_time_str,
-            exit_time_str,
-            time_in_trade,
-            trade_type_str.title(),
-            flip_str,
-            entry_px,
-            exit_px,
+            symbol,                   # ✅ NEW COLUMN for instrument
+            day_date,                 # Day Date (NZ)
+            entry_time_str,           # Entry Time
+            exit_time_str,            # Exit Time
+            time_in_trade,            # Duration
+            trade_type_str.title(),   # Long/Short
+            flip_str,                 # Flip?
+            entry_px,                 # Entry Price
+            exit_px,                  # Exit Price
             trail_trig,
             trail_off,
             trail_hit,
             round(realized_pnl_fb, 2),
-            7.02,
+            commission,              # <-- use the variable
             round(net_fb, 2),
-            anchor_oid,
-            exit_oid,
-            source_val,
-            notes_text,
+            anchor_oid,               # Entry ID
+            exit_oid,                 # Exit ID
+            source_val,               # OpGo / Tiger Desktop / Tiger Mobile
+            notes_text,               # Notes
         ]
 
-        # ⬇️ CHANGE #3: trace prints the exact raw source we used
         print("[TRACE-SHEETS]", {
             "anchor_id": anchor_oid,
             "raw_entry_ts": entry_src_iso,

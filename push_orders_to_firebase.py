@@ -37,6 +37,7 @@ if not firebase_admin._apps:
 
 firebase_db = db
 
+
 #================================
 # 🟩 TIGER API SET UP ============
 #================================
@@ -106,14 +107,25 @@ def get_exit_reason(status, reason, filled, is_open=False):
         return "FILLED"
     return status
 
-# =====================================================
-# 🟩 Helper: Safe int cast for sorting entry_timestamps
-# =====================================================
-def safe_int(value):
+# ==================================================
+# 🟩 Helper: read IDs from flat or {symbol}/... logs
+# ==================================================
+def _log_ids_for(dbh, path, symbol):
     try:
-        return int(value)
-    except:
-        return 0
+        node = dbh.reference(path).get() or {}
+    except Exception:
+        return set()
+    ids = set()
+    if isinstance(node, dict):
+        # symbol-scoped
+        sym_child = node.get(symbol)
+        if isinstance(sym_child, dict):
+            ids |= set(map(str, sym_child.keys()))
+        # flat layout (ids at top-level)
+        for k in node.keys():
+            if str(k).isdigit():
+                ids.add(str(k))
+    return ids
 
 # ====================================================
 # 🟩 Helper: Load_trailing_tp_settings() From Firebase
@@ -129,34 +141,40 @@ def load_trailing_tp_settings():
         print(f"⚠️ Failed to fetch trailing TP settings: {e}")
     return 14.0, 5.0
 
-archived_trades_ref = db.reference("/archived_trades_log")
-archived_order_ids = set(archived_trades_ref.get() or {})
-    
+
 #===============================================
 # 🟩 Helper: Check if Trade ID is a Known Zombie
 #===============================================
 
-def is_zombie_trade(order_id, firebase_db):
-    zombie_ref = firebase_db.reference("/zombie_trades_log")
-    zombies = zombie_ref.get() or {}
-    return order_id in zombies
+def is_zombie_trade(order_id, firebase_db, symbol=None):
+    if not order_id:
+        return False
+    # symbol-scoped
+    if symbol and firebase_db.reference(f"/zombie_trades_log/{symbol}/{order_id}").get():
+        return True
+    # flat
+    return bool(firebase_db.reference(f"/zombie_trades_log/{order_id}").get())
 
 #======================================================
 # 🟩 Helper: Check if Trade ID is a Known Archived Trade
 #======================================================
 
-def is_archived_trade(order_id, firebase_db):
-    archived_ref = firebase_db.reference("/archived_trades_log")
-    archived_trades = archived_ref.get() or {}
-    return order_id in archived_trades
+def is_archived_trade(order_id, firebase_db, symbol=None):
+    if not order_id:
+        return False
+    if symbol and firebase_db.reference(f"/archived_trades_log/{symbol}/{order_id}").get():
+        return True
+    return bool(firebase_db.reference(f"/archived_trades_log/{order_id}").get())
 
 # ====================================================
 #🟩 Helper: to Check if Trade ID is a Known Ghost Trade
 # ====================================================
-def is_ghostflag_trade(order_id, firebase_db):
-    ghost_ref = firebase_db.reference("/ghost_trades_log")
-    ghosts = ghost_ref.get() or {}
-    return order_id in ghosts
+def is_ghostflag_trade(order_id, firebase_db, symbol=None):
+    if not order_id:
+        return False
+    if symbol and firebase_db.reference(f"/ghost_trades_log/{symbol}/{order_id}").get():
+        return True
+    return bool(firebase_db.reference(f"/ghost_trades_log/{order_id}").get())
 
 #################### END OF ALL HELPERS FOR THIS SCRIPT ####################
     
@@ -215,7 +233,7 @@ def push_orders_main():
     #=========================================================================================
 
     # 🟩 Refresh archived trades cache inside main loop
-    archived_order_ids = set(archived_trades_ref.get() or {})
+    archived_order_ids = _log_ids_for(firebase_db, "/archived_trades_log", active_symbol)
 
     tiger_ids = set()
 
@@ -231,8 +249,8 @@ def push_orders_main():
                 continue
 
           # 🔐 EARLY EXIT-TICKET FENCE — block exit fills from being processed as opens
-            exit_ref_early = firebase_db.reference(f"/exit_orders_log/{order_id}")
-            if exit_ref_early.get():
+            if firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get() \
+            or firebase_db.reference(f"/exit_orders_log/{order_id}").get():
                 print(f"⏭️ Skipping EXIT ticket {order_id} (early fence)")
                 continue
 
@@ -250,7 +268,7 @@ def push_orders_main():
                 liq_side = str(getattr(order, "action", "") or "").upper()
                 liq_sym  = getattr(order, "symbol", "") or active_symbol
 
-                firebase_db.reference(f"/exit_orders_log/{liq_oid}").set({
+                firebase_db.reference(f"/exit_orders_log/{liq_sym}/{liq_oid}").set({
                     "order_id": liq_oid,
                     "symbol": liq_sym,
                     "action": liq_side,
@@ -288,7 +306,7 @@ def push_orders_main():
                                 man_side = str(getattr(order, "action", "") or "").upper()
                                 man_sym  = getattr(order, "symbol", "") or active_symbol
 
-                                firebase_db.reference(f"/exit_orders_log/{man_oid}").update({
+                                firebase_db.reference(f"/exit_orders_log/{man_sym}/{man_oid}").update({
                                     "order_id": man_oid,
                                     "symbol": man_sym,
                                     "action": man_side,
@@ -316,17 +334,17 @@ def push_orders_main():
                 continue
             print(f"🔍 Processing order_id: {order_id}")
 
-            if is_zombie_trade(order_id, db):
+            if is_zombie_trade(order_id, db, active_symbol):
                 print(f"⏭️ ⛔ Skipping zombie trade {order_id} during API push")
                 continue
             else:
                 print(f"✅ Order ID {order_id} not a zombie, proceeding")
 
-            if is_archived_trade(order_id, db):
+            if is_archived_trade(order_id, db, active_symbol):
                 print(f"⏭️ ⛔ Skipping archived trade {order_id} during API push")
                 continue
 
-            if is_ghostflag_trade(order_id, db):
+            if is_ghostflag_trade(order_id, db, active_symbol):
                 print(f"⏭️ ⛔ Skipping ghost trade {order_id} during API push (detected by helper)")
                 continue
             else:
@@ -382,7 +400,7 @@ def push_orders_main():
                 }
 
                 try:
-                    firebase_db.reference(f"/archived_trades_log/{order_id}").set(closed_payload)
+                    firebase_db.reference(f"/archived_trades_log/{active_symbol}/{order_id}").set(closed_payload)
                     print(f"🗄️ Archived closed trade {order_id} to /archived_trades_log")
                 except Exception as e:
                     print(f"⚠️ Archive failed for closed trade {order_id}: {e}")
@@ -410,9 +428,9 @@ def push_orders_main():
                 }
                 try:
                     # 1) Archive (audit)
-                    firebase_db.reference(f"/archived_trades_log/{order_id}").set(ghost_record)
+                    firebase_db.reference(f"/archived_trades_log/{active_symbol}/{order_id}").set(ghost_record)
                     # 2) Index in ghost log
-                    firebase_db.reference(f"/ghost_trades_log/{order_id}").set(ghost_record)
+                    firebase_db.reference(f"/ghost_trades_log/{active_symbol}/{order_id}").set(ghost_record)
                     # 3) Remove any live copy from open_active_trades
                     open_ref = firebase_db.reference(f"/open_active_trades/{active_symbol}")
                     if open_ref.child(order_id).get() is not None:
@@ -500,8 +518,8 @@ def push_orders_main():
             continue
 
         # 🔒 LATE EXIT‑TICKET FENCE — last check before we touch /open_active_trades
-        exit_ref_late = firebase_db.reference(f"/exit_orders_log/{order_id}").get()
-        if exit_ref_late:
+        if firebase_db.reference(f"/exit_orders_log/{active_symbol}/{order_id}").get() \
+        or firebase_db.reference(f"/exit_orders_log/{order_id}").get():
             print(f"⏭️ Skipping EXIT ticket {order_id} (late fence)")
             continue
 
