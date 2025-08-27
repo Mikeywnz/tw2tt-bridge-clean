@@ -221,12 +221,11 @@ def push_orders_main():
         push_orders_main._recent_burst = False # reset after one wide fetch
 
     orders = client.get_orders(
-        account="21807597867063647",
-        seg_type=SegmentType.FUT,
-        symbol=active_symbol,
-        limit=limit
+    account="21807597867063647",
+    seg_type=SegmentType.FUT,
+    limit=limit
     )
-    print(f"\n📦 Total orders returned for {active_symbol} (limit={limit}): {len(orders)}")
+    print(f"\n📦 Total FUT orders returned (limit={limit}): {len(orders)}")
 
    #=========================================================================================
     # ====================== START THE FUNCTION: Push Orders Processing ======================
