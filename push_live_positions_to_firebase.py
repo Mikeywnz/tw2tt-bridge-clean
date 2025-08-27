@@ -1,154 +1,122 @@
 # =========================  PUSH_LIVE_POSITIONS_TO_FIREBASE  =========================
-import os, time, pytz
-from datetime import datetime, timezone as dt_tz
-
-import firebase_admin
-from firebase_admin import credentials, initialize_app, db
+import os
+import time
+from datetime import datetime
+import pytz
 
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType
 
-import rollover_updater  # your existing module
-# import firebase_active_contract  # not needed here but fine to keep if you use elsewhere
+import rollover_updater  # your rollover script, callable via .main()
 
-# ---------- Firebase init ----------
-FIREBASE_KEY = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
-if not firebase_admin._apps:
-    cred = credentials.Certificate(FIREBASE_KEY)
-    initialize_app(cred, {
-        'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
-    })
+import firebase_admin
+from firebase_admin import credentials, initialize_app, db
 
-# ---------- Tiger client ----------
+# --- Firebase init ---
+FIREBASE_KEY_PATH = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+DB_URL = "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+try:
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        initialize_app(cred, {"databaseURL": DB_URL})
+except Exception as e:
+    print(f"❌ Firebase init failed: {e}", flush=True)
+
+# --- Tiger client ---
 config = TigerOpenClientConfig()
 client = TradeClient(config)
 
+# --- Timezone ---
 NZ_TZ = pytz.timezone("Pacific/Auckland")
-ACCOUNT_ID = "21807597867063647"   # <- your account
 
-# ---------- helpers ----------
-def _now_nz_str():
-    now = datetime.now(NZ_TZ)
-    return now.strftime("%Y-%m-%d %H:%M:%S ") + now.tzname()
+# --- Your Tiger account id (unchanged) ---
+ACCOUNT_ID = "21807597867063647"
 
-def _safe_qty(v):
+def _fetch_positions_safe(sec_type):
+    """Return a list of position objects for the given security type, or []."""
     try:
-        return int(v)
-    except Exception:
-        try:
-            return int(float(v))
-        except Exception:
-            return 0
-
-def fetch_all_positions():
-    """
-    Return a list of Tiger position objects across Futures + Stocks.
-    Handles environments where SegmentType.STK may not exist.
-    """
-    out = []
-
-    # Futures first (always supported in your env)
-    try:
-        fut = client.get_positions(account=ACCOUNT_ID, sec_type=SegmentType.FUT) or []
-        out.extend(fut)
-        print(f"📦 FUT positions: {len(fut)}", flush=True)
+        pos = client.get_positions(account=ACCOUNT_ID, sec_type=sec_type) or []
+        return pos
     except Exception as e:
-        print(f"⚠️ get_positions(FUT) failed: {e}", flush=True)
+        print(f"⚠️ get_positions failed for {sec_type}: {e}", flush=True)
+        return []
 
-    # Stocks if STK enum exists; otherwise do a broad fetch and filter
-    try:
-        stk = client.get_positions(account=ACCOUNT_ID, sec_type=getattr(SegmentType, "STK"))
-        stk = stk or []
-        out.extend(stk)
-        print(f"📦 STK positions: {len(stk)}", flush=True)
-    except AttributeError:
-        # Some TigerOpen builds don’t expose SegmentType.STK; fall back to catch-all
-        try:
-            print("ℹ️ No stock enums found; using catch-all fetch and filter.", flush=True)
-            allp = client.get_positions(account=ACCOUNT_ID) or []
-            # keep everything; you only care about qty totals + symbol mapping
-            out.extend(allp)
-        except Exception as e:
-            print(f"⚠️ Broad get_positions() failed: {e}", flush=True)
-    except Exception as e:
-        print(f"⚠️ get_positions(STK) failed: {e}", flush=True)
-
-    return out
-
-def build_payload(positions):
-    """
-    Creates the exact Firebase payload you need:
-      live_total_positions = {
-        position_count: <int>,               # unchanged (used by zombie logic)
-        last_updated:   "<NZ time>",
-        symbols: {
-          "<SYMBOL>": { quantity, avg_price, sec_type }
-        }
-      }
-    """
-    symbols = {}
-    total_qty = 0
-
-    for p in positions:
-        sym  = getattr(p, "symbol", None)
-        qty  = _safe_qty(getattr(p, "quantity", 0))
-        px   = getattr(p, "avg_price", 0.0)
-        st   = str(getattr(p, "sec_type", "UNKNOWN"))
-
-        if not sym:
-            continue
-
-        # For safety: if same symbol appears multiple times, sum quantities
-        if sym not in symbols:
-            symbols[sym] = {"quantity": 0, "avg_price": float(px) if px is not None else 0.0, "sec_type": st}
-        symbols[sym]["quantity"] += qty
-
-        total_qty += qty
-
-    payload = {
-        "position_count": total_qty,     # <-- matches your original logic (don’t change to abs-sum)
-        "last_updated": _now_nz_str(),
-        "symbols": symbols if symbols else {}  # keep path stable
-    }
-    return payload
-
-# ---------- main worker ----------
 def push_live_positions():
     live_ref = db.reference("/live_total_positions")
     last_rollover_date = None
-
-    print("🟢 live positions worker started", flush=True)
+    print("🟢 push_live_positions worker started", flush=True)
 
     while True:
         try:
-            # Daily rollover (NZ)
-            nz_date = datetime.now(NZ_TZ).date()
-            if last_rollover_date != nz_date:
+            # ---- Daily rollover check (NZ date) ----
+            today_nz = datetime.now(NZ_TZ).date()
+            if last_rollover_date != today_nz:
                 try:
-                    print(f"⏰ Rollover check for {nz_date}", flush=True)
+                    print(f"⏰ Running daily rollover for {today_nz}", flush=True)
                     rollover_updater.main()
-                except Exception as e:
-                    print(f"⚠️ Rollover updater failed: {e}", flush=True)
-                last_rollover_date = nz_date
+                except Exception as re:
+                    print(f"⚠️ Rollover updater failed: {re}", flush=True)
+                last_rollover_date = today_nz
 
-            # Pull, build, push
-            positions = fetch_all_positions()
-            payload   = build_payload(positions)
+            # ---- Collect positions (Futures + Stocks) ----
+            fut_positions = _fetch_positions_safe(SegmentType.FUT)
+            stk_positions = _fetch_positions_safe(SegmentType.STK)
 
+            all_positions = []
+            all_positions.extend(fut_positions)
+            all_positions.extend(stk_positions)
+
+            print(f"📦 Fetched FUT={len(fut_positions)} STK={len(stk_positions)} (total={len(all_positions)})", flush=True)
+
+            # ---- Build per-symbol payload ----
+            updates = {}
+            for pos in all_positions:
+                sym = getattr(pos, "symbol", None)
+                qty = getattr(pos, "quantity", 0)
+                avg_px = getattr(pos, "avg_price", 0.0)
+                sec = getattr(pos, "sec_type", "UNKNOWN")
+                if not sym:
+                    continue
+                updates[sym] = {
+                    "quantity": int(qty) if isinstance(qty, (int, float)) else 0,
+                    "avg_price": float(avg_px) if isinstance(avg_px, (int, float)) else 0.0,
+                    "sec_type": str(sec),
+                }
+
+            # ---- Aggregate totals + legacy field ----
+            total_contracts = 0
+            per_symbol_counts = {}
+            for sym, info in updates.items():
+                q = int(info.get("quantity", 0))
+                per_symbol_counts[sym] = q
+                total_contracts += q
+
+            now_nz = datetime.now(NZ_TZ)
+            timestamp_str = now_nz.strftime("%Y-%m-%d %H:%M:%S ") + now_nz.tzname()
+
+            payload = {
+                **updates,                        # per-symbol nodes
+                "position_count": total_contracts, # ✅ legacy field (monitor/zombie uses this)
+                "per_symbol_counts": per_symbol_counts,  # ✅ new: symbol breakdown
+                "last_updated": timestamp_str,
+            }
+
+            # ---- Write to Firebase ----
             live_ref.set(payload)
-            print(f"✅ Pushed position_count={payload['position_count']} | symbols={len(payload['symbols'])} @ {payload['last_updated']}", flush=True)
+            print(f"✅ Pushed position_count={total_contracts} across {len(per_symbol_counts)} symbols at {timestamp_str}", flush=True)
 
-            # Keep path alive (belt-and-braces)
-            if not (live_ref.get() or {}):
+            # ---- Keep path alive (paranoia) ----
+            snap = live_ref.get()
+            if not snap:
                 live_ref.child("_heartbeat").set("alive")
 
         except Exception as e:
-            print(f"❌ Error pushing live positions: {e}", flush=True)
+            print(f"❌ Error in push_live_positions loop: {e}", flush=True)
 
-        time.sleep(20)
+        time.sleep(20)  # 20s cadence
 
-# ---------- entry ----------
 if __name__ == "__main__":
     push_live_positions()
 # =========================  END  =========================
