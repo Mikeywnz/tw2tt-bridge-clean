@@ -52,6 +52,7 @@ zombie_first_seen = {}  # keys: f"{sym}:{oid}"
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, current_symbol=None, grace_period_seconds=None):
     if grace_period_seconds is None:
         grace_period_seconds = ZOMBIE_GRACE_SECONDS
+    now = time.time()
     if position_count != 0:
         if zombie_first_seen:
             if current_symbol:

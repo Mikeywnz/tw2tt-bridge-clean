@@ -265,7 +265,10 @@ def push_orders_main():
                         or getattr(order, "order_time", None))
                 liq_iso = _safe_iso(liq_ts)
                 liq_side = str(getattr(order, "action", "") or "").upper()
-                liq_sym  = getattr(order, "symbol", "") or active_symbol
+                contract_str = str(getattr(order, "contract", "") or "")
+                sym_from_contract = contract_str.split("/", 1)[0] if contract_str else ""
+                liq_sym_raw = getattr(order, "symbol", "") or ""
+                liq_sym = (liq_sym_raw or sym_from_contract or active_symbol).strip()
 
                 firebase_db.reference(f"/exit_orders_log/{liq_sym}/{liq_oid}").set({
                     "order_id": liq_oid,
@@ -303,7 +306,15 @@ def push_orders_main():
                                             or 0.0)
                                 man_iso  = _safe_iso(ts_ms)
                                 man_side = str(getattr(order, "action", "") or "").upper()
-                                man_sym  = getattr(order, "symbol", "") or active_symbol
+                                # Prefer explicit symbol; otherwise parse from 'contract' like 'MGC2510/FUT/USD/None'
+                                contract_str = str(getattr(order, "contract", "") or "")
+                                sym_from_contract = contract_str.split("/", 1)[0] if contract_str else ""
+                                man_sym_raw = getattr(order, "symbol", "") or ""
+                                man_sym = (man_sym_raw or sym_from_contract).strip()
+
+                                if not man_sym:
+                                    print(f"[MANUAL] missing symbol on manual order id={man_oid}; contract='{contract_str}'. Skipping enqueue.")
+                                    continue
 
                                 firebase_db.reference(f"/exit_orders_log/{man_sym}/{man_oid}").update({
                                     "order_id": man_oid,
