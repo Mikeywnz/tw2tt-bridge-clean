@@ -1,67 +1,101 @@
-# ================= PUSH_LIVE_POSITIONS_TO_FIREBASE (symbol-agnostic) =================
-import os, time, pytz
-from datetime import datetime, timezone
-import firebase_admin
-from firebase_admin import credentials, initialize_app, db
+#=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE  ================================
+
+import time
+from datetime import datetime
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
+from tigeropen.common.consts import SegmentType
+from datetime import datetime
+from pytz import timezone
+from datetime import date
+import rollover_updater  # Your rollover script filename without .py
+from datetime import timezone
+import pytz
+from firebase_admin import credentials, initialize_app, db
+import firebase_admin
+import firebase_active_contract
+import os
 
-NZ_TZ = pytz.timezone("Pacific/Auckland")
+# === Firebase Key ===
+firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+cred = credentials.Certificate(firebase_key_path)
 
-# --- Firebase init ---
-key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+# === Firebase Initialization ===
 if not firebase_admin._apps:
-    initialize_app(credentials.Certificate(key_path), {
+    firebase_key_path = "/etc/secrets/firebase_key.json" if os.path.exists("/etc/secrets/firebase_key.json") else "firebase_key.json"
+    cred = credentials.Certificate(firebase_key_path)
+    initialize_app(cred, {
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-# --- Tiger client ---
-client = TradeClient(TigerOpenClientConfig())
 
-def _now_iso_nz():
-    now = datetime.now(NZ_TZ)
-    return now.strftime("%Y-%m-%d %H:%M:%S ") + now.tzname()
+# === TigerOpen Client Setup ===
+config = TigerOpenClientConfig()
+client = TradeClient(config)
 
+
+# === Helper: Fetch Trade Transactions from Tiger (for accurate entry prices) ===
+# def fetch_trade_transactions(account_id):
+#     try:
+#         active_symbol = firebase_active_contract.get_active_contract()
+#         if not active_symbol:
+#             print("❌ No active contract symbol found in Firebase; aborting fetch_trade_transactions")
+#             return []
+#         transactions = client.get_transactions(account=account_id, symbol=active_symbol, limit=10)
+#         return transactions or []
+#     except Exception as e:
+#         print(f"❌ Failed to fetch trade transactions: {e}")
+#         return []
+
+
+
+# === 🟩 DAILY ROLLOVER UPDATER INTEGRATION 🟩 ===
 def push_live_positions():
     live_ref = db.reference("/live_total_positions")
-    print("🟢 live-positions worker running")
+    open_trades_ref = db.reference("/open_active_trades")
+
+    last_rollover_date = None
 
     while True:
         try:
-            total = 0
-            by_symbol = {}
+            now_nz = datetime.now(pytz.timezone("Pacific/Auckland")).date()
+            if last_rollover_date != now_nz:
+                print(f"⏰ Running daily rollover check for {now_nz}")
+                rollover_updater.main()  # Call rollover script main function
+                last_rollover_date = now_nz
 
-            # Pull all open positions (agnostic: futures, stocks, etc.)
-            positions = []
-            try:
-                positions = client.get_positions(account="21807597867063647") or []
-            except Exception as e:
-                print(f"⚠️ get_positions() failed: {e}")
+            # --- Update position count ---
+            positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
+            position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
+            timestamp_iso = datetime.now(timezone.utc).isoformat()
 
-            for p in positions:
-                sym = getattr(p, "symbol", None)
-                qty = getattr(p, "quantity", 0) or 0
-                if not sym:
-                    continue
-                # Treat any non-zero as “open”
-                total += abs(int(qty))
-                by_symbol[sym] = by_symbol.get(sym, 0) + abs(int(qty))
+            now_nz = datetime.now(pytz.timezone("Pacific/Auckland"))
+            timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
 
-            payload = {
-                "position_count": int(total),
-                "by_symbol": by_symbol,                       # e.g. {"MGC2508": 4, "MES2509": 2}
-                "last_updated": _now_iso_nz(),
-                "last_updated_epoch": int(datetime.now(timezone.utc).timestamp()),
-            }
+            live_ref.update({
+                "position_count": position_count,
+                "last_updated": timestamp_readable
+            })
+            print(f"✅ Pushed position count {position_count} at {timestamp_iso}")
 
-            live_ref.set(payload)
-            print(f"✅ position_count={total} by_symbol={by_symbol}")
+            # # --- Fetch trade activities for accurate prices ---
+            # transactions = fetch_trade_transactions(account_id="21807597867063647")
+
+            # print(f"🔍 Fetched {len(transactions)} transactions")
+            # for tx in transactions:
+            #     print(vars(tx))
+
+            # --- Keep /live_total_positions/ path alive ---
+            if not live_ref.get():
+                live_ref.child("_heartbeat").set("alive")
 
         except Exception as e:
             print(f"❌ Error pushing live positions: {e}")
 
-        time.sleep(20)
+        time.sleep(20)  # Pause 20 seconds before next update
+
 
 if __name__ == "__main__":
     push_live_positions()
-# ================= END ======================================================
+
+#=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE (END OF SCRIPT)  ================================
