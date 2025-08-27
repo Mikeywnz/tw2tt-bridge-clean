@@ -296,39 +296,30 @@ def load_open_trades(symbol):
         return []
 
 
-def save_open_trades(symbol, trades, grace_seconds: int = 18):
+def save_open_trades(symbol, trades, grace_seconds: int = 12):
+
     """
     Atomic overwrite of /open_active_trades/{symbol} with a short grace period:
     - Writes all valid 'trades' you pass in.
     - Keeps any *existing* Firebase trade for this symbol if its entry_timestamp is within the last `grace_seconds`.
     - Flushes old/zombie entries.
-    - NEW: If there is nothing fresh to write, DO NOT overwrite the path to {} when
-      there are still recent valid opens in Firebase (prevents clobber on race).
     """
     ref = db.reference(f"/open_active_trades/{symbol}")
 
     def _parse_iso_to_utc(iso_str: str) -> datetime:
-        s = (iso_str or "").strip()
-        if not s:
-            return datetime.min.replace(tzinfo=timezone.utc)
+        """Tolerant ISO parser -> aware UTC datetime."""
+        s = (iso_str or "").strip().replace("T", " ").replace("Z", "")
         try:
-            # handle trailing Z
-            if s.endswith("Z"):
-                return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
-            # handle offsets
-            if "+" in s[10:] or "-" in s[10:]:
-                return datetime.fromisoformat(s).astimezone(timezone.utc)
-            # naive → assume UTC
-            # also tolerate "YYYY-MM-DD HH:MM:SS"
-            base = s.replace("T", " ").split(".")[0]
-            return datetime.fromisoformat(base).replace(tzinfo=timezone.utc)
+            dt = datetime.fromisoformat(s)
         except Exception:
-            return datetime.min.replace(tzinfo=timezone.utc)
+            return datetime.min.replace(tzinfo=dt_timezone.utc)
+        # treat naive as UTC
+        return dt.replace(tzinfo=dt_timezone.utc) if dt.tzinfo is None else dt.astimezone(dt_timezone.utc)
 
     try:
         # 1) Build fresh payload from provided trades
         fresh = {}
-        for t in trades or []:
+        for t in trades:
             if not isinstance(t, dict):
                 continue
             oid = t.get("order_id")
@@ -343,10 +334,7 @@ def save_open_trades(symbol, trades, grace_seconds: int = 18):
 
         # 2) Load existing to apply short grace for very-new trades
         existing = ref.get() or {}
-        if not isinstance(existing, dict):
-            existing = {}
-
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(dt_timezone.utc)
         cutoff = now_utc - timedelta(seconds=grace_seconds)
 
         # Keep any existing recent trade not present in `fresh`
@@ -360,38 +348,17 @@ def save_open_trades(symbol, trades, grace_seconds: int = 18):
             status = (tr.get("status") or "").lower()
             if tr.get("exited") or status in ("closed", "failed") or (tr.get("contracts_remaining", 0) or 0) <= 0:
                 continue
+            # Use entry_timestamp; fallback to transaction_time if needed
             ts = tr.get("entry_timestamp") or tr.get("transaction_time") or ""
             ts_utc = _parse_iso_to_utc(ts)
             if ts_utc >= cutoff:
                 fresh[oid] = tr  # protect very recent trade
 
         # 3) Atomic overwrite with protected set
-        if not fresh:
-            # NEW: if there are no fresh entries AND existing has recent valid opens,
-            # skip the overwrite to avoid wiping a brand-new order written by another worker.
-            has_recent_valid = False
-            for oid, tr in existing.items():
-                if not isinstance(tr, dict):
-                    continue
-                if tr.get("symbol") not in (None, "", symbol):
-                    continue
-                status = (tr.get("status") or "").lower()
-                if tr.get("exited") or status in ("closed", "failed") or (tr.get("contracts_remaining", 0) or 0) <= 0:
-                    continue
-                ts = tr.get("entry_timestamp") or tr.get("transaction_time") or ""
-                ts_utc = _parse_iso_to_utc(ts)
-                if ts_utc >= cutoff:
-                    has_recent_valid = True
-                    break
-
-            if has_recent_valid:
-                print(f"[{symbol}] save_open_trades(): fresh=0 but existing has recent valid opens; skip overwrite (grace={grace_seconds}s)")
-                return
-
         ref.set(fresh)
-        print(f"✅ [{symbol}] Open trades set atomically (kept {len(fresh)}; grace={grace_seconds}s)")
+        print(f"✅ Open Active Trades overwritten atomically (kept {len(fresh)}; grace={grace_seconds}s)")
     except Exception as e:
-        print(f"❌ Failed to save open trades to Firebase [{symbol}]: {e}")
+        print(f"❌ Failed to save open trades to Firebase: {e}")
 
 # =========================================================================
 # 🟢 TRAILING TP & EXIT (minimal, FIFO-first; uses handle_exit_fill_from_tx)
