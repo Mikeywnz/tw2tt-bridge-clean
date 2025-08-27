@@ -170,8 +170,8 @@ ATR_TRIGGER_MULT  = 0.60      # was too high; try 0.6x smoothed range
 ATR_OFFSET_MULT   = 0.30      # exit buffer at ~half the trigger
 
 # Floors & caps (keep triggers practical)
-MIN_TRIGGER_FLOOR = 2.0
-MIN_OFFSET_FLOOR  = 0.8
+MIN_TRIGGER_FLOOR = 3.0
+MIN_OFFSET_FLOOR  = 1.0
 MAX_TRIGGER_CAP   = 10.0
 MAX_OFFSET_CAP    = 4.0
 _ema_absdiff = defaultdict(float)
