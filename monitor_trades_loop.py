@@ -604,7 +604,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 # ========================================================
 
 def monitor_trades():
-    print("[DEBUG] - entering monitor_trades()")
+   #print("[DEBUG] - entering monitor_trades()")
 
     # Ensure global/session guards once per loop (unchanged)
     ensure_session_guards_defaults(firebase_db)
