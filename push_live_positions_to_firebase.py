@@ -66,7 +66,7 @@ def push_live_positions():
 
             # --- Update position count ---
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
-            position_count = sum(getattr(pos, "quantity", 0) for pos in positions)
+            position_count = sum(abs(int(getattr(pos, "quantity", 0) or 0)) for pos in positions)
             timestamp_iso = datetime.now(timezone.utc).isoformat()
 
             now_nz = datetime.now(pytz.timezone("Pacific/Auckland"))
