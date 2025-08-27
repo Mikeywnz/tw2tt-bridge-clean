@@ -1,11 +1,10 @@
-# ================= PUSH_LIVE_POSITIONS_TO_FIREBASE (fixed) =================
+# ================= PUSH_LIVE_POSITIONS_TO_FIREBASE (symbol-agnostic) =================
 import os, time, pytz
 from datetime import datetime, timezone
 import firebase_admin
 from firebase_admin import credentials, initialize_app, db
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
-from tigeropen.common.consts import SegmentType
 
 NZ_TZ = pytz.timezone("Pacific/Auckland")
 
@@ -31,40 +30,32 @@ def push_live_positions():
         try:
             total = 0
             by_symbol = {}
-            last_seen_any = False
 
-            # FUT + (fallback) STK. If STK enum not available, just ignore failure.
-            for seg in (SegmentType.FUT,):
-                try:
-                    positions = client.get_positions(account="21807597867063647", sec_type=seg) or []
-                except Exception as e:
-                    print(f"⚠️ get_positions({seg}) failed: {e}")
-                    positions = []
+            # Pull all open positions (agnostic: futures, stocks, etc.)
+            positions = []
+            try:
+                positions = client.get_positions(account="21807597867063647") or []
+            except Exception as e:
+                print(f"⚠️ get_positions() failed: {e}")
 
-                for p in positions:
-                    sym = getattr(p, "symbol", None)
-                    qty = getattr(p, "quantity", 0) or 0
-                    if not sym:
-                        continue
-                    last_seen_any = True
-                    # Treat any non-zero as “open”
-                    total += abs(int(qty))
-                    by_symbol[sym] = by_symbol.get(sym, 0) + abs(int(qty))
+            for p in positions:
+                sym = getattr(p, "symbol", None)
+                qty = getattr(p, "quantity", 0) or 0
+                if not sym:
+                    continue
+                # Treat any non-zero as “open”
+                total += abs(int(qty))
+                by_symbol[sym] = by_symbol.get(sym, 0) + abs(int(qty))
 
             payload = {
                 "position_count": int(total),
-                "by_symbol": by_symbol,                       # <- new but harmless
+                "by_symbol": by_symbol,                       # e.g. {"MGC2508": 4, "MES2509": 2}
                 "last_updated": _now_iso_nz(),
                 "last_updated_epoch": int(datetime.now(timezone.utc).timestamp()),
             }
 
-            # keep path alive AND update numbers atomically
-            db.reference("/live_total_positions").set(payload)
+            live_ref.set(payload)
             print(f"✅ position_count={total} by_symbol={by_symbol}")
-
-            # heartbeat (legacy readers may expect it)
-            if not last_seen_any:
-                live_ref.child("_heartbeat").set("alive")
 
         except Exception as e:
             print(f"❌ Error pushing live positions: {e}")
