@@ -43,7 +43,7 @@ def push_live_positions():
                 rollover_updater.main()  # Call rollover script main function
                 last_rollover_date = now_nz_date
 
-            # --- Update per-symbol SIGNED positions (1 long, -1 short, 0 flat) ---
+            # --- Update per-symbol NET positions (signed; e.g., -3 short, +2 long, 0 flat) ---
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
 
             by_symbol = {}
@@ -51,33 +51,36 @@ def push_live_positions():
                 # Tiger often returns 'contract' like 'MES2509/FUT/USD/None' — take the symbol before the first '/'
                 contract_or_sym = str(getattr(pos, "contract", getattr(pos, "symbol", "")) or "")
                 sym = contract_or_sym.split("/", 1)[0].strip()
+
+                # quantity should already be signed (+ long / - short) from Tiger
                 qty = getattr(pos, "quantity", getattr(pos, "position_qty", 0)) or 0
                 try:
-                    qty = int(qty)  # keep sign: +long, -short
+                    qty = int(qty)
                 except Exception:
                     try:
                         qty = int(float(qty))
                     except Exception:
                         qty = 0
+
                 if not sym or qty == 0:
+                    # keep exact mirror: if Tiger shows 0 net, omit/leave 0
+                    by_symbol.setdefault(sym or "UNKNOWN", 0)
                     continue
-                # net by symbol (signed)
+
                 by_symbol[sym] = by_symbol.get(sym, 0) + qty
 
-            # reduce to direction only: 1 (long), -1 (short), 0 (flat)
-            by_symbol = {k: (1 if v > 0 else (-1 if v < 0 else 0)) for k, v in by_symbol.items()}
-
-            timestamp_iso = datetime.now(timezone.utc).isoformat()
+            # Timestamps
             now_nz = datetime.now(pytz.timezone("Pacific/Auckland"))
             timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
 
+            # Write ONLY the per-symbol net map + timestamp (no global position_count)
             live_ref.update({
-                "by_symbol": by_symbol,           # e.g. {"MGC2510": 1, "MES2509": -1}
+                "by_symbol": by_symbol,           # e.g. {"MGC2510": -3, "MES2509": 1}
                 "last_updated": timestamp_readable
             })
             print(f"✅ Pushed by_symbol={by_symbol}")
 
-            # --- Keep /live_total_positions/ path alive ---
+            # --- Keep /live_total_positions/ path alive (legacy) ---
             if not live_ref.get():
                 live_ref.child("_heartbeat").set("alive")
 
