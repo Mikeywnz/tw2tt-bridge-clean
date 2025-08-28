@@ -776,8 +776,10 @@ def monitor_trades():
             position_count_for_zombies = int(live_pos_data.get("position_count", 0))
 
         run_zombie_cleanup_if_ready(
-            all_trades, firebase_db, position_count_for_zombies,
-            current_symbol=symbol, grace_period_seconds=ZOMBIE_GRACE_SECONDS
+            all_trades,
+            firebase_db,
+            symbol,  # current_symbol
+            grace_period_seconds=ZOMBIE_GRACE_SECONDS
         )
 
         # Filter active trades (symbol-scoped ghost/zombie logs)
