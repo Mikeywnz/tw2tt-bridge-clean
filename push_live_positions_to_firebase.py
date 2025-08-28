@@ -1,15 +1,11 @@
 #=========================  PUSH_LIVE_POSITIONS_TO_FIREBASE  ================================
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone, date
 from tigeropen.tiger_open_config import TigerOpenClientConfig
 from tigeropen.trade.trade_client import TradeClient
 from tigeropen.common.consts import SegmentType
-from datetime import datetime
-from pytz import timezone
-from datetime import date
 import rollover_updater  # Your rollover script filename without .py
-from datetime import timezone
 import pytz
 from firebase_admin import credentials, initialize_app, db
 import firebase_admin
@@ -28,11 +24,9 @@ if not firebase_admin._apps:
         'databaseURL': "https://tw2tt-firebase-default-rtdb.asia-southeast1.firebasedatabase.app"
     })
 
-
 # === TigerOpen Client Setup ===
 config = TigerOpenClientConfig()
 client = TradeClient(config)
-
 
 # === 🟩 DAILY ROLLOVER UPDATER INTEGRATION 🟩 ===
 def push_live_positions():
@@ -43,43 +37,45 @@ def push_live_positions():
 
     while True:
         try:
-            now_nz = datetime.now(pytz.timezone("Pacific/Auckland")).date()
-            if last_rollover_date != now_nz:
-                print(f"⏰ Running daily rollover check for {now_nz}")
+            now_nz_date = datetime.now(pytz.timezone("Pacific/Auckland")).date()
+            if last_rollover_date != now_nz_date:
+                print(f"⏰ Running daily rollover check for {now_nz_date}")
                 rollover_updater.main()  # Call rollover script main function
-                last_rollover_date = now_nz
+                last_rollover_date = now_nz_date
 
-            # --- Update position count (plus per-symbol map) ---
+            # --- Update per-symbol SIGNED positions (1 long, -1 short, 0 flat) ---
             positions = client.get_positions(account="21807597867063647", sec_type=SegmentType.FUT)
+
             by_symbol = {}
             for pos in (positions or []):
-                # Tiger returns 'contract' like 'MES2509/FUT/USD/None' — take the symbol before the first '/'
-                sym = str(getattr(pos, "contract", getattr(pos, "symbol", ""))).split("/", 1)[0]
+                # Tiger often returns 'contract' like 'MES2509/FUT/USD/None' — take the symbol before the first '/'
+                contract_or_sym = str(getattr(pos, "contract", getattr(pos, "symbol", "")) or "")
+                sym = contract_or_sym.split("/", 1)[0].strip()
                 qty = getattr(pos, "quantity", getattr(pos, "position_qty", 0)) or 0
                 try:
-                    qty = abs(int(qty))
+                    qty = int(qty)  # keep sign: +long, -short
                 except Exception:
                     try:
-                        qty = abs(int(float(qty)))
+                        qty = int(float(qty))
                     except Exception:
                         qty = 0
                 if not sym or qty == 0:
                     continue
+                # net by symbol (signed)
                 by_symbol[sym] = by_symbol.get(sym, 0) + qty
 
-            position_count = sum(by_symbol.values())
-            timestamp_iso = datetime.now(timezone.utc).isoformat()
+            # reduce to direction only: 1 (long), -1 (short), 0 (flat)
+            by_symbol = {k: (1 if v > 0 else (-1 if v < 0 else 0)) for k, v in by_symbol.items()}
 
-            #============Firebase write=========================================== 
+            timestamp_iso = datetime.now(timezone.utc).isoformat()
             now_nz = datetime.now(pytz.timezone("Pacific/Auckland"))
             timestamp_readable = now_nz.strftime("%Y-%m-%d %H:%M:%S NZST")
-            
+
             live_ref.update({
-                    "position_count": position_count,
-                    "by_symbol": by_symbol,   # NEW: {"MES2509": 1, "MGC2510": 1}
-                    "last_updated": timestamp_readable
+                "by_symbol": by_symbol,           # e.g. {"MGC2510": 1, "MES2509": -1}
+                "last_updated": timestamp_readable
             })
-            print(f"✅ Pushed position_count={position_count}, by_symbol={by_symbol}")
+            print(f"✅ Pushed by_symbol={by_symbol}")
 
             # --- Keep /live_total_positions/ path alive ---
             if not live_ref.get():

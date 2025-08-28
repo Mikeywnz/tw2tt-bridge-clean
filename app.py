@@ -293,8 +293,9 @@ def classify_trade(symbol, action, qty, pos_tracker, fb_db):
     # Fetch previous net position
     old_net = pos_tracker.get(symbol)
     if old_net is None:
-        data = fb_db.reference(f"/live_total_positions/{symbol}").get() or {}
-        old_net = int(data.get("position_count", 0))
+        # NEW (direction map: 1/-1/0 under by_symbol)
+        dmap = fb_db.reference("/live_total_positions/by_symbol").get() or {}
+        old_net = int(dmap.get(symbol, 0))
         pos_tracker[symbol] = old_net
 
     # Determine direction

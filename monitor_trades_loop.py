@@ -42,36 +42,40 @@ firebase_db = db
 
 
 # ==================================================================
-# 🟩 HElPER ZOMBIE CLEANUP — HARD MODE (no pauses, no ticket checks)
+# 🟩 HELPER ZOMBIE CLEANUP — HARD MODE (per-symbol, no pauses)
 # ==================================================================
-
-ZOMBIE_GRACE_SECONDS = 120  # single source of truth
-
+ZOMBIE_GRACE_SECONDS = 120
 zombie_first_seen = {}  # keys: f"{sym}:{oid}"
 
-def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, current_symbol=None, grace_period_seconds=None):
+def run_zombie_cleanup_if_ready(trades_list, firebase_db, current_symbol, grace_period_seconds=None):
+    """Arm per-trade timers only when THIS symbol is flat (dir == 0)."""
     if grace_period_seconds is None:
         grace_period_seconds = ZOMBIE_GRACE_SECONDS
     now = time.time()
-    if position_count != 0:
-        if zombie_first_seen:
-            if current_symbol:
-                # Clear only this symbol’s timers
-                to_clear = [k for k in list(zombie_first_seen.keys()) if k.startswith(f"{current_symbol}:")]
-                for k in to_clear:
-                    zombie_first_seen.pop(k, None)
-                if to_clear:
-                    print(f"✅ Position not flat for {current_symbol}; cleared {len(to_clear)} zombie timers.")
-            else:
-                # Fallback: behavior exactly as before
-                print("✅ Position not flat; clearing zombie timers.")
-                zombie_first_seen.clear()
+
+    # read signed direction map {SYM: 1|-1|0}
+    try:
+        dmap = firebase_db.reference("/live_total_positions/by_symbol").get() or {}
+        dir_val = int(dmap.get(current_symbol, 0))
+    except Exception:
+        dir_val = 0
+
+    if dir_val != 0:
+        # not flat for this symbol → clear only this symbol’s timers
+        to_clear = [k for k in list(zombie_first_seen.keys()) if k.startswith(f"{current_symbol}:")]
+        for k in to_clear:
+            zombie_first_seen.pop(k, None)
+        if to_clear:
+            print(f"✅ Position not flat for {current_symbol}; cleared {len(to_clear)} zombie timers.")
         return
 
-    # Flat: arm/advance a per-trade timer and archive once grace elapses
+    # Flat for this symbol: arm/advance timers and archive once grace elapses
+    open_trades_ref   = firebase_db.reference("/open_active_trades")
+    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
+
     for trade in trades_list or []:
         oid = trade.get("order_id")
-        sym = trade.get("symbol", "UNKNOWN")
+        sym = trade.get("symbol", current_symbol) or current_symbol
         if not oid:
             continue
 
@@ -79,22 +83,21 @@ def run_zombie_cleanup_if_ready(trades_list, firebase_db, position_count, curren
         t0 = zombie_first_seen.get(key)
         if t0 is None:
             zombie_first_seen[key] = now
-            print(f"⏳ Started zombie timer for {oid} on {sym} (flat book)")
+            print(f"⏳ Started zombie timer for {oid} on {sym} (flat {sym})")
             continue
 
         elapsed = now - t0
         if elapsed < grace_period_seconds:
             continue
 
-        # Archive + delete from open_active_trades
         try:
             print(f"🧟 Archiving zombie {oid} on {sym} after {elapsed:.1f}s flat")
             trade['contracts_remaining'] = 0
             trade['trade_state'] = 'closed'
             trade['is_open'] = False
             zombie_trades_ref.child(sym).child(oid).set(trade)
-            open_trades_ref.child(sym).child(oid).delete()      
-            print(f"🗑️ Deleted {oid} from open_active_trades")
+            open_trades_ref.child(sym).child(oid).delete()
+            print(f"🗑️ Deleted {oid} from open_active_trades/{sym}")
         except Exception as e:
             print(f"❌ Failed to archive/delete {oid}: {e}")
         finally:
@@ -762,21 +765,19 @@ def monitor_trades():
         # Load open trades list for this symbol (adapter keeps your existing behavior)
         all_trades = load_open_trades(symbol)
 
-        # Position count + zombie cleanup (pass only this symbol's trades)
         live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
-        per_symbol = (live_pos_data.get("by_symbol") or {}) if isinstance(live_pos_data, dict) else {}
+        per_symbol = live_pos_data.get("by_symbol") or {}
         symbol_count = int(per_symbol.get(symbol, 0))
-        position_count_global = int(live_pos_data.get("position_count", 0))
 
-        # Prefer per-symbol; fall back to global if by_symbol missing
-        position_count_for_zombies = symbol_count if per_symbol else position_count_global
+        # Use per-symbol if the key exists at all; otherwise fall back to legacy global
+        if "by_symbol" in live_pos_data:
+            position_count_for_zombies = symbol_count         # -1/0/1
+        else:
+            position_count_for_zombies = int(live_pos_data.get("position_count", 0))
 
         run_zombie_cleanup_if_ready(
-            all_trades,
-            firebase_db,
-            position_count_for_zombies,
-            current_symbol=symbol,                  # if you added per-symbol; omit if not
-            grace_period_seconds=ZOMBIE_GRACE_SECONDS
+            all_trades, firebase_db, position_count_for_zombies,
+            current_symbol=symbol, grace_period_seconds=ZOMBIE_GRACE_SECONDS
         )
 
         # Filter active trades (symbol-scoped ghost/zombie logs)
