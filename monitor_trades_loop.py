@@ -48,20 +48,30 @@ ZOMBIE_GRACE_SECONDS = 120
 zombie_first_seen = {}  # keys: f"{sym}:{oid}"
 
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, current_symbol, grace_period_seconds=None):
-    """Arm per-trade timers only when THIS symbol is flat (dir == 0)."""
+    """Arm per-trade timers only when THIS symbol is flat (no open anchors for that symbol)."""
+    import time
     if grace_period_seconds is None:
         grace_period_seconds = ZOMBIE_GRACE_SECONDS
     now = time.time()
 
-    # read signed direction map {SYM: 1|-1|0}
+    # Flat = no live entries for this symbol under /open_active_trades/<symbol>
     try:
-        dmap = firebase_db.reference("/live_total_positions/by_symbol").get() or {}
-        dir_val = int(dmap.get(current_symbol, 0))
+        opens = firebase_db.reference(f"/open_active_trades/{current_symbol}").get() or {}
+        open_count = 0
+        for v in opens.values():
+            if not isinstance(v, dict):
+                continue
+            if v.get("exited"):
+                continue
+            if int(v.get("contracts_remaining", 1) or 0) <= 0:
+                continue
+            open_count += 1
+        is_flat = (open_count == 0)
     except Exception:
-        dir_val = 0
+        is_flat = True  # fail-safe: treat as flat so we don't leak zombies if read fails
 
-    if dir_val != 0:
-        # not flat for this symbol → clear only this symbol’s timers
+    if not is_flat:
+        # Symbol not flat → clear timers for this symbol (your previous behavior)
         to_clear = [k for k in list(zombie_first_seen.keys()) if k.startswith(f"{current_symbol}:")]
         for k in to_clear:
             zombie_first_seen.pop(k, None)
@@ -69,9 +79,9 @@ def run_zombie_cleanup_if_ready(trades_list, firebase_db, current_symbol, grace_
             print(f"✅ Position not flat for {current_symbol}; cleared {len(to_clear)} zombie timers.")
         return
 
-    # Flat for this symbol: arm/advance timers and archive once grace elapses
+    # Flat for this symbol → arm/advance timers and archive once grace elapses
     open_trades_ref   = firebase_db.reference("/open_active_trades")
-    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")
+    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")  # <-- EXACT path you use
 
     for trade in trades_list or []:
         oid = trade.get("order_id")
@@ -762,6 +772,7 @@ def monitor_trades():
         except Exception as e:
             print(f"⚠️ Session guard flatten block failed softly for {symbol}: {e}")
 
+        print(f"[ZOMBIE] check {symbol}: using per-symbol flatness via /open_active_trades/{symbol}")
         # Load open trades list for this symbol (adapter keeps your existing behavior)
         all_trades = load_open_trades(symbol)
 
@@ -769,18 +780,17 @@ def monitor_trades():
         per_symbol = live_pos_data.get("by_symbol") or {}
         symbol_count = int(per_symbol.get(symbol, 0))
 
-        # Use per-symbol if the key exists at all; otherwise fall back to legacy global
-        if "by_symbol" in live_pos_data:
-            position_count_for_zombies = symbol_count         # -1/0/1
-        else:
-            position_count_for_zombies = int(live_pos_data.get("position_count", 0))
+        # (legacy) per-symbol/global count no longer needed for zombies; kept here only as reference
+        # live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
+        # per_symbol = (live_pos_data.get("by_symbol") or {}) if isinstance(live_pos_data, dict) else {}
+        # symbol_count = int(per_symbol.get(symbol, 0))
 
         run_zombie_cleanup_if_ready(
             all_trades,
             firebase_db,
             symbol,  # current_symbol
             grace_period_seconds=ZOMBIE_GRACE_SECONDS
-        )
+)
 
         # Filter active trades (symbol-scoped ghost/zombie logs)
         active_trades = []
