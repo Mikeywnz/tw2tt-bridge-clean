@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 import pytz
@@ -178,6 +178,23 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     # Normalize exit time
     exit_utc = _to_utc(exit_time)
 
+    # --- Global freshness/future guards for exits ---
+    NOW_UTC = datetime.now(timezone.utc)
+    if (NOW_UTC - exit_utc) > timedelta(hours=12):
+        print(f"[SKIP] Exit {exit_oid} older than 12h; ghosting.")
+        firebase_db.reference(f"/ghost_trades_log/{symbol}/{exit_oid}").set({
+            "reason": "exit_too_old", "exit_time": exit_utc.isoformat(), "payload": payload
+        })
+        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({"_handled": True, "_processed": True})
+        return False
+    if (exit_utc - NOW_UTC) > timedelta(minutes=5):
+        print(f"[SKIP] Exit {exit_oid} appears >5m in the future; ghosting (clock skew).")
+        firebase_db.reference(f"/ghost_trades_log/{symbol}/{exit_oid}").set({
+            "reason": "exit_in_future", "exit_time": exit_utc.isoformat(), "payload": payload
+        })
+        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({"_handled": True, "_processed": True})
+        return False
+
     # Build FIFO list with normalized entry timestamps
     entries = []
     for oid, tr in opens.items():
@@ -191,9 +208,24 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     entries.sort(key=lambda x: x[1])
     fifo_head_oid, fifo_head_dt = entries[0]
 
-    # Even if exit appears earlier, ALWAYS close FIFO head.
+    # --- Age-gate stale exits that predate the earliest open entry by too much ---
+    MAX_BACKFILL = 30 * 60  # 30 minutes
+    if (exit_utc < fifo_head_dt) and ((fifo_head_dt - exit_utc).total_seconds() > MAX_BACKFILL):
+        delta_s = int((fifo_head_dt - exit_utc).total_seconds())
+        print(f"[SKIP] Exit {exit_oid} is {delta_s}s older than earliest entry "
+              f"({fifo_head_dt.isoformat()}); ghosting.")
+        firebase_db.reference(f"/ghost_trades_log/{symbol}/{exit_oid}").set({
+            "reason": "stale_exit_before_open_entries",
+            "exit_time": exit_utc.isoformat(),
+            "earliest_entry": fifo_head_dt.isoformat(),
+            "payload": payload
+        })
+        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({"_handled": True, "_processed": True})
+        return False
+
+    # If only slightly older, proceed but note it
     if exit_utc < fifo_head_dt:
-        print(f"[NOTE] Exit {exit_oid} appears earlier than FIFO head by time "
+        print(f"[NOTE] Exit {exit_oid} earlier than FIFO head by time "
               f"({exit_utc.isoformat()} < {fifo_head_dt.isoformat()}) — proceeding with FIFO head anyway.")
 
     # Candidate must be eligible
@@ -215,7 +247,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     anchor_oid = anchor["order_id"]
     print(f"[INFO] FIFO anchor selected: {anchor_oid} (entry={anchor.get('entry_timestamp')})")
 
-    # 4) Compute P&L in points → dollars
+    # 4) Compute P&L in points → dollars (make debug safe)
+    pnl_points = 0.0
+    per_point  = point_value_for(symbol)
     try:
         entry_price = float(anchor.get("filled_price"))
         px_exit     = float(exit_price)
@@ -224,8 +258,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             pnl_points = (px_exit - entry_price) * qty
         else:
             pnl_points = (entry_price - px_exit) * qty
-        per_point   = point_value_for(symbol)
-        pnl         = pnl_points * per_point
+        pnl = pnl_points * per_point
     except Exception as e:
         print(f"❌ PnL calc error for anchor {anchor_oid}: {e}")
         pnl = 0.0
