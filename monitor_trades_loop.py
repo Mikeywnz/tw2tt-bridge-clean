@@ -44,7 +44,7 @@ firebase_db = db
 # ==================================================================
 # 🟩 HELPER ZOMBIE CLEANUP — HARD MODE (per-symbol, no pauses)
 # ==================================================================
-ZOMBIE_GRACE_SECONDS = 120
+ZOMBIE_GRACE_SECONDS = 150
 zombie_first_seen = {}  # keys: f"{sym}:{oid}"
 
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, current_symbol, grace_period_seconds=None):
@@ -695,6 +695,13 @@ def monitor_trades():
         print(f"❌ Failed to load /open_active_trades: {e}")
         return
 
+    # --- AnchorGate toggle (global; default OFF if missing/error)
+    try:
+        ag_enabled = bool(firebase_db.reference("/settings/anchorgate_enabled").get())
+    except Exception:
+        ag_enabled = False
+    print(f"[CFG] AnchorGate enabled: {ag_enabled}")
+
     if not isinstance(all_trades_by_symbol, dict) or not all_trades_by_symbol:
         print("⚠️ No open trades found; nothing to monitor")
         return
@@ -829,111 +836,121 @@ def monitor_trades():
             # still continue to drain any symbol-scoped exit tickets below
 
         # =========================
-        # 🟩 ANCHOR GATE – Sticky unlock (+config)  🟩
+        # 🟩 EXIT PROCESSING (AnchorGate toggle)
         # =========================
         if active_trades:
-            # ---- choose FIFO anchor
-            anchor = min(
-                active_trades,
-                key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
-            )
-            anchor_id = anchor.get("order_id")
-            symbol_of_anchor = symbol  # normalized to this loop's symbol
-
-            # ---- load per-symbol settings (auto-seed if missing)
-            settings_ref = firebase_db.reference(f"/settings/symbols/{symbol_of_anchor}")
-            cfg = settings_ref.get() or {}
-            if "gate_unlock_points" not in cfg:
+            if not ag_enabled:
+                # 🚪 AnchorGate OFF → plain, reliable FIFO path for this symbol
                 try:
-                    settings_ref.update({"gate_unlock_points": 1.0})
-                except Exception:
-                    pass
-                cfg = {"gate_unlock_points": 1.0}
-            GATE_UNLOCK_PTS = float(cfg.get("gate_unlock_points", 1.0))
-            HANDOFF_PAUSE_SEC = 2.0
-
-            # ---- state across loops
-            if not hasattr(monitor_trades, "_last_anchor_id"):
-                monitor_trades._last_anchor_id = None
-            if not hasattr(monitor_trades, "_handoff_clear_at"):
-                monitor_trades._handoff_clear_at = 0.0
-            if not hasattr(monitor_trades, "_sticky_unlock"):
-                monitor_trades._sticky_unlock = {}  # per-symbol bool
-
-            # ---- detect anchor handoff -> short pause, reset sticky
-            if anchor_id != monitor_trades._last_anchor_id:
-                print(f"[{symbol}] [INFO] Anchor handoff: {monitor_trades._last_anchor_id} → {anchor_id}")
-                monitor_trades._last_anchor_id = anchor_id
-                monitor_trades._handoff_clear_at = time.time() + HANDOFF_PAUSE_SEC
-                monitor_trades._sticky_unlock[symbol_of_anchor] = False
-
-            handoff_active = time.time() < monitor_trades._handoff_clear_at
-
-            # ---- compute anchor unrealized (points) vs current price
-            cur_px = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
-            entry  = float(anchor.get("filled_price", 0.0) or 0.0)
-            side   = (anchor.get("action") or "BUY").upper()
-
-            if cur_px is None:
-                cur_px = entry  # last resort to avoid None math
-
-            if side == "BUY":
-                unreal_pts = float(cur_px) - entry
+                    active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points)
+                except Exception as e:
+                    print(f"[{symbol}] ❌ FIFO process_trailing_tp_and_exits error: {e}")
             else:
-                unreal_pts = entry - float(cur_px)
+                # =========================
+                # 🟩 ANCHOR GATE – Sticky unlock (+config)  🟩
+                # =========================
+                # ---- choose FIFO anchor
+                anchor = min(
+                    active_trades,
+                    key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
+                )
+                anchor_id = anchor.get("order_id")
+                symbol_of_anchor = symbol  # normalized to this loop's symbol
 
-            # ---- sticky unlock: once >= threshold, it stays unlocked until handoff
-            sticky = monitor_trades._sticky_unlock.get(symbol_of_anchor, False)
-            if (unreal_pts >= GATE_UNLOCK_PTS) and not handoff_active:
-                if not sticky:
-                    print(f"[{symbol}] [GATE] Sticky UNLOCK set (+{unreal_pts:.2f}≥{GATE_UNLOCK_PTS})")
-                sticky = True
-                monitor_trades._sticky_unlock[symbol_of_anchor] = True
+                # ---- load per-symbol settings (auto-seed if missing)
+                settings_ref = firebase_db.reference(f"/settings/symbols/{symbol_of_anchor}")
+                cfg = settings_ref.get() or {}
+                if "gate_unlock_points" not in cfg:
+                    try:
+                        settings_ref.update({"gate_unlock_points": 1.0})
+                    except Exception:
+                        pass
+                    cfg = {"gate_unlock_points": 1.0}
+                GATE_UNLOCK_PTS = float(cfg.get("gate_unlock_points", 1.0))
+                HANDOFF_PAUSE_SEC = 2.0
 
-            # ---- apply gating to followers (anchor always unlocked)
-            gate_updates = []
-            for t in active_trades:
-                if t is anchor:
-                    if t.get("gate_state") != "UNLOCKED":
-                        t["gate_state"] = "UNLOCKED"
-                        gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
-                    t["anchor_order_id"] = anchor_id
-                    continue
+                # ---- state across loops
+                if not hasattr(monitor_trades, "_last_anchor_id"):
+                    monitor_trades._last_anchor_id = None
+                if not hasattr(monitor_trades, "_handoff_clear_at"):
+                    monitor_trades._handoff_clear_at = 0.0
+                if not hasattr(monitor_trades, "_sticky_unlock"):
+                    monitor_trades._sticky_unlock = {}  # per-symbol bool
 
-                was = t.get("gate_state", "PARKED")
-                t["anchor_order_id"] = anchor_id
+                # ---- detect anchor handoff -> short pause, reset sticky
+                if anchor_id != monitor_trades._last_anchor_id:
+                    print(f"[{symbol}] [INFO] Anchor handoff: {monitor_trades._last_anchor_id} → {anchor_id}")
+                    monitor_trades._last_anchor_id = anchor_id
+                    monitor_trades._handoff_clear_at = time.time() + HANDOFF_PAUSE_SEC
+                    monitor_trades._sticky_unlock[symbol_of_anchor] = False
 
-                if sticky and not handoff_active:
-                    # followers may arm TP/trailing
-                    t["gate_state"] = "UNLOCKED"
-                    t.pop("skip_tp_trailing", None)
-                    if was != "UNLOCKED":
-                        gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+                handoff_active = time.time() < monitor_trades._handoff_clear_at
+
+                # ---- compute anchor unrealized (points) vs current price
+                cur_px = (prices.get(symbol) or {}).get("price") if isinstance(prices.get(symbol), dict) else prices.get(symbol)
+                entry  = float(anchor.get("filled_price", 0.0) or 0.0)
+                side   = (anchor.get("action") or "BUY").upper()
+
+                if cur_px is None:
+                    cur_px = entry  # last resort to avoid None math
+
+                if side == "BUY":
+                    unreal_pts = float(cur_px) - entry
                 else:
-                    # parked until sticky unlock
-                    t["gate_state"] = "PARKED"
-                    t["skip_tp_trailing"] = True
-                    if was != "PARKED" or "gate_state" not in t:
-                        gate_updates.append((t.get("order_id"), {"gate_state": "PARKED"}))
+                    unreal_pts = entry - float(cur_px)
 
-            # ---- best-effort write of gate states (symbol-scoped)
-            try:
-                ref = firebase_db.reference(f"/open_active_trades/{symbol}")
-                for oid, payload in gate_updates:
-                    if oid:
-                        ref.child(oid).update(payload)
-            except Exception as e:
-                print(f"[{symbol}] ⚠️ Gate state update skipped: {e}")
+                # ---- sticky unlock: once >= threshold, it stays unlocked until handoff
+                sticky = monitor_trades._sticky_unlock.get(symbol_of_anchor, False)
+                if (unreal_pts >= GATE_UNLOCK_PTS) and not handoff_active:
+                    if not sticky:
+                        print(f"[{symbol}] [GATE] Sticky UNLOCK set (+{unreal_pts:.2f}≥{GATE_UNLOCK_PTS})")
+                    sticky = True
+                    monitor_trades._sticky_unlock[symbol_of_anchor] = True
 
-            # ---- filter for trailing/TP processing (parked followers are skipped)
-            gated_trades = [t for t in active_trades if not (t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"))]
-            print(f"[{symbol}] [DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
+                # ---- apply gating to followers (anchor always unlocked)
+                gate_updates = []
+                for t in active_trades:
+                    if t is anchor:
+                        if t.get("gate_state") != "UNLOCKED":
+                            t["gate_state"] = "UNLOCKED"
+                            gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+                        t["anchor_order_id"] = anchor_id
+                        continue
 
-            try:
-                active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
-            except Exception as e:
-                print(f"[{symbol}] ❌ process_trailing_tp_and_exits error: {e}")
-        # =========================  END ANCHOR GATE  =========================
+                    was = t.get("gate_state", "PARKED")
+                    t["anchor_order_id"] = anchor_id
+
+                    if sticky and not handoff_active:
+                        # followers may arm TP/trailing
+                        t["gate_state"] = "UNLOCKED"
+                        t.pop("skip_tp_trailing", None)
+                        if was != "UNLOCKED":
+                            gate_updates.append((t.get("order_id"), {"gate_state": "UNLOCKED"}))
+                    else:
+                        # parked until sticky unlock
+                        t["gate_state"] = "PARKED"
+                        t["skip_tp_trailing"] = True
+                        if was != "PARKED" or "gate_state" not in t:
+                            gate_updates.append((t.get("order_id"), {"gate_state": "PARKED"}))
+
+                # ---- best-effort write of gate states (symbol-scoped)
+                try:
+                    ref = firebase_db.reference(f"/open_active_trades/{symbol}")
+                    for oid, payload in gate_updates:
+                        if oid:
+                            ref.child(oid).update(payload)
+                except Exception as e:
+                    print(f"[{symbol}] ⚠️ Gate state update skipped: {e}")
+
+                # ---- filter for trailing/TP processing (parked followers are skipped)
+                gated_trades = [t for t in active_trades if not (t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"))]
+                print(f"[{symbol}] [DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
+
+                try:
+                    active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
+                except Exception as e:
+                    print(f"[{symbol}] ❌ process_trailing_tp_and_exits error: {e}")
+        # =========================  END EXIT PROCESSING  =========================
 
         # Track anchors closed in this loop so they cannot be written back
         closed_anchor_ids = set()
