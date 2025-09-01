@@ -66,7 +66,7 @@ def normalize_to_utc_iso(timestr: str) -> str:
 # ==================================================================
 # 🟩 HELPER ZOMBIE CLEANUP — PER-SYMBOL, BROKER-FLAT DRIVEN
 # ==================================================================
-ZOMBIE_GRACE_SECONDS = 120
+ZOMBIE_GRACE_SECONDS = 180
 _flat_since_by_symbol = {}  # e.g. {"MGC2510": epoch_seconds}
 
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, current_symbol, grace_period_seconds=None):
