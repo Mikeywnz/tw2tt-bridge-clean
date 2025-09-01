@@ -18,6 +18,7 @@ import datetime as dt
 
 processed_exit_order_ids = set()
 last_cleanup_timestamp = None
+DRAIN_VERBOSE = False  
 
 #Important: Do NOT set trade_type to "closed". Use 'status' or 'trade_state' to indicate closure.
 
@@ -297,7 +298,7 @@ ATR_OFFSET_MULT   = 0.30      # exit buffer at ~half the trigger
 
 # Floors & caps (keep triggers practical)
 MIN_TRIGGER_FLOOR = 2.2
-MIN_OFFSET_FLOOR  = 0.6
+MIN_OFFSET_FLOOR  = 0.7
 MAX_TRIGGER_CAP   = 10.0
 MAX_OFFSET_CAP    = 4.0
 _ema_absdiff = defaultdict(float)
@@ -693,8 +694,13 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
                     if result.get("status") == "SUCCESS":
                         print(f"📤 Exit order placed successfully for {order_id}")
+                        # Normalize Tiger timestamp to UTC ISO
+                        raw_ts = result.get("transaction_time")
+                        if isinstance(raw_ts, (int, float)):
+                            tx_iso = datetime.fromtimestamp(raw_ts/1000, tz=dt_timezone.utc).isoformat().replace("+00:00","Z")
+                        else:
+                            tx_iso = normalize_to_utc_iso(raw_ts or datetime.utcnow().isoformat())
 
-                        # Build tx_dict exactly like execute_trades_live returns
                         tx_dict = {
                             "status": result.get("status", "SUCCESS"),
                             "order_id": str(result.get("order_id", "")),
@@ -703,7 +709,8 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                             "action": result.get("action", exit_side),
                             "quantity": result.get("quantity", 1),
                             "filled_price": result.get("filled_price"),
-                            "transaction_time": result.get("transaction_time"),
+                            "transaction_time": tx_iso,   # ✅ now normalized
+                            "fill_time": tx_iso           # ✅ provide consistent sort key
                         }
 
                         # Enqueue the exit ticket; drain loop will process it exactly once
@@ -1045,8 +1052,11 @@ def monitor_trades():
                     continue
 
                 # --- idempotency check (either flag means already handled)
+                
+
                 if bool(tx.get("_processed")) or bool(tx.get("_handled")):
-                    print(f"[{symbol}] [DRAIN] Skip {tx_id}: already processed (_processed/_handled set)")
+                    if DRAIN_VERBOSE:
+                        print(f"[{symbol}] [DRAIN] Skip {tx_id}: already processed (_processed/_handled set)")
                     continue
 
                 # --- ensure symbol (legacy/manual tickets may lack it)
