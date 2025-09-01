@@ -280,8 +280,8 @@ ATR_TRIGGER_MULT  = 0.60      # was too high; try 0.6x smoothed range
 ATR_OFFSET_MULT   = 0.30      # exit buffer at ~half the trigger
 
 # Floors & caps (keep triggers practical)
-MIN_TRIGGER_FLOOR = 3.0
-MIN_OFFSET_FLOOR  = 1.0
+MIN_TRIGGER_FLOOR = 2.2
+MIN_OFFSET_FLOOR  = 0.6
 MAX_TRIGGER_CAP   = 10.0
 MAX_OFFSET_CAP    = 4.0
 _ema_absdiff = defaultdict(float)
@@ -298,6 +298,26 @@ REASON_MAP = {
     "CANCELLED": "Cancelled",
     "EXPIRED": "Lack of Margin",
 }
+
+#==============================================
+# 🟩 HELPER: LOGGING HELPERS ==================
+#==============================================
+_last_flags = {}
+_loop_i = 0
+LOG_EVERY = 5   # print heartbeat every 5 loops
+
+def log_on_change(tag: str, value):
+    """Only prints when the value changes"""
+    if _last_flags.get(tag) != value:
+        print(f"{tag} {value}", flush=True)
+        _last_flags[tag] = value
+
+def log_every_n(msg: str, n: int = LOG_EVERY):
+    """Prints once every N calls"""
+    global _loop_i
+    _loop_i += 1
+    if _loop_i % n == 0:
+        print(msg, flush=True)
 
 # =========================================
 # 🟩 HELPER: Time parsing (UTC-only)
@@ -736,7 +756,7 @@ def monitor_trades():
         ag_enabled = bool(firebase_db.reference("/settings/anchorgate_enabled").get())
     except Exception:
         ag_enabled = False
-    print(f"[CFG] AnchorGate enabled: {ag_enabled}")
+    log_on_change("[CFG] AnchorGate enabled:", ag_enabled)
 
     if not isinstance(all_trades_by_symbol, dict) or not all_trades_by_symbol:
         print("⚠️ No open trades found; nothing to monitor")
