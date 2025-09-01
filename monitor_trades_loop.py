@@ -42,76 +42,90 @@ firebase_db = db
 
 
 # ==================================================================
-# 🟩 HELPER ZOMBIE CLEANUP — HARD MODE (per-symbol, no pauses)
+# 🟩 HELPER ZOMBIE CLEANUP — PER-SYMBOL, BROKER-FLAT DRIVEN
 # ==================================================================
-ZOMBIE_GRACE_SECONDS = 150
-zombie_first_seen = {}  # keys: f"{sym}:{oid}"
+ZOMBIE_GRACE_SECONDS = 120
+_flat_since_by_symbol = {}  # e.g. {"MGC2510": epoch_seconds}
 
 def run_zombie_cleanup_if_ready(trades_list, firebase_db, current_symbol, grace_period_seconds=None):
-    """Arm per-trade timers only when THIS symbol is flat (no open anchors for that symbol)."""
+    """
+    Purge ALL /open_active_trades/<symbol> entries after the symbol has been BROKER-FLAT for >= grace.
+    - "Flat" comes from /live_total_positions/by_symbol[<symbol>] == 0 (or missing).
+    - Ignores timestamps, AnchorGate, etc.
+    - If trades_list is empty/None, purges everything under the symbol. If provided, purges only those OIDs.
+    """
     import time
+
     if grace_period_seconds is None:
         grace_period_seconds = ZOMBIE_GRACE_SECONDS
+
+    # --- 1) Read broker-flat per symbol (source of truth)
+    try:
+        by_symbol = firebase_db.reference("/live_total_positions/by_symbol").get() or {}
+        broker_net = int(by_symbol.get(current_symbol, 0) or 0)
+    except Exception as e:
+        print(f"[ZOMBIE] ⚠️ failed to read broker net for {current_symbol}: {e}")
+        broker_net = 0  # fail-safe: treat as flat so we don't leak zombies if read fails
+
+    is_flat = (broker_net == 0)
     now = time.time()
 
-    # Flat = no live entries for this symbol under /open_active_trades/<symbol>
-    try:
-        opens = firebase_db.reference(f"/open_active_trades/{current_symbol}").get() or {}
-        open_count = 0
-        for v in opens.values():
-            if not isinstance(v, dict):
-                continue
-            if v.get("exited"):
-                continue
-            if int(v.get("contracts_remaining", 1) or 0) <= 0:
-                continue
-            open_count += 1
-        is_flat = (open_count == 0)
-    except Exception:
-        is_flat = True  # fail-safe: treat as flat so we don't leak zombies if read fails
-
     if not is_flat:
-        # Symbol not flat → clear timers for this symbol (your previous behavior)
-        to_clear = [k for k in list(zombie_first_seen.keys()) if k.startswith(f"{current_symbol}:")]
-        for k in to_clear:
-            zombie_first_seen.pop(k, None)
-        if to_clear:
-            print(f"✅ Position not flat for {current_symbol}; cleared {len(to_clear)} zombie timers.")
+        # symbol not flat → cancel timer & bail
+        if _flat_since_by_symbol.pop(current_symbol, None) is not None:
+            print(f"[ZOMBIE] ❌ {current_symbol} no longer flat — timer cleared")
         return
 
-    # Flat for this symbol → arm/advance timers and archive once grace elapses
-    open_trades_ref   = firebase_db.reference("/open_active_trades")
-    zombie_trades_ref = firebase_db.reference("/zombie_trades_log")  # <-- EXACT path you use
+    # --- 2) Arm/advance per-symbol flat timer
+    t0 = _flat_since_by_symbol.get(current_symbol)
+    if t0 is None:
+        _flat_since_by_symbol[current_symbol] = now
+        print(f"[ZOMBIE] ⏳ {current_symbol} flat — timer started")
+        return
 
-    for trade in trades_list or []:
-        oid = trade.get("order_id")
-        sym = trade.get("symbol", current_symbol) or current_symbol
-        if not oid:
-            continue
+    elapsed = now - t0
+    if elapsed < grace_period_seconds:
+        # still within grace; do nothing
+        return
 
-        key = f"{sym}:{oid}"
-        t0 = zombie_first_seen.get(key)
-        if t0 is None:
-            zombie_first_seen[key] = now
-            print(f"⏳ Started zombie timer for {oid} on {sym} (flat {sym})")
-            continue
+    # --- 3) Grace elapsed → purge open_active_trades/<symbol>
+    open_sym_ref   = firebase_db.reference(f"/open_active_trades/{current_symbol}")
+    archive_sym_ref= firebase_db.reference(f"/zombie_trades_log/{current_symbol}")
 
-        elapsed = now - t0
-        if elapsed < grace_period_seconds:
-            continue
+    # If caller passed an explicit list, only purge those; otherwise purge everything under the node.
+    try:
+        to_purge = {}
+        if trades_list:
+            for tr in (trades_list or []):
+                oid = str(tr.get("order_id","")).strip()
+                if oid:
+                    to_purge[oid] = tr
+        else:
+            to_purge = (open_sym_ref.get() or {})
 
-        try:
-            print(f"🧟 Archiving zombie {oid} on {sym} after {elapsed:.1f}s flat")
-            trade['contracts_remaining'] = 0
-            trade['trade_state'] = 'closed'
-            trade['is_open'] = False
-            zombie_trades_ref.child(sym).child(oid).set(trade)
-            open_trades_ref.child(sym).child(oid).delete()
-            print(f"🗑️ Deleted {oid} from open_active_trades/{sym}")
-        except Exception as e:
-            print(f"❌ Failed to archive/delete {oid}: {e}")
-        finally:
-            zombie_first_seen.pop(key, None)
+        if not to_purge:
+            print(f"[ZOMBIE] ✅ {current_symbol} flat ≥{grace_period_seconds}s — nothing to purge")
+            _flat_since_by_symbol.pop(current_symbol, None)
+            return
+
+        print(f"[ZOMBIE] 🧟 Purging {len(to_purge)} open entries for {current_symbol} after {int(elapsed)}s flat")
+        # archive then delete
+        for oid, tr in list(to_purge.items()):
+            try:
+                if isinstance(tr, dict):
+                    # mark closed-ish for record
+                    tr = {**tr, "trade_state": "closed", "is_open": False, "contracts_remaining": 0}
+                archive_sym_ref.child(str(oid)).set(tr)
+                open_sym_ref.child(str(oid)).delete()
+            except Exception as e:
+                print(f"[ZOMBIE] ❌ failed to purge {current_symbol}/{oid}: {e}")
+
+        # reset timer for this symbol
+        _flat_since_by_symbol.pop(current_symbol, None)
+        print(f"[ZOMBIE] 🗑️ Purge complete for {current_symbol}")
+
+    except Exception as e:
+        print(f"[ZOMBIE] ❌ purge error for {current_symbol}: {e}")
 
 # ======================================
 # Helper: Session guard for Tokyo Chop
@@ -739,7 +753,7 @@ def monitor_trades():
 
         # === Session guard: auto-flatten once at window start (per symbol) ===
         try:
-            now_utc = datetime.now(dt_timezone.utc)
+            now_utc = datetime.now(timezone.utc)  # <-- fix: use imported `timezone`
             guard = get_active_session_guard(firebase_db, now_utc=now_utc)
             if guard:
                 stamp_key = f"/runtime/session_guard/{guard['session']}/last_flatten_iso"
@@ -751,7 +765,7 @@ def monitor_trades():
                         side = "SELL" if cur > 0 else "BUY"
                         n = abs(cur)
                         print(f"[SESSION] Auto-flatten {n} legs ({side}) for {symbol} "
-                              f"during {guard['session']} window {guard['start_utc']}→{guard['end_utc']}")
+                            f"during {guard['session']} window {guard['start_utc']}→{guard['end_utc']}")
 
                         for _ in range(n):
                             r = place_exit_trade(symbol, side, 1, firebase_db)
@@ -759,14 +773,15 @@ def monitor_trades():
                                 tx = {
                                     "status": r.get("status","SUCCESS"),
                                     "order_id": str(r.get("order_id","")).strip(),
-                                    "trade_type": "SESSION_GUARD_EXIT",   # ✅ custom tag
+                                    "trade_type": "SESSION_GUARD_EXIT",
                                     "symbol": symbol,
                                     "action": side,
                                     "quantity": 1,
                                     "filled_price": r.get("filled_price"),
-                                    "transaction_time": (r.get("transaction_time")
-                                                         or datetime.utcnow().isoformat() + "Z"),
-                                    "source": "Session Guard"             # ✅ shows up in Sheets
+                                    "transaction_time": normalize_to_utc_iso(
+                                        r.get("transaction_time") or datetime.utcnow().isoformat()
+                                    ),
+                                    "source": "Session Guard"
                                 }
                                 handle_exit_fill_from_tx(firebase_db, tx)
                             else:
@@ -779,26 +794,21 @@ def monitor_trades():
         except Exception as e:
             print(f"⚠️ Session guard flatten block failed softly for {symbol}: {e}")
 
-        print(f"[ZOMBIE] check {symbol}: using per-symbol flatness via /open_active_trades/{symbol}")
-        # Load open trades list for this symbol (adapter keeps your existing behavior)
+        print(f"[ZOMBIE] check {symbol}: using broker flatness via /live_total_positions/by_symbol")
+        # Load open trades list for this symbol; if None, the zombie helper will purge everything for the symbol
         all_trades = load_open_trades(symbol)
 
-        live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
-        per_symbol = live_pos_data.get("by_symbol") or {}
-        symbol_count = int(per_symbol.get(symbol, 0))
-
-        # (legacy) per-symbol/global count no longer needed for zombies; kept here only as reference
+        # (Optional fetch if you want to inspect broker nets; not needed by the helper)
         # live_pos_data = firebase_db.reference("/live_total_positions").get() or {}
-        # per_symbol = (live_pos_data.get("by_symbol") or {}) if isinstance(live_pos_data, dict) else {}
+        # per_symbol = live_pos_data.get("by_symbol") or {}
         # symbol_count = int(per_symbol.get(symbol, 0))
 
         run_zombie_cleanup_if_ready(
             all_trades,
             firebase_db,
-            symbol,  # current_symbol
+            symbol,
             grace_period_seconds=ZOMBIE_GRACE_SECONDS
-)
-
+        )
         # Filter active trades (symbol-scoped ghost/zombie logs)
         active_trades = []
         GHOST_STATUSES = {"EXPIRED", "CANCELLED", "LACK_OF_MARGIN"}

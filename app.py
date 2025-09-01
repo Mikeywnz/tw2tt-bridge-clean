@@ -22,14 +22,7 @@ import json, hashlib, time
 from fifo_close import handle_exit_fill_from_tx
 import datetime as dt  # ✅ single, consistent datetime import
 
-def normalize_to_utc_iso(timestr):
-    try:
-        d = dt.datetime.fromisoformat(timestr)
-    except Exception:
-        d = dt.datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S")
-    # if naive, set UTC; if tz-aware, convert to UTC
-    d_utc = d.replace(tzinfo=dt.timezone.utc) if d.tzinfo is None else d.astimezone(dt.timezone.utc)
-    return d_utc.isoformat().replace('+00:00', 'Z')
+
 
 processed_exit_order_ids = set()
 position_tracker = {}
@@ -60,6 +53,52 @@ if not firebase_admin._apps:
 firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
+
+#=======================================
+# #Helper:Tiger-safe UTC normalizer
+#======================================
+def normalize_to_utc_iso(val):
+    """
+    Returns ISO-8601 UTC ('...Z').
+    Prefers epoch (ms/s). Falls back to parsing strings.
+    Any *naive* datetime string is assumed to be Tiger server time (UTC+08:00).
+    """
+    if val is None:
+        return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # ---- Epoch handling (str or number) ----
+    if isinstance(val, (int, float)) or (isinstance(val, str) and val.strip().isdigit()):
+        n = int(val)
+        # ms vs s
+        if n > 10_000_000_000:  # > ~2001-09-09 in seconds ⇒ treat as ms
+            n /= 1000.0
+        return dt.datetime.fromtimestamp(n, tz=dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+    s = str(val).strip()
+
+    # ---- ISO with Z or explicit offset ----
+    try:
+        if s.endswith("Z"):
+            return dt.datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(dt.timezone.utc)\
+                     .isoformat().replace("+00:00", "Z")
+        # explicit offset present?
+        if "+" in s[10:] or "-" in s[10:]:
+            return dt.datetime.fromisoformat(s).astimezone(dt.timezone.utc)\
+                     .isoformat().replace("+00:00", "Z")
+    except Exception:
+        pass
+
+    # ---- Naive string (assume Tiger server time UTC+08:00) ----
+    TIGER_TZ = dt.timezone(dt.timedelta(hours=8))  # CST/SGT
+    # tolerate "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+    core = s.replace("T", " ").split(".")[0]
+    try:
+        d_naive = dt.datetime.strptime(core, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        # last resort: let fromisoformat try
+        d_naive = dt.datetime.fromisoformat(core)
+    d_local = d_naive.replace(tzinfo=TIGER_TZ)
+    return d_local.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 #====================================================================
 #Helper: Tokyo Chop Stop
