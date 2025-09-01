@@ -11,7 +11,9 @@ from fifo_close import handle_exit_fill_from_tx
 from collections import defaultdict
 import time
 import pytz
+from datetime import timezone
 from datetime import datetime, timezone as dt_timezone, timedelta
+import datetime as dt
 # (UTC-only) — removed NZ local timezone usage
 
 processed_exit_order_ids = set()
@@ -40,7 +42,27 @@ firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
+# ==================================================================
+# 🟩 HELPER - Timezone Normaliser 
+# ==================================================================
 
+def normalize_to_utc_iso(timestr: str) -> str:
+    """
+    Parse a Tiger/ISO timestamp string and normalize it to ISO UTC with 'Z'.
+    - If input is naive (no tzinfo), assume UTC.
+    - If tz-aware, convert to UTC.
+    Returns: ISO string with trailing 'Z'
+    """
+    try:
+        d = dt.datetime.fromisoformat(timestr)
+    except Exception:
+        try:
+            d = dt.datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+    d_utc = d.replace(tzinfo=dt.timezone.utc) if d.tzinfo is None else d.astimezone(dt.timezone.utc)
+    return d_utc.isoformat().replace("+00:00", "Z")
 # ==================================================================
 # 🟩 HELPER ZOMBIE CLEANUP — PER-SYMBOL, BROKER-FLAT DRIVEN
 # ==================================================================
@@ -753,7 +775,7 @@ def monitor_trades():
 
         # === Session guard: auto-flatten once at window start (per symbol) ===
         try:
-            now_utc = datetime.now(timezone.utc)  # <-- fix: use imported `timezone`
+            now_utc = datetime.now(dt_timezone.utc) # <-- fix: use imported `timezone`
             guard = get_active_session_guard(firebase_db, now_utc=now_utc)
             if guard:
                 stamp_key = f"/runtime/session_guard/{guard['session']}/last_flatten_iso"
