@@ -214,14 +214,21 @@ def _today_local_window(start_hhmm: str, duration_min: int, tzname: str, now_utc
     end_utc   = start_utc + timedelta(minutes=int(duration_min or 0))
     return start_utc, end_utc
 
+# Track last seen guard across calls
+_last_guard = {"session": None}
+
 def get_active_session_guard(firebase_db, now_utc=None):
     """
     Reads /settings/session_guards and returns a dict when 'now_utc' is inside a window:
       {"session": "<tokyo|new_york|london>", "start_utc": "...", "end_utc": "..."}
     """
+    global _last_guard
     now_utc = now_utc or datetime.now(dt_timezone.utc)
     cfg = firebase_db.reference("/settings/session_guards").get() or {}
     if not cfg or not cfg.get("enabled", False):
+        if _last_guard["session"]:
+            print(f"[SESSION] { _last_guard['session'] } guard released (global disabled)")
+            _last_guard["session"] = None
         return None
 
     for name in ("tokyo", "new_york", "london"):
@@ -240,11 +247,20 @@ def get_active_session_guard(firebase_db, now_utc=None):
         )
 
         if start_utc <= now_utc <= end_utc:
+            # Announce on *enter*
+            if _last_guard["session"] != name:
+                print(f"[SESSION] {name} guard ACTIVE {start_utc} → {end_utc} UTC")
+                _last_guard["session"] = name
             return {
                 "session": name,
                 "start_utc": start_utc.isoformat(),
                 "end_utc": end_utc.isoformat(),
             }
+
+    # Announce on *exit*
+    if _last_guard["session"]:
+        print(f"[SESSION] {_last_guard['session']} guard released (outside window)")
+        _last_guard["session"] = None
     return None
 
 # ==============================================
