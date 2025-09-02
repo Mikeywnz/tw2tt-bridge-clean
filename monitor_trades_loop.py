@@ -45,30 +45,21 @@ firebase_db = db
 
 
 # =====================================================================================
-# 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
-# ======================================================================================
-# --- ATR sizing knobs (tamer defaults) ---
-_ATR_ALPHA        = 0.35      # was 0.20 → react faster to expansion
-ATR_TRIGGER_MULT  = 0.60      # unchanged
-ATR_OFFSET_MULT   = 0.20      # was 0.45 → tighter trailing buffer     
+# 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges)
+# =====================================================================================
+# --- ATR sizing knobs ---
+_ATR_ALPHA        = 0.35      # smoothing speed (higher = faster reaction)
+ATR_TRIGGER_MULT  = 0.60      # trigger = 0.6 × ATR proxy
+ATR_OFFSET_MULT   = 0.20      # offset = 0.2 × ATR proxy
 
-# Floors & caps (keep triggers practical)
-MIN_TRIGGER_FLOOR = 2.0       # was 2.2 → let ATR overtake the floor sooner
-MIN_OFFSET_FLOOR  = 0.60      # was 0.50 → sensible floor
-MAX_TRIGGER_CAP   = 10.0      # unchanged
-MAX_OFFSET_CAP    = 4.0       # unchanged
+# Floors & caps (keep values practical)
+MIN_TRIGGER_FLOOR = 2.0       # never let trigger go below 2 pts
+MIN_OFFSET_FLOOR  = 0.60      # never let offset go below 0.6 pts
+MAX_TRIGGER_CAP   = 10.0      # cap trigger so it doesn’t blow out
+MAX_OFFSET_CAP    = 4.0       # cap offset so it doesn’t blow out
+
+# ATR state cache
 _ema_absdiff = defaultdict(float)
-
-# --- RUN→LOCK knobs ---
-USE_RUN_LOCK        = False
-RUN_OFFSET_MULT     = 0.45      # ≈2.0–2.5 pts when ATR_proxy ~4.5–5.5
-RUN_OFFSET_FLOOR    = 1.80
-LOCK_OFFSET_MULT    = 0.12    # was 0.25 → tighter in LOCK 0.12      # scales 0.12 × ATR_proxy
-LOCK_OFFSET_FLOOR   = 0.60      # floor keeps it from going <0.6
-STALL_BARS_TO_LOCK  = 3       # bars without a new extreme before LOCK
-RUN_START_TICKS     = 6       # start RUN after this many favorable ticks
-MES_TICK_VALUE      = 0.25    # MES tick size
-
 # ==================================================================
 # 🟩 HELPER - Timezone Normaliser 
 # ==================================================================
@@ -520,8 +511,8 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
 # =========================================================================
-# 🟢 TRAILING TP & EXIT (minimal, FIFO-first; uses handle_exit_fill_from_tx)
-# ==========================================================================
+# 🟢 TRAILING TP & EXIT (plain ATR, FIFO-first; uses handle_exit_fill_from_tx)
+# =========================================================================
 
 def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points):
     closed_ids = set()
@@ -563,20 +554,18 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
         # ---- Adaptive “ATR-like” range update (per symbol) ----
         try:
-            # Use |price - ema50| when available; fall back to 1-tick move |price - entry| as a weak proxy
             global _ema_absdiff
             raw_range = abs((current_price - ema50)) if ema50 is not None else abs(current_price - entry)
             prev = _ema_absdiff.get(symbol, raw_range)
             smoothed = (_ATR_ALPHA * raw_range) + ((1.0 - _ATR_ALPHA) * prev)
             _ema_absdiff[symbol] = smoothed
 
-            adaptive_trigger = max(MIN_TRIGGER_FLOOR,
-                                min(MAX_TRIGGER_CAP, ATR_TRIGGER_MULT * smoothed))
-            adaptive_offset  = max(MIN_OFFSET_FLOOR,
-                                min(MAX_OFFSET_CAP,  ATR_OFFSET_MULT  * smoothed))
+            adaptive_trigger = max(MIN_TRIGGER_FLOOR, min(MAX_TRIGGER_CAP, ATR_TRIGGER_MULT * smoothed))
+            adaptive_offset  = max(MIN_OFFSET_FLOOR,  min(MAX_OFFSET_CAP,  ATR_OFFSET_MULT  * smoothed))
 
             print(f"[ATR] {symbol} smoothed={smoothed:.2f} trig={adaptive_trigger:.2f} off={adaptive_offset:.2f} ema50={ema50}")
-            # === LIVE TRAIL SNAPSHOT → Firebase (ATR mode) ===
+
+            # Snapshot trail settings → Firebase
             try:
                 node = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
                 trigger_pts = float(adaptive_trigger)
@@ -588,7 +577,6 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     "trail_offset":  offset_pts,
                     "trail_trigger_price": trigger_price
                 })
-                # keep local dict in sync so save_open_trades() preserves fields
                 trade["trail_mode"] = "ATR"
                 trade["trail_trigger"] = trigger_pts
                 trade["trail_offset"]  = offset_pts
@@ -598,82 +586,25 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
         except Exception as e:
             print(f"⚠️ ATR adapt error for {symbol}: {e}")
-            adaptive_trigger = trigger_points
-            adaptive_offset  = offset_points
-
+            adaptive_trigger = float(trigger_points)
+            adaptive_offset  = float(offset_points)
             try:
                 node = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
                 trigger_price = (entry + adaptive_trigger) if direction == 1 else (entry - adaptive_trigger)
                 node.update({
                     "trail_mode": "FALLBACK",
-                    "trail_trigger": float(adaptive_trigger),
-                    "trail_offset":  float(adaptive_offset),
+                    "trail_trigger": adaptive_trigger,
+                    "trail_offset":  adaptive_offset,
                     "trail_trigger_price": trigger_price
                 })
-                # local mirrors
                 trade["trail_mode"] = "FALLBACK"
-                trade["trail_trigger"] = float(adaptive_trigger)
-                trade["trail_offset"]  = float(adaptive_offset)
+                trade["trail_trigger"] = adaptive_trigger
+                trade["trail_offset"]  = adaptive_offset
                 trade["trail_trigger_price"] = trigger_price
             except Exception as e2:
                 print(f"⚠️ Fallback trail snapshot failed for {order_id}: {e2}")
 
-                # >>> BEGIN RUN_LOCK_PATCH (logic)
-        # Choose trailing buffer source (default = current adaptive_offset)
-        buffer_source = float(adaptive_offset)
-
-        if USE_RUN_LOCK:
-            # Phase bookkeeping (persist on trade dict)
-            phase      = trade.get("phase") or "BASE"        # BASE → RUN → LOCK
-            stall_bars = int(trade.get("stall_bars", 0))
-            entry_px   = float(trade.get("filled_price", entry))
-
-            # Side helpers
-            is_short = ((trade.get('action') or '').upper() != 'BUY')
-
-            # Read current favorable extreme (you already store/update trail_peak for long, same field used for short)
-            # For consistency with your code, trail_peak stores the extreme: max for longs, min for shorts.
-            extreme_now = float(trade.get('trail_peak', entry))
-
-            # Did we make a NEW extreme this tick?
-            if is_short:
-                made_new_extreme = current_price < extreme_now - 1e-9
-            else:
-                made_new_extreme = current_price > extreme_now + 1e-9
-
-            # Favorable move since entry (points)
-            favorable_move = (entry_px - current_price) if is_short else (current_price - entry_px)
-
-            # Phase transitions
-            if phase in ("BASE", None):
-                if favorable_move >= RUN_START_TICKS * MES_TICK_VALUE:
-                    phase = "RUN"
-            else:
-                if made_new_extreme:
-                    stall_bars = 0
-                else:
-                    stall_bars += 1
-                    if phase != "LOCK" and stall_bars >= STALL_BARS_TO_LOCK:
-                        phase = "LOCK"
-
-            # Pick offset based on phase
-            if phase == "LOCK":
-                offset_dyn   = LOCK_OFFSET_MULT * float(_ema_absdiff.get(symbol, 0.0))
-                offset_floor = LOCK_OFFSET_FLOOR
-            else:  # RUN (or BASE before RUN starts)
-                offset_dyn   = RUN_OFFSET_MULT * float(_ema_absdiff.get(symbol, 0.0))
-                offset_floor = RUN_OFFSET_FLOOR
-
-            chosen_offset = max(float(offset_dyn), float(offset_floor))
-            buffer_source = max(chosen_offset, float(MIN_OFFSET_FLOOR))  # keep your global floor
-
-            # Persist tiny state + breadcrumb
-            trade["phase"] = phase
-            trade["stall_bars"] = stall_bars
-            print(f"[TRL] {symbol} phase={phase} stall={stall_bars} atr={_ema_absdiff.get(symbol,0.0):.2f} off={buffer_source:.2f}")
-        # <<< END RUN_LOCK_PATCH
-
-        # ---- Trigger arming ----
+        # ---- Trigger arming (first time only) ----
         if not trade.get('trail_hit'):
             trade['trail_peak'] = entry
             trigger_price = entry + adaptive_trigger if direction == 1 else entry - adaptive_trigger
@@ -687,21 +618,15 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     open_trades_ref.child(order_id).update({
                         "trail_hit": True,
                         "trail_peak": current_price,
-                        # first trailing stop price right after arming
-                        # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer)
-                        "trail_stop_price": (current_price - float(buffer_source)) if direction == 1 else (current_price + float(buffer_source))
-                        # <<< END RUN_LOCK_PATCH
+                        "trail_stop_price": (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
                     })
-                    # local mirrors
                     trade["trail_hit"] = True
                     trade["trail_peak"] = current_price
-                    # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer)
-                    trade["trail_stop_price"] = (current_price - float(buffer_source)) if direction == 1 else (current_price + float(buffer_source))
-                    # <<< END RUN_LOCK_PATCH
+                    trade["trail_stop_price"] = (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
 
-        # ---- Trail peak monotonic update + exit check ----
+        # ---- Trail peak update + exit check ----
         if trade.get('trail_hit'):
             prev_peak = trade.get('trail_peak', entry)
             new_peak = max(prev_peak, current_price) if direction == 1 else min(prev_peak, current_price)
@@ -712,10 +637,8 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 try:
                     firebase_db.reference(f"/open_active_trades/{symbol}").child(order_id).update({
                         "trail_peak": new_peak,
-                        # keep live trailing stop price visible as peak changes
                         "trail_stop_price": (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
                     })
-                    # local mirror
                     trade["trail_stop_price"] = (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
                 except Exception as e:
                     print(f"❌ Failed to update trail_peak for {order_id}: {e}")
@@ -725,20 +648,14 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             buffer_amt = float(adaptive_offset)
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
-            # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer once)
-        buffer_amt = float(buffer_source)
-        print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
-
-        # Keep live buffer synced to Firebase
-        try:
-            firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
-                "trail_offset": buffer_amt
-            })
-            # local mirror
-            trade["trail_offset"] = buffer_amt
-        except Exception:
-            pass
-        # <<< END RUN_LOCK_PATCH
+            # Keep live buffer synced to Firebase (mirror only)
+            try:
+                firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
+                    "trail_offset": buffer_amt
+                })
+                trade["trail_offset"] = buffer_amt
+            except Exception:
+                pass
 
             exit_trigger = (
                 (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or
@@ -747,7 +664,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             if exit_trigger:
                 print(f"[INFO] Trailing TP EXIT condition met for {order_id}")
 
-                # ---- Claim: set exit_pending before placing the exit to avoid duplicates ----
+                # ---- Claim to avoid duplicate exits ----
                 node_ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
                 try:
                     current = node_ref.get() or {}
@@ -755,18 +672,18 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                         print(f"⏭️ {order_id} already claimed (exit_pending). Skipping duplicate exit.")
                         continue
                     node_ref.update({"exit_pending": True})
-                    trade["exit_pending"] = True  # reflect locally
+                    trade["exit_pending"] = True
                 except Exception as e:
                     print(f"❌ Failed to claim {order_id} (set exit_pending): {e}")
                     continue
 
+                # ---- Place exit ----
                 try:
                     exit_side = 'SELL' if (trade.get('action') or '').upper() == 'BUY' else 'BUY'
                     result = place_exit_trade(symbol, exit_side, 1, firebase_db)
 
                     if result.get("status") == "SUCCESS":
                         print(f"📤 Exit order placed successfully for {order_id}")
-                        # Normalize Tiger timestamp to UTC ISO
                         raw_ts = result.get("transaction_time")
                         if isinstance(raw_ts, (int, float)):
                             tx_iso = datetime.fromtimestamp(raw_ts/1000, tz=dt_timezone.utc).isoformat().replace("+00:00","Z")
@@ -781,17 +698,15 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                             "action": result.get("action", exit_side),
                             "quantity": result.get("quantity", 1),
                             "filled_price": result.get("filled_price"),
-                            "transaction_time": tx_iso,   # ✅ now normalized
-                            "fill_time": tx_iso           # ✅ provide consistent sort key
+                            "transaction_time": tx_iso,
+                            "fill_time": tx_iso
                         }
 
-                        # Enqueue the exit ticket; drain loop will process it exactly once
                         tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
                         try:
                             tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
                         except Exception as e2:
                             print(f"❌ Failed to enqueue exit ticket {tx_dict.get('order_id')}: {e2}")
-                            # clear the claim so another attempt can happen
                             try:
                                 node_ref.update({"exit_pending": False})
                                 trade["exit_pending"] = False
@@ -799,10 +714,8 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                                 pass
                         else:
                             print(f"[INFO] Exit ticket enqueued (not processed here): {tx_dict['order_id']}")
-                            # leave exit_pending=True until drain closes & archives
                     else:
                         print(f"❌ Exit order failed for {order_id}: {result}")
-                        # clear the claim on failure
                         try:
                             node_ref.update({"exit_pending": False})
                             trade["exit_pending"] = False
@@ -811,7 +724,6 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
                 except Exception as e:
                     print(f"❌ Exception placing exit for {order_id}: {e}")
-                    # clear the claim on exception
                     try:
                         node_ref.update({"exit_pending": False})
                         trade["exit_pending"] = False
