@@ -43,6 +43,32 @@ firebase_db = db
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
 
+
+# =====================================================================================
+# 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
+# ======================================================================================
+# --- ATR sizing knobs (tamer defaults) ---
+_ATR_ALPHA        = 0.35      # was 0.20 → react faster to expansion
+ATR_TRIGGER_MULT  = 0.60      # unchanged
+ATR_OFFSET_MULT   = 0.45      # was 0.30 → wider trailing buffer      
+
+# Floors & caps (keep triggers practical)
+MIN_TRIGGER_FLOOR = 1.8       # was 2.2 → let ATR overtake the floor sooner
+MIN_OFFSET_FLOOR  = 0.5       # was 0.7
+MAX_TRIGGER_CAP   = 10.0      # unchanged
+MAX_OFFSET_CAP    = 4.0       # unchanged
+_ema_absdiff = defaultdict(float)
+
+# --- RUN→LOCK knobs ---
+USE_RUN_LOCK        = True
+RUN_OFFSET_MULT     = 0.50
+RUN_OFFSET_FLOOR    = 0.60
+LOCK_OFFSET_MULT    = 0.25
+LOCK_OFFSET_FLOOR   = 0.40
+STALL_BARS_TO_LOCK  = 3       # bars without a new extreme before LOCK
+RUN_START_TICKS     = 4       # start RUN after this many favorable ticks
+MES_TICK_VALUE      = 0.25    # MES tick size
+
 # ==================================================================
 # 🟩 HELPER - Timezone Normaliser 
 # ==================================================================
@@ -288,20 +314,6 @@ def net_position(firebase_db, symbol: str) -> int:
             net -= 1
     return net
 
-# =====================================================================================
-# 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
-# ======================================================================================
-# --- ATR sizing knobs (tamer defaults) ---
-_ATR_ALPHA        = 0.35      # was 0.20 → react faster to expansion
-ATR_TRIGGER_MULT  = 0.60      # unchanged
-ATR_OFFSET_MULT   = 0.45      # was 0.30 → wider trailing buffer      
-
-# Floors & caps (keep triggers practical)
-MIN_TRIGGER_FLOOR = 1.8       # was 2.2 → let ATR overtake the floor sooner
-MIN_OFFSET_FLOOR  = 0.5       # was 0.7
-MAX_TRIGGER_CAP   = 10.0      # unchanged
-MAX_OFFSET_CAP    = 4.0       # unchanged
-_ema_absdiff = defaultdict(float)
 
 # ==============================================
 # 🟩 HELPER: Reason Map for Friendly Definitions
@@ -606,6 +618,61 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             except Exception as e2:
                 print(f"⚠️ Fallback trail snapshot failed for {order_id}: {e2}")
 
+                # >>> BEGIN RUN_LOCK_PATCH (logic)
+        # Choose trailing buffer source (default = current adaptive_offset)
+        buffer_source = float(adaptive_offset)
+
+        if USE_RUN_LOCK:
+            # Phase bookkeeping (persist on trade dict)
+            phase      = trade.get("phase") or "BASE"        # BASE → RUN → LOCK
+            stall_bars = int(trade.get("stall_bars", 0))
+            entry_px   = float(trade.get("filled_price", entry))
+
+            # Side helpers
+            is_short = ((trade.get('action') or '').upper() != 'BUY')
+
+            # Read current favorable extreme (you already store/update trail_peak for long, same field used for short)
+            # For consistency with your code, trail_peak stores the extreme: max for longs, min for shorts.
+            extreme_now = float(trade.get('trail_peak', entry))
+
+            # Did we make a NEW extreme this tick?
+            if is_short:
+                made_new_extreme = current_price < extreme_now - 1e-9
+            else:
+                made_new_extreme = current_price > extreme_now + 1e-9
+
+            # Favorable move since entry (points)
+            favorable_move = (entry_px - current_price) if is_short else (current_price - entry_px)
+
+            # Phase transitions
+            if phase in ("BASE", None):
+                if favorable_move >= RUN_START_TICKS * MES_TICK_VALUE:
+                    phase = "RUN"
+            else:
+                if made_new_extreme:
+                    stall_bars = 0
+                else:
+                    stall_bars += 1
+                    if phase != "LOCK" and stall_bars >= STALL_BARS_TO_LOCK:
+                        phase = "LOCK"
+
+            # Pick offset based on phase
+            if phase == "LOCK":
+                offset_dyn   = LOCK_OFFSET_MULT * float(_ema_absdiff.get(symbol, 0.0))
+                offset_floor = LOCK_OFFSET_FLOOR
+            else:  # RUN (or BASE before RUN starts)
+                offset_dyn   = RUN_OFFSET_MULT * float(_ema_absdiff.get(symbol, 0.0))
+                offset_floor = RUN_OFFSET_FLOOR
+
+            chosen_offset = max(float(offset_dyn), float(offset_floor))
+            buffer_source = max(chosen_offset, float(MIN_OFFSET_FLOOR))  # keep your global floor
+
+            # Persist tiny state + breadcrumb
+            trade["phase"] = phase
+            trade["stall_bars"] = stall_bars
+            print(f"[TRL] {symbol} phase={phase} stall={stall_bars} atr={_ema_absdiff.get(symbol,0.0):.2f} off={buffer_source:.2f}")
+        # <<< END RUN_LOCK_PATCH
+
         # ---- Trigger arming ----
         if not trade.get('trail_hit'):
             trade['trail_peak'] = entry
@@ -621,12 +688,16 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                         "trail_hit": True,
                         "trail_peak": current_price,
                         # first trailing stop price right after arming
-                        "trail_stop_price": (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
+                        # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer)
+                        "trail_stop_price": (current_price - float(buffer_source)) if direction == 1 else (current_price + float(buffer_source))
+                        # <<< END RUN_LOCK_PATCH
                     })
                     # local mirrors
                     trade["trail_hit"] = True
                     trade["trail_peak"] = current_price
-                    trade["trail_stop_price"] = (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
+                    # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer)
+                    trade["trail_stop_price"] = (current_price - float(buffer_source)) if direction == 1 else (current_price + float(buffer_source))
+                    # <<< END RUN_LOCK_PATCH
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
 
@@ -654,11 +725,11 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             buffer_amt = float(adaptive_offset)
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
-            # === Keep live buffer synced to Firebase ===
-            buffer_amt = float(adaptive_offset)
+            # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer once)
+            buffer_amt = float(buffer_source)
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
-            # === Keep live buffer synced to Firebase ===
+            # Keep live buffer synced to Firebase
             try:
                 firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
                     "trail_offset": buffer_amt
@@ -667,6 +738,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 trade["trail_offset"] = buffer_amt
             except Exception:
                 pass
+            # <<< END RUN_LOCK_PATCH
 
             exit_trigger = (
                 (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or
