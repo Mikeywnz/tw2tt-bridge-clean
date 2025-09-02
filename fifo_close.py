@@ -178,22 +178,23 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     # Normalize exit time
     exit_utc = _to_utc(exit_time)
 
-    # --- Global freshness/future guards for exits ---
+    # --- Global freshness guard for exits (only stale, no future skip) ---
     NOW_UTC = datetime.now(timezone.utc)
-    if (NOW_UTC - exit_utc) > timedelta(hours=12):
-        print(f"[SKIP] Exit {exit_oid} older than 12h; ghosting.")
+    skew_s = int((exit_utc - NOW_UTC).total_seconds())
+    print(f"[TIME] now_utc={NOW_UTC.isoformat()} exit_utc={exit_utc.isoformat()} skew_s={skew_s}")
+
+    STALE_WINDOW = timedelta(minutes=15)  # was 12h; now only 15 minutes
+    if (NOW_UTC - exit_utc) > STALE_WINDOW:
+        print(f"[SKIP] Exit {exit_oid} older than {int(STALE_WINDOW.total_seconds()/60)}m; ghosting as stale.")
         firebase_db.reference(f"/ghost_trades_log/{symbol}/{exit_oid}").set({
-            "reason": "exit_too_old", "exit_time": exit_utc.isoformat(), "payload": payload
+            "reason": "exit_too_old",
+            "exit_time": exit_utc.isoformat(),
+            "payload": payload
         })
         firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({"_handled": True, "_processed": True})
         return False
-    if (exit_utc - NOW_UTC) > timedelta(minutes=5):
-        print(f"[SKIP] Exit {exit_oid} appears >5m in the future; ghosting (clock skew).")
-        firebase_db.reference(f"/ghost_trades_log/{symbol}/{exit_oid}").set({
-            "reason": "exit_in_future", "exit_time": exit_utc.isoformat(), "payload": payload
-        })
-        firebase_db.reference(f"/exit_orders_log/{symbol}/{exit_oid}").update({"_handled": True, "_processed": True})
-        return False
+
+    # ✅ No “future” guard anymore — if exit_utc is ahead of NOW_UTC, we still accept it
 
     # Build FIFO list with normalized entry timestamps
     entries = []
