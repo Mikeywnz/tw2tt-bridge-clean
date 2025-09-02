@@ -50,10 +50,10 @@ firebase_db = db
 # --- ATR sizing knobs (tamer defaults) ---
 _ATR_ALPHA        = 0.35      # was 0.20 → react faster to expansion
 ATR_TRIGGER_MULT  = 0.60      # unchanged
-ATR_OFFSET_MULT   = 0.30      # was 0.45 → tighter trailing buffer     
+ATR_OFFSET_MULT   = 0.20      # was 0.45 → tighter trailing buffer     
 
 # Floors & caps (keep triggers practical)
-MIN_TRIGGER_FLOOR = 1.8       # was 2.2 → let ATR overtake the floor sooner
+MIN_TRIGGER_FLOOR = 2.0       # was 2.2 → let ATR overtake the floor sooner
 MIN_OFFSET_FLOOR  = 0.60      # was 0.50 → sensible floor
 MAX_TRIGGER_CAP   = 10.0      # unchanged
 MAX_OFFSET_CAP    = 4.0       # unchanged
@@ -61,12 +61,12 @@ _ema_absdiff = defaultdict(float)
 
 # --- RUN→LOCK knobs ---
 USE_RUN_LOCK        = True
-RUN_OFFSET_MULT     = 0.45    # was 0.50 → still looser in RUN
-RUN_OFFSET_FLOOR    = 0.60
-LOCK_OFFSET_MULT    = 0.22    # was 0.25 → tighter in LOCK
-LOCK_OFFSET_FLOOR   = 0.40
+RUN_OFFSET_MULT     = 0.45      # ≈2.0–2.5 pts when ATR_proxy ~4.5–5.5
+RUN_OFFSET_FLOOR    = 1.80
+LOCK_OFFSET_MULT    = 0.12    # was 0.25 → tighter in LOCK 0.12      # scales 0.12 × ATR_proxy
+LOCK_OFFSET_FLOOR   = 0.60      # floor keeps it from going <0.6
 STALL_BARS_TO_LOCK  = 3       # bars without a new extreme before LOCK
-RUN_START_TICKS     = 4       # start RUN after this many favorable ticks
+RUN_START_TICKS     = 6       # start RUN after this many favorable ticks
 MES_TICK_VALUE      = 0.25    # MES tick size
 
 # ==================================================================
