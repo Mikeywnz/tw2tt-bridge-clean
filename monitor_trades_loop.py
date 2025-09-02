@@ -14,6 +14,7 @@ import pytz
 from datetime import timezone
 from datetime import datetime, timezone as dt_timezone, timedelta
 import datetime as dt
+from datetime import timezone as _utc_tz
 # (UTC-only) — removed NZ local timezone usage
 
 processed_exit_order_ids = set()
@@ -60,6 +61,45 @@ MAX_OFFSET_CAP    = 4.0       # cap offset so it doesn’t blow out
 
 # ATR state cache
 _ema_absdiff = defaultdict(float)
+
+# ==================================================================
+# 🟩 HELPER - CANONICAL TIME PARSER (single source of truth for parsing)
+# ==================================================================
+
+def parse_any_ts_to_utc(s: str):
+    """
+    Robust parser for Tiger / our timestamps:
+      - ISO with 'Z' (UTC)
+      - ISO with explicit offset (+HH:MM / -HH:MM)
+      - Naive ISO (assume UTC)
+    Always returns tz-aware UTC datetime.
+    On error, returns NOW (UTC) to avoid min/max extremes that break ordering.
+    """
+    s = (s or "").strip()
+    if not s:
+        return datetime.utcnow().replace(tzinfo=_utc_tz.utc)
+
+    # ISO with trailing Z
+    try:
+        if s.endswith("Z"):
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(_utc_tz.utc)
+    except Exception:
+        pass
+
+    # ISO with explicit offset
+    try:
+        if "+" in s[10:] or "-" in s[10:]:
+            return datetime.fromisoformat(s).astimezone(_utc_tz.utc)
+    except Exception:
+        pass
+
+    # Fallback: treat as UTC naive ISO (strip subseconds if present)
+    try:
+        core = s.replace("T", " ").split(".")[0]
+        return datetime.fromisoformat(core).replace(tzinfo=_utc_tz.utc)
+    except Exception:
+        return datetime.utcnow().replace(tzinfo=_utc_tz.utc)
+    
 # ==================================================================
 # 🟩 HELPER - Timezone Normaliser 
 # ==================================================================
@@ -340,19 +380,6 @@ def log_every_n(msg: str, n: int = LOG_EVERY):
         print(msg, flush=True)
 
 # =========================================
-# 🟩 HELPER: Time parsing (UTC-only)
-# =========================================
-
-def _iso_to_utc(s: str):
-    """Parse ISO8601-ish string to UTC-aware datetime; tolerant; returns far-future on error for min() use."""
-    try:
-        s = (s or "").strip().replace("T", " ").replace("Z", "")
-        dt = datetime.fromisoformat(s)
-        return dt.replace(tzinfo=dt_timezone.utc) if dt.tzinfo is None else dt.astimezone(dt_timezone.utc)
-    except Exception:
-        return datetime.max.replace(tzinfo=dt_timezone.utc)
-
-# =========================================
 # 🟩 HELPER: Load Live Prices from Firebase
 # =========================================
 def load_live_prices():
@@ -446,7 +473,7 @@ def load_open_trades(symbol):
         return []
 
 
-def save_open_trades(symbol, trades, grace_seconds: int = 12):
+def save_open_trades(symbol, trades, grace_seconds: int = 18):
 
     """
     Atomic overwrite of /open_active_trades/{symbol} with a short grace period:
@@ -455,16 +482,6 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
     - Flushes old/zombie entries.
     """
     ref = db.reference(f"/open_active_trades/{symbol}")
-
-    def _parse_iso_to_utc(iso_str: str) -> datetime:
-        """Tolerant ISO parser -> aware UTC datetime."""
-        s = (iso_str or "").strip().replace("T", " ").replace("Z", "")
-        try:
-            dt = datetime.fromisoformat(s)
-        except Exception:
-            return datetime.min.replace(tzinfo=dt_timezone.utc)
-        # treat naive as UTC
-        return dt.replace(tzinfo=dt_timezone.utc) if dt.tzinfo is None else dt.astimezone(dt_timezone.utc)
 
     try:
         # 1) Build fresh payload from provided trades
@@ -500,7 +517,7 @@ def save_open_trades(symbol, trades, grace_seconds: int = 12):
                 continue
             # Use entry_timestamp; fallback to transaction_time if needed
             ts = tr.get("entry_timestamp") or tr.get("transaction_time") or ""
-            ts_utc = _parse_iso_to_utc(ts)
+            ts_utc = parse_any_ts_to_utc(ts)
             if ts_utc >= cutoff:
                 fresh[oid] = tr  # protect very recent trade
 
@@ -911,7 +928,7 @@ def monitor_trades():
                 # ---- choose FIFO anchor
                 anchor = min(
                     active_trades,
-                    key=lambda t: _iso_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
+                    key=lambda t: parse_any_ts_to_utc(t.get("entry_timestamp") or t.get("transaction_time") or "")
                 )
                 anchor_id = anchor.get("order_id")
                 symbol_of_anchor = symbol  # normalized to this loop's symbol
@@ -1024,7 +1041,7 @@ def monitor_trades():
             if isinstance(tickets, dict):
                 items = sorted(
                     tickets.items(),
-                    key=lambda kv: _iso_to_utc((kv[1] or {}).get("fill_time") or (kv[1] or {}).get("transaction_time") or "")
+                    key=lambda kv: parse_any_ts_to_utc((kv[1] or {}).get("fill_time") or (kv[1] or {}).get("transaction_time") or "")
                 )
             else:
                 items = []
@@ -1059,7 +1076,7 @@ def monitor_trades():
                 try:
                     # Parse ticket time and compute age vs now
                     exit_dt = (tx.get("fill_time") or tx.get("transaction_time") or "")
-                    exit_utc = _iso_to_utc(exit_dt)
+                    exit_utc = parse_any_ts_to_utc(exit_dt)
                     now_utc  = datetime.now(timezone.utc)
                     age_s    = int((now_utc - exit_utc).total_seconds())
 
@@ -1071,7 +1088,7 @@ def monitor_trades():
                     if isinstance(opens, dict) and opens:
                         try:
                             fifo_head_dt = min(
-                                _iso_to_utc((tr or {}).get("entry_timestamp") or (tr or {}).get("transaction_time") or "")
+                                parse_any_ts_to_utc((tr or {}).get("entry_timestamp") or (tr or {}).get("transaction_time") or "")
                                 for tr in opens.values()
                             )
                         except Exception:
