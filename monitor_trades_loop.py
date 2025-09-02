@@ -292,15 +292,15 @@ def net_position(firebase_db, symbol: str) -> int:
 # 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges) ---
 # ======================================================================================
 # --- ATR sizing knobs (tamer defaults) ---
-_ATR_ALPHA        = 0.20      # smoothing for EMA(|price-ema50|)
-ATR_TRIGGER_MULT  = 0.60      # was too high; try 0.6x smoothed range
-ATR_OFFSET_MULT   = 0.30      # exit buffer at ~half the trigger
+_ATR_ALPHA        = 0.35      # was 0.20 → react faster to expansion
+ATR_TRIGGER_MULT  = 0.60      # unchanged
+ATR_OFFSET_MULT   = 0.45      # was 0.30 → wider trailing buffer      
 
 # Floors & caps (keep triggers practical)
-MIN_TRIGGER_FLOOR = 2.2
-MIN_OFFSET_FLOOR  = 0.7
-MAX_TRIGGER_CAP   = 10.0
-MAX_OFFSET_CAP    = 4.0
+MIN_TRIGGER_FLOOR = 1.8       # was 2.2 → let ATR overtake the floor sooner
+MIN_OFFSET_FLOOR  = 0.5       # was 0.7
+MAX_TRIGGER_CAP   = 10.0      # unchanged
+MAX_OFFSET_CAP    = 4.0       # unchanged
 _ema_absdiff = defaultdict(float)
 
 # ==============================================
