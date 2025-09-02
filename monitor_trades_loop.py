@@ -60,7 +60,7 @@ MAX_OFFSET_CAP    = 4.0       # unchanged
 _ema_absdiff = defaultdict(float)
 
 # --- RUN→LOCK knobs ---
-USE_RUN_LOCK        = True
+USE_RUN_LOCK        = False
 RUN_OFFSET_MULT     = 0.45      # ≈2.0–2.5 pts when ATR_proxy ~4.5–5.5
 RUN_OFFSET_FLOOR    = 1.80
 LOCK_OFFSET_MULT    = 0.12    # was 0.25 → tighter in LOCK 0.12      # scales 0.12 × ATR_proxy
