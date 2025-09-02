@@ -726,19 +726,19 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
             # >>> BEGIN RUN_LOCK_PATCH (use chosen buffer once)
-            buffer_amt = float(buffer_source)
-            print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
+        buffer_amt = float(buffer_source)
+        print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
-            # Keep live buffer synced to Firebase
-            try:
-                firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
-                    "trail_offset": buffer_amt
-                })
-                # local mirror
-                trade["trail_offset"] = buffer_amt
-            except Exception:
-                pass
-            # <<< END RUN_LOCK_PATCH
+        # Keep live buffer synced to Firebase
+        try:
+            firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
+                "trail_offset": buffer_amt
+            })
+            # local mirror
+            trade["trail_offset"] = buffer_amt
+        except Exception:
+            pass
+        # <<< END RUN_LOCK_PATCH
 
             exit_trigger = (
                 (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or
@@ -1124,8 +1124,6 @@ def monitor_trades():
                     continue
 
                 # --- idempotency check (either flag means already handled)
-                
-
                 if bool(tx.get("_processed")) or bool(tx.get("_handled")):
                     if DRAIN_VERBOSE:
                         print(f"[{symbol}] [DRAIN] Skip {tx_id}: already processed (_processed/_handled set)")
@@ -1144,6 +1142,55 @@ def monitor_trades():
                 # --- trace: missing time fields (just a warning; handler will still decide)
                 if not (tx.get("transaction_time") or tx.get("fill_time")):
                     print(f"[{symbol}] [DRAIN] Warn {tx_id}: missing time (transaction_time/fill_time)")
+
+                # === Option A: pre-filter stale/orphan exits so they can't close new trades ===
+                try:
+                    # Parse ticket time and compute age vs now
+                    exit_dt = (tx.get("fill_time") or tx.get("transaction_time") or "")
+                    exit_utc = _iso_to_utc(exit_dt)
+                    now_utc  = datetime.now(timezone.utc)
+                    age_s    = int((now_utc - exit_utc).total_seconds())
+
+                    STALE_TICKET_WINDOW_S = 120  # 2 minutes
+
+                    # Snapshot current opens and earliest open entry (FIFO head)
+                    opens = open_ref.get() or {}
+                    fifo_head_dt = None
+                    if isinstance(opens, dict) and opens:
+                        try:
+                            fifo_head_dt = min(
+                                _iso_to_utc((tr or {}).get("entry_timestamp") or (tr or {}).get("transaction_time") or "")
+                                for tr in opens.values()
+                            )
+                        except Exception:
+                            fifo_head_dt = None
+
+                    # Quarantine rules:
+                    #  A) No open trades AND ticket older than window  → quarantine
+                    #  B) There are open trades AND ticket predates earliest entry by > window  → quarantine
+                    stale_vs_no_opens = (not opens) and (age_s > STALE_TICKET_WINDOW_S)
+                    stale_vs_fifo_head = (
+                        fifo_head_dt is not None
+                        and exit_utc < fifo_head_dt
+                        and (fifo_head_dt - exit_utc).total_seconds() > STALE_TICKET_WINDOW_S
+                    )
+
+                    if stale_vs_no_opens or stale_vs_fifo_head:
+                        # Mark handled/processed and mirror to ghost bucket with context
+                        tickets_ref.child(tx_id).update({"_handled": True, "_processed": True})
+                        firebase_db.reference(f"/ghost_trades_log/{symbol}/{tx_id}").set({
+                            "reason": "stale_exit_ticket_pre_filter",
+                            "exit_time": exit_utc.isoformat(),
+                            "earliest_entry": fifo_head_dt.isoformat() if fifo_head_dt else None,
+                            "age_s": age_s,
+                            "payload": tx
+                        })
+                        print(f"[{symbol}] [PRE] Quarantined stale exit {tx_id} (age={age_s}s, "
+                              f"fifo_head={fifo_head_dt.isoformat() if fifo_head_dt else 'N/A'})")
+                        continue  # skip this ticket; do NOT pass to handler
+                except Exception as e:
+                    print(f"[{symbol}] [PRE] Quarantine check skipped for {tx_id}: {e}")
+                # === end Option A pre-filter ===
 
                 ok = handle_exit_fill_from_tx(firebase_db, tx)
 
