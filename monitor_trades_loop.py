@@ -62,6 +62,10 @@ MAX_OFFSET_CAP    = 4.0       # cap offset so it doesn’t blow out
 # ATR state cache
 _ema_absdiff = defaultdict(float)
 
+INITIAL_ATR_MULT = 5.0      # initial stop = 5×ATR (gives room)
+MIN_INITIAL_STOP_PTS = 2.0  # never tighter than 2.0 pts
+ATR_TRAIL_MULT = 2.5        # (optional) trail uses 2.5×ATR
+
 # ==================================================================
 # 🟩 HELPER - CANONICAL TIME PARSER (single source of truth for parsing)
 # ==================================================================
@@ -621,19 +625,25 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             except Exception as e2:
                 print(f"⚠️ Fallback trail snapshot failed for {order_id}: {e2}")
 
-        # ========================= HYBRID ATR ADDITIONS =========================
-        # Use 'smoothed' as the live ATR proxy; single knob 'atr_mult' (default 2.0)
-        atr_val  = float(smoothed)
-        atr_mult = float(trade.get("atr_mult", 2.0))
+     # ========================= HYBRID ATR ADDITIONS =========================
+        # Use 'smoothed' as the live ATR proxy
+        atr_val = float(smoothed)
+
+        # Optional per-trade overrides; otherwise use global knobs
+        atr_trail_mult   = float(trade.get("atr_mult", ATR_TRAIL_MULT))
+        initial_k        = float(trade.get("initial_atr_mult", INITIAL_ATR_MULT))
 
         # 1) Initial ATR stop (immediate protection, always active pre-arm)
         if "initial_stop" not in trade or trade.get("initial_stop") is None:
-            initial_stop = (entry - atr_mult * atr_val) if direction == 1 else (entry + atr_mult * atr_val)
+            # Ensure plenty of room at entry
+            buffer = max(atr_val * initial_k, float(MIN_INITIAL_STOP_PTS))
+            initial_stop = (entry - buffer) if direction == 1 else (entry + buffer)
             trade["initial_stop"] = initial_stop
             try:
                 firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
                     "initial_stop": initial_stop,
-                    "atr_mult": atr_mult
+                    "atr_mult": atr_trail_mult,
+                    "initial_atr_mult": initial_k
                 })
             except Exception:
                 pass
@@ -668,7 +678,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     })
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
-        # ======================= END HYBRID ATR ADDITIONS =======================
+# ======================= END HYBRID ATR ADDITIONS =======================
 
         exit_trigger = False  # unified exit flag
 
@@ -698,7 +708,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 print(f"[DEBUG] Trail peak unchanged for {order_id}: {prev_peak:.2f}")
 
             # ATR trailing buffer replaces fixed offset
-            atr_buffer = atr_mult * atr_val
+            atr_buffer = atr_val * atr_trail_mult
             trail_stop = (trade['trail_peak'] - atr_buffer) if direction == 1 else (trade['trail_peak'] + atr_buffer)
 
             print(f"[DEBUG] ATR trail for {order_id}: buffer {atr_buffer:.2f} | stop {trail_stop:.2f} | price {current_price:.2f}")
