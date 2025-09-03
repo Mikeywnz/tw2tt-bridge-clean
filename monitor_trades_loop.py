@@ -54,8 +54,8 @@ ATR_TRIGGER_MULT  = 0.60      # trigger = 0.6 × ATR proxy
 ATR_OFFSET_MULT   = 0.20      # offset = 0.2 × ATR proxy
 
 # Floors & caps (keep values practical)
-MIN_TRIGGER_FLOOR = 2.0       # never let trigger go below 2 pts
-MIN_OFFSET_FLOOR  = 0.60      # never let offset go below 0.6 pts
+MIN_TRIGGER_FLOOR = 3.0       # never let trigger go below 2 pts
+MIN_OFFSET_FLOOR  = 1.0      # never let offset go below 0.6 pts
 MAX_TRIGGER_CAP   = 10.0      # cap trigger so it doesn’t blow out
 MAX_OFFSET_CAP    = 4.0       # cap offset so it doesn’t blow out
 
