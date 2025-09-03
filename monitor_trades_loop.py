@@ -62,10 +62,6 @@ MAX_OFFSET_CAP    = 4.0       # cap offset so it doesn’t blow out
 # ATR state cache
 _ema_absdiff = defaultdict(float)
 
-INITIAL_ATR_MULT = 5.0      # initial stop = 5×ATR (gives room)
-MIN_INITIAL_STOP_PTS = 2.0  # never tighter than 2.0 pts
-ATR_TRAIL_MULT = 2.5        # (optional) trail uses 2.5×ATR
-
 # ==================================================================
 # 🟩 HELPER - CANONICAL TIME PARSER (single source of truth for parsing)
 # ==================================================================
@@ -532,7 +528,7 @@ def save_open_trades(symbol, trades, grace_seconds: int = 18):
         print(f"❌ Failed to save open trades to Firebase: {e}")
 
 # =========================================================================
-# 🟢 TRAILING TP & EXIT (HYBRID ATR: initial stop → ATR trail; FIFO-first)
+# 🟢 TRAILING TP & EXIT (plain ATR, FIFO-first; uses handle_exit_fill_from_tx)
 # =========================================================================
 
 def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points):
@@ -586,7 +582,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
 
             print(f"[ATR] {symbol} smoothed={smoothed:.2f} trig={adaptive_trigger:.2f} off={adaptive_offset:.2f} ema50={ema50}")
 
-            # Snapshot trail settings → Firebase (unchanged fields for visibility)
+            # Snapshot trail settings → Firebase
             try:
                 node = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
                 trigger_pts = float(adaptive_trigger)
@@ -625,43 +621,7 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
             except Exception as e2:
                 print(f"⚠️ Fallback trail snapshot failed for {order_id}: {e2}")
 
-     # ========================= HYBRID ATR ADDITIONS =========================
-        # Use 'smoothed' as the live ATR proxy
-        atr_val = float(smoothed)
-
-        # Optional per-trade overrides; otherwise use global knobs
-        atr_trail_mult   = float(trade.get("atr_mult", ATR_TRAIL_MULT))
-        initial_k        = float(trade.get("initial_atr_mult", INITIAL_ATR_MULT))
-
-        # 1) Initial ATR stop (immediate protection, always active pre-arm)
-        if "initial_stop" not in trade or trade.get("initial_stop") is None:
-            # Ensure plenty of room at entry
-            buffer = max(atr_val * initial_k, float(MIN_INITIAL_STOP_PTS))
-            initial_stop = (entry - buffer) if direction == 1 else (entry + buffer)
-            trade["initial_stop"] = initial_stop
-            try:
-                firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
-                    "initial_stop": initial_stop,
-                    "atr_mult": atr_trail_mult,
-                    "initial_atr_mult": initial_k
-                })
-            except Exception:
-                pass
-
-        # 2) Arming condition: once unrealized ≥ 1×ATR, flip to trailing mode
-        unreal_pts = (current_price - entry) if direction == 1 else (entry - current_price)
-        if not trade.get("atr_armed") and unreal_pts >= atr_val:
-            trade["atr_armed"] = True
-            trade["trail_peak"] = current_price  # start peak from here
-            try:
-                firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
-                    "atr_armed": True,
-                    "trail_peak": current_price
-                })
-            except Exception:
-                pass
-
-        # Keep existing trigger semantics for visibility (doesn't conflict)
+        # ---- Trigger arming (first time only) ----
         if not trade.get('trail_hit'):
             trade['trail_peak'] = entry
             trigger_price = entry + adaptive_trigger if direction == 1 else entry - adaptive_trigger
@@ -674,24 +634,17 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                     open_trades_ref = firebase_db.reference(f"/open_active_trades/{symbol}")
                     open_trades_ref.child(order_id).update({
                         "trail_hit": True,
-                        "trail_peak": current_price
+                        "trail_peak": current_price,
+                        "trail_stop_price": (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
                     })
+                    trade["trail_hit"] = True
+                    trade["trail_peak"] = current_price
+                    trade["trail_stop_price"] = (current_price - float(adaptive_offset)) if direction == 1 else (current_price + float(adaptive_offset))
                 except Exception as e:
                     print(f"❌ Failed to update trail_hit for {order_id}: {e}")
-# ======================= END HYBRID ATR ADDITIONS =======================
 
-        exit_trigger = False  # unified exit flag
-
-        # ---- Pre-armed phase: respect initial ATR stop
-        if not trade.get("atr_armed", False):
-            init_stop = float(trade.get("initial_stop"))
-            # Long: exit if price <= init_stop; Short: exit if price >= init_stop
-            if (direction == 1 and current_price <= init_stop) or (direction == -1 and current_price >= init_stop):
-                print(f"[INFO] Initial ATR STOP hit for {order_id} at {current_price:.2f} (stop {init_stop:.2f})")
-                exit_trigger = True
-
-        # ---- Trailing phase: update peak and use ATR “breathing” leash
-        if trade.get('atr_armed', False):
+        # ---- Trail peak update + exit check ----
+        if trade.get('trail_hit'):
             prev_peak = trade.get('trail_peak', entry)
             new_peak = max(prev_peak, current_price) if direction == 1 else min(prev_peak, current_price)
 
@@ -700,100 +653,99 @@ def process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_
                 trade['trail_peak'] = new_peak
                 try:
                     firebase_db.reference(f"/open_active_trades/{symbol}").child(order_id).update({
-                        "trail_peak": new_peak
+                        "trail_peak": new_peak,
+                        "trail_stop_price": (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
                     })
+                    trade["trail_stop_price"] = (new_peak - float(adaptive_offset)) if direction == 1 else (new_peak + float(adaptive_offset))
                 except Exception as e:
                     print(f"❌ Failed to update trail_peak for {order_id}: {e}")
             else:
                 print(f"[DEBUG] Trail peak unchanged for {order_id}: {prev_peak:.2f}")
 
-            # ATR trailing buffer replaces fixed offset
-            atr_buffer = atr_val * atr_trail_mult
-            trail_stop = (trade['trail_peak'] - atr_buffer) if direction == 1 else (trade['trail_peak'] + atr_buffer)
+            buffer_amt = float(adaptive_offset)
+            print(f"[DEBUG] Buffer for {order_id}: {buffer_amt:.2f} | price {current_price:.2f} vs peak {trade['trail_peak']:.2f}")
 
-            print(f"[DEBUG] ATR trail for {order_id}: buffer {atr_buffer:.2f} | stop {trail_stop:.2f} | price {current_price:.2f}")
+            # Keep live buffer synced to Firebase (mirror only)
             try:
                 firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}").update({
-                    "trail_stop_price": trail_stop,
-                    "trail_offset": atr_buffer  # mirror for visibility
+                    "trail_offset": buffer_amt
                 })
-                trade["trail_stop_price"] = trail_stop
-                trade["trail_offset"] = atr_buffer
+                trade["trail_offset"] = buffer_amt
             except Exception:
                 pass
 
-            # Exit if price crosses the ATR trail
-            if (direction == 1 and current_price <= trail_stop) or (direction == -1 and current_price >= trail_stop):
-                print(f"[INFO] ATR Trailing EXIT condition met for {order_id}")
-                exit_trigger = True
+            exit_trigger = (
+                (direction == 1 and current_price <= trade['trail_peak'] - buffer_amt) or
+                (direction == -1 and current_price >= trade['trail_peak'] + buffer_amt)
+            )
+            if exit_trigger:
+                print(f"[INFO] Trailing TP EXIT condition met for {order_id}")
 
-        # ---- If any exit condition is true, place exit (FIFO path unchanged)
-        if exit_trigger:
-            # ---- Claim to avoid duplicate exits ----
-            node_ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
-            try:
-                current = node_ref.get() or {}
-                if current.get("exit_pending"):
-                    print(f"⏭️ {order_id} already claimed (exit_pending). Skipping duplicate exit.")
+                # ---- Claim to avoid duplicate exits ----
+                node_ref = firebase_db.reference(f"/open_active_trades/{symbol}/{order_id}")
+                try:
+                    current = node_ref.get() or {}
+                    if current.get("exit_pending"):
+                        print(f"⏭️ {order_id} already claimed (exit_pending). Skipping duplicate exit.")
+                        continue
+                    node_ref.update({"exit_pending": True})
+                    trade["exit_pending"] = True
+                except Exception as e:
+                    print(f"❌ Failed to claim {order_id} (set exit_pending): {e}")
                     continue
-                node_ref.update({"exit_pending": True})
-                trade["exit_pending"] = True
-            except Exception as e:
-                print(f"❌ Failed to claim {order_id} (set exit_pending): {e}")
-                continue
 
-            # ---- Place exit ----
-            try:
-                exit_side = 'SELL' if (trade.get('action') or '').upper() == 'BUY' else 'BUY'
-                result = place_exit_trade(symbol, exit_side, 1, firebase_db)
+                # ---- Place exit ----
+                try:
+                    exit_side = 'SELL' if (trade.get('action') or '').upper() == 'BUY' else 'BUY'
+                    result = place_exit_trade(symbol, exit_side, 1, firebase_db)
 
-                if result.get("status") == "SUCCESS":
-                    print(f"📤 Exit order placed successfully for {order_id}")
-                    raw_ts = result.get("transaction_time")
-                    if isinstance(raw_ts, (int, float)):
-                        tx_iso = datetime.fromtimestamp(raw_ts/1000, tz=dt_timezone.utc).isoformat().replace("+00:00","Z")
+                    if result.get("status") == "SUCCESS":
+                        print(f"📤 Exit order placed successfully for {order_id}")
+                        raw_ts = result.get("transaction_time")
+                        if isinstance(raw_ts, (int, float)):
+                            tx_iso = datetime.fromtimestamp(raw_ts/1000, tz=dt_timezone.utc).isoformat().replace("+00:00","Z")
+                        else:
+                            tx_iso = normalize_to_utc_iso(raw_ts or datetime.utcnow().isoformat())
+
+                        tx_dict = {
+                            "status": result.get("status", "SUCCESS"),
+                            "order_id": str(result.get("order_id", "")),
+                            "trade_type": result.get("trade_type", "EXIT"),
+                            "symbol": symbol,
+                            "action": result.get("action", exit_side),
+                            "quantity": result.get("quantity", 1),
+                            "filled_price": result.get("filled_price"),
+                            "transaction_time": tx_iso,
+                            "fill_time": tx_iso
+                        }
+
+                        tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
+                        try:
+                            tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
+                        except Exception as e2:
+                            print(f"❌ Failed to enqueue exit ticket {tx_dict.get('order_id')}: {e2}")
+                            try:
+                                node_ref.update({"exit_pending": False})
+                                trade["exit_pending"] = False
+                            except Exception:
+                                pass
+                        else:
+                            print(f"[INFO] Exit ticket enqueued (not processed here): {tx_dict['order_id']}")
                     else:
-                        tx_iso = normalize_to_utc_iso(raw_ts or datetime.utcnow().isoformat())
-
-                    tx_dict = {
-                        "status": result.get("status", "SUCCESS"),
-                        "order_id": str(result.get("order_id", "")),
-                        "trade_type": result.get("trade_type", "EXIT"),
-                        "symbol": symbol,
-                        "action": result.get("action", exit_side),
-                        "quantity": result.get("quantity", 1),
-                        "filled_price": result.get("filled_price"),
-                        "transaction_time": tx_iso,
-                        "fill_time": tx_iso
-                    }
-
-                    tickets_ref = firebase_db.reference(f"/exit_orders_log/{symbol}")
-                    try:
-                        tickets_ref.child(tx_dict["order_id"]).set({**tx_dict, "_processed": False})
-                    except Exception as e2:
-                        print(f"❌ Failed to enqueue exit ticket {tx_dict.get('order_id')}: {e2}")
+                        print(f"❌ Exit order failed for {order_id}: {result}")
                         try:
                             node_ref.update({"exit_pending": False})
                             trade["exit_pending"] = False
                         except Exception:
                             pass
-                    else:
-                        print(f"[INFO] Exit ticket enqueued (not processed here): {tx_dict['order_id']}")
-                else:
-                    print(f"❌ Exit order failed for {order_id}: {result}")
+
+                except Exception as e:
+                    print(f"❌ Exception placing exit for {order_id}: {e}")
                     try:
                         node_ref.update({"exit_pending": False})
                         trade["exit_pending"] = False
                     except Exception:
                         pass
-
-            except Exception as e:
-                print(f"❌ Exception placing exit for {order_id}: {e}")
-                try:
-                    node_ref.update({"exit_pending": False})
-                    trade["exit_pending"] = False
-                except Exception:
-                    pass
 
         # Write back in-place
         active_trades[i] = trade
