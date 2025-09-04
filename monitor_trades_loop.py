@@ -43,7 +43,8 @@ firebase_db = db
 
 
 #################### ALL HELPERS FOR THIS SCRIPT ####################
-
+# === TRAILING/ATR master switch ===
+TRAILING_ENABLED = False  # False = ignore trailing/ATR exits; rely on TradingView FLATTEN only
 
 # =====================================================================================
 # 🟩 HELPER: trigger & Offset ATR - Lightweight ATR proxy state (EMA of tick ranges)
@@ -917,11 +918,16 @@ def monitor_trades():
         if active_trades:
             if not ag_enabled:
                 # 🚪 AnchorGate OFF → plain, reliable FIFO path for this symbol
-                try:
-                    active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points)
-                except Exception as e:
-                    print(f"[{symbol}] ❌ FIFO process_trailing_tp_and_exits error: {e}")
+                if TRAILING_ENABLED:
+                    try:
+                        active_trades = process_trailing_tp_and_exits(active_trades, prices, trigger_points, offset_points)
+                    except Exception as e:
+                        print(f"[{symbol}] ❌ FIFO process_trailing_tp_and_exits error: {e}")
+                else:
+                    print(f"[{symbol}] [TRAIL] disabled — skipping trailing/ATR exits (FIFO)")
             else:
+                # (keep your existing AnchorGate-ON branch as-is)
+  
                 # =========================
                 # 🟩 ANCHOR GATE – Sticky unlock (+config)  🟩
                 # =========================
@@ -1022,10 +1028,13 @@ def monitor_trades():
                 gated_trades = [t for t in active_trades if not (t.get("gate_state") == "PARKED" and t.get("skip_tp_trailing"))]
                 print(f"[{symbol}] [DEBUG] Processing {len(gated_trades)} trades post AnchorGate")
 
-                try:
-                    active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
-                except Exception as e:
-                    print(f"[{symbol}] ❌ process_trailing_tp_and_exits error: {e}")
+                if TRAILING_ENABLED:
+                    try:
+                        active_trades = process_trailing_tp_and_exits(gated_trades, prices, trigger_points, offset_points)
+                    except Exception as e:
+                        print(f"[{symbol}] ❌ process_trailing_tp_and_exits error: {e}")
+                else:
+                    print(f"[{symbol}] [TRAIL] disabled — skipping trailing/ATR exits (AnchorGate)")
         # =========================  END EXIT PROCESSING  =========================
 
         # Track anchors closed in this loop so they cannot be written back
