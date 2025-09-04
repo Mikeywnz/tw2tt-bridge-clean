@@ -472,18 +472,19 @@ async def webhook(request: Request):
 
     # --- Plain FLATTEN (no reverse entry) ---
     if action == "FLATTEN":
-        # quantity is optional for FLATTEN: None/0 ⇒ close ALL; positive int ⇒ close up to that many
         q_req = 0 if (quantity is None) else int(quantity)
         cur   = net_position(firebase_db, request_symbol)
-
         if cur == 0:
             return JSONResponse({"status": "already_flat"}, status_code=200)
 
-        # decide exit side from current net
         exit_side = "SELL" if cur > 0 else "BUY"
         to_close  = abs(cur) if q_req <= 0 else min(abs(cur), q_req)
 
         print(f"🧹 FLATTEN: net={cur}, closing {to_close} via {exit_side}")
+
+        # NEW: normalize exit reason from alert (MACD / EMA20 / MANUAL)
+        raw_reason  = str(data.get("reason") or "").upper()
+        exit_reason = "MACD" if raw_reason == "MACD" else ("EMA20" if raw_reason == "EMA20" else ("MANUAL" if raw_reason == "MANUAL" else ""))
 
         for _ in range(to_close):
             r = place_exit_trade(request_symbol, exit_side, 1, firebase_db)
@@ -496,16 +497,15 @@ async def webhook(request: Request):
                 "order_id": str(r.get("order_id","")).strip(),
                 "trade_type": "EXIT",
                 "symbol": request_symbol,
-                "action": exit_side,                    # SELL closes longs / BUY covers shorts
+                "action": exit_side,
                 "quantity": 1,
                 "filled_price": r.get("filled_price"),
-                "transaction_time": normalize_to_utc_iso(
-                    r.get("transaction_time") or dt.datetime.utcnow().isoformat()
-                ),
+                "transaction_time": normalize_to_utc_iso(r.get("transaction_time") or dt.datetime.utcnow().isoformat()),
                 "source": (data.get("source") or "tradingview"),
+                "exit_reason": exit_reason,  # ← NEW
             }
             try:
-                handle_exit_fill_from_tx(firebase_db, tx)   # same FIFO/Sheets path
+                handle_exit_fill_from_tx(firebase_db, tx)
             except Exception as e:
                 print(f"[WARN] FIFO close in app.py failed softly: {e}")
 

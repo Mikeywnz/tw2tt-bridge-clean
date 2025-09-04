@@ -274,7 +274,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         "trade_state": "closed",
         "contracts_remaining": 0,
         "exit_timestamp": exit_time,
-        "exit_reason": "FILLED",
+        "exit_reason": exit_reason, 
         "realized_pnl": round(pnl, 2),            # dollars
         "tiger_commissions": commission,
         "net_pnl": round(pnl - commission, 2),    # dollars
@@ -331,10 +331,19 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         dur_secs = int(abs((exit_utc - entry_utc).total_seconds()))
         time_in_trade = hhmmss(dur_secs)
 
-        # Flip / labels
+        # Exit / labels
         is_liq = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
-        flip_str = "Liquidation" if is_liq else ("Yes" if (str(tx_dict.get("trade_type","")).startswith("FLATTENING_")) else "No")
+
+        raw_reason = (tx_dict.get("exit_reason") or "").upper()  # "MACD" | "EMA20" | ...
+        if is_liq:
+            exit_reason = "LIQUIDATION"
+        elif tx_dict.get("trade_type") == "MANUAL_EXIT":
+            exit_reason = "MANUAL"
+        elif raw_reason in ("MACD","EMA20"):
+            exit_reason = raw_reason
+        else:
+            exit_reason = ""  # or "UNKNOWN"
 
         realized_pnl_fb = float(update["realized_pnl"])
         commission_amt  = commission_for(symbol)
@@ -369,7 +378,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             exit_time_txt,          # Exit Time TEXT
             time_in_trade,          # Duration HH:MM:SS
             trade_type_str.title(), # Long/Short
-            flip_str,               # Flip?
+            exit_reason,            # Exit Reason?
             entry_px,               # Entry Price
             exit_px,                # Exit Price
             trail_trig,
