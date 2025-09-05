@@ -266,6 +266,19 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
 
     print(f"[INFO] P&L for {anchor_oid} via exit {exit_oid}: {pnl:.2f}  "
           f"(points={pnl_points:.4f}, $/pt={per_point})")
+    
+    # 4b) Decide exit_reason before building update
+    is_liq   = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
+    raw_exit = (tx_dict.get("exit_reason") or "").upper()
+
+    if is_liq:
+        exit_reason = "LIQUIDATION"
+    elif tx_dict.get("trade_type") == "MANUAL_EXIT":
+        exit_reason = "MANUAL"
+    elif raw_exit in ("MACD", "EMA20"):
+        exit_reason = raw_exit
+    else:
+        exit_reason = "FIFO Close"
 
     # 5) Close anchor (sticky entry_timestamp preserved)
     commission = commission_for(symbol)
@@ -306,7 +319,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
-    #=========================================================================================
+     #=========================================================================================
     # 8) Google Sheets logging (UTC→NZ, force TEXT so Sheets can't mangle TZ)
     #=========================================================================================
     try:
@@ -332,18 +345,9 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
         time_in_trade = hhmmss(dur_secs)
 
         # Exit / labels
-        is_liq = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
         trade_type_str = "LONG" if (anchor.get("action","").upper() == "BUY") else "SHORT"
-
-        raw_reason = (tx_dict.get("exit_reason") or "").upper()  # "MACD" | "EMA20" | ...
-        if is_liq:
-            exit_reason = "LIQUIDATION"
-        elif tx_dict.get("trade_type") == "MANUAL_EXIT":
-            exit_reason = "MANUAL"
-        elif raw_reason in ("MACD","EMA20"):
-            exit_reason = raw_reason
-        else:
-            exit_reason = ""  # or "UNKNOWN"
+        is_liq = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
+        # NOTE: exit_reason is already decided earlier (section 4b). Do NOT recompute here.
 
         realized_pnl_fb = float(update["realized_pnl"])
         commission_amt  = commission_for(symbol)
@@ -378,7 +382,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             exit_time_txt,          # Exit Time TEXT
             time_in_trade,          # Duration HH:MM:SS
             trade_type_str.title(), # Long/Short
-            exit_reason,            # Exit Reason?
+            exit_reason,            # Exit Reason (from section 4b)
             entry_px,               # Entry Price
             exit_px,                # Exit Price
             trail_trig,
