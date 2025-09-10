@@ -319,7 +319,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     except Exception as e:
         print(f"⚠️ Failed to mark exit ticket handled for {exit_oid}: {e}")
 
-     #=========================================================================================
+    #=========================================================================================
     # 8) Google Sheets logging (UTC→NZ, force TEXT so Sheets can't mangle TZ)
     #=========================================================================================
     try:
@@ -375,6 +375,10 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             else ("MANUAL" if (tx_dict.get("trade_type") == "MANUAL_EXIT" or ticket_src.lower() == "desktop-mac") else "")
         )
 
+        # ONLY ADD: entry_reason (no other changes)
+        entry_reason = str((anchor.get("entry_reason") or anchor.get("entryType") or
+                            tx_dict.get("entry_reason") or tx_dict.get("entryType") or "")).strip()
+
         row = [
             symbol,                 # Instrument
             day_date_txt,           # Day Date (NZ)   — forced TEXT
@@ -382,6 +386,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             exit_time_txt,          # Exit Time TEXT
             time_in_trade,          # Duration HH:MM:SS
             trade_type_str.title(), # Long/Short
+            entry_reason,           # NEW — from entry alert's entryType
             exit_reason,            # Exit Reason (from section 4b)
             entry_px,               # Entry Price
             exit_px,                # Exit Price
@@ -406,6 +411,8 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
             "entry_nz_txt": entry_time_txt,
             "exit_nz_txt":  exit_time_txt,
             "duration":     time_in_trade,
+            "entry_reason": entry_reason,   # NEW
+            "exit_reason":  exit_reason,    # existing
             "pnl":          realized_pnl_fb,
             "commission":   commission_amt,
             "net":          round(net_fb, 2),
