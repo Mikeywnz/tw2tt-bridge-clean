@@ -86,7 +86,7 @@ def point_value_for(symbol: str) -> float:
         "MGC": 10.0,  # Micro Gold: $10 per 1.0 (tick 0.1 = $1)
         "MES":  5.0,  # Micro S&P 500: $5 per 1.0 (tick 0.25 = $1.25)
         "MNQ":  2.0,  # Micro Nasdaq (example)
-        "MCL": 10.0,  # Micro Crude: $10 per 1.0 (tick 0.01 = $0.10)
+        "MCL": 100.0,  # Micro Crude: $1.00 per 0.01 (tick 0.01 = $1.00)
     }.get(sym3, 1.0)
 
 # ====================================================
