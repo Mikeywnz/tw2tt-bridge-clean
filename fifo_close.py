@@ -269,7 +269,7 @@ def handle_exit_fill_from_tx(firebase_db, tx_dict):
     
     # 4b) Decide exit_reason before building update
     is_liq   = (tx_dict.get("trade_type") == "LIQUIDATION" or tx_dict.get("status") == "LIQUIDATION")
-    raw_exit = (tx_dict.get("exit_reason") or "").upper()
+    raw_exit = (tx_dict.get("exit_reason") or tx_dict.get("reason") or "").upper()
 
     if is_liq:
         exit_reason = "LIQUIDATION"

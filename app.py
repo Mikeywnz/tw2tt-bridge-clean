@@ -623,6 +623,7 @@ async def webhook(request: Request):
         "filled_price": filled_price or 0.0,
         "action": action,
         "trade_type": trade_type,
+        "entry_reason": data.get("entryType", ""),   # 👈 add this line
         "status": "FILLED",
         "contracts_remaining": data.get("contracts_remaining", quantity or 1),
         "trail_mode": "FALLBACK",
